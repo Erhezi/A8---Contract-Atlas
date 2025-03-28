@@ -28,7 +28,7 @@ def get_file_headers(file_path):
 def validate_file(df, column_mapping):
     """
     Validate the file contents against the required fields
-    Returns: (valid_df, error_df, has_errors)
+    Returns: (result_df, error_df, has_errors)
     """
     # Required fields (all required except 'Buyer Part Num')
     required_fields = [
@@ -44,87 +44,81 @@ def validate_file(df, column_mapping):
     for std_field, user_field in column_mapping.items():
         if user_field in mapped_df.columns:
             mapped_df.rename(columns={user_field: std_field}, inplace=True)
+        if 'Buyer Part Num' not in mapped_df.columns:
+            mapped_df.loc[:, 'Buyer Part Num'] = ''
+
+    # making a reduced form of Mfg Part Num, so leading zeros and dash are removed from the Mfg Part Num
+    def reduce_mfg_part_num(mfg_part_num):
+        if pd.isnull(mfg_part_num) or mfg_part_num.strip() == '':
+            return np.nan
+        mfg_part_num = mfg_part_num.strip().replace('-', '').strip()
+        if mfg_part_num.isdigit():
+            return str(int(mfg_part_num))
+        return mfg_part_num
+    
+    # adding two more columns for later use 'Original UOM' and 'Reduced Mfg Part Num'
+    mapped_df['Original UOM'] = mapped_df['UOM'].apply(lambda x: x.strip().upper())
+    mapped_df['Reduced Mfg Part Num'] = mapped_df['Mfg Part Num'].apply(lambda x: reduce_mfg_part_num(x))
     
     # Select only the required and error columns
-    result_df = pd.DataFrame()
-    for field in required_fields[:2] + ['Buyer Part Num'] + required_fields[2:]:
-        if field in mapped_df.columns:
-            result_df[field] = mapped_df[field]
-        elif field != 'Buyer Part Num':  # Buyer Part Num is optional
-            # Missing required column
-            return None, None, f"Required field '{field}' is not mapped"
+    missing_fields = []
+    for field in required_fields:
+        if field not in mapped_df.columns:
+            missing_fields.append(field)
+    if missing_fields != []:
+        return None, None, f"Required field(s) {', '.join(missing_fields)} not found"
     
     # Create a copy for validation and error marking
+    result_df = mapped_df[required_fields[:2] + ['Buyer Part Num'] + required_fields[2:] + ['Reduced Mfg Part Num', 'Original UOM']].copy()
     error_df = result_df.copy()
     
     # Add error columns
     error_df['Error-Missing Field'] = ''
-    error_df['Error-Date'] = ''
+    error_df['Error-Invalid Date'] = ''
     error_df['Error-Invalid Price'] = ''
     error_df['Error-Invalid QOE'] = ''
+    error_df['Error-Invalid UOM'] = ''
+    error_df['Error-EA QOE NOT 1'] = ''
     error_df['Has Error'] = False
     
-    # 1.2.1 Check for missing required fields
+    # 1.2.1 Validate all requried fields has value
     for field in required_fields:
-        if field == 'Buyer Part Num':
-            continue  # Skip optional field
-            
-        # Mark rows where the field is empty
-        error_df.loc[error_df[field].isna() | (error_df[field].str.strip() == ''), 'Error-Missing Field'] = 'Missing Data'
-        error_df.loc[error_df[field].isna() | (error_df[field].str.strip() == ''), 'Has Error'] = True
-    
+        missing_mask = error_df[field].isna() | (error_df[field].str.strip() == '')
+        error_df.loc[missing_mask, 'Error-Missing Field'] = 'Missing Data'
+        error_df.loc[missing_mask, 'Has Error'] = True
+
     # 1.2.2 Validate date fields
     today_dt = datetime.now().date()
-    today = today_dt.strftime('%Y-%m-%d')
-    
-    # Function to convert string to date safely
-    # the input data usually follows 'YYYY-MM-DD' OR 'MM/DD/YYYY'
-    def parse_date(date_str):
-        if pd.isna(date_str) or date_str.strip() == '':
-            return None
-        
-        # Try various date formats
-        for fmt in ['%Y-%m-%d', '%m/%d/%Y']:
-            try:
-                # Return as string, not datetime object
-                return datetime.strptime(date_str, fmt).date().strftime('%Y-%m-%d')
-            except ValueError:
-                pass
-        return None
-    
-    # After parsing dates but before comparing them:
-    def string_to_date(date_str):
-        if pd.isna(date_str):
-            return None
-        try:
-            return datetime.strptime(date_str, '%Y-%m-%d').date()
-        except:
-            return None
-        
-    # Parse the date columns
-    # Create new columns for parsed dates
-    error_df['Effective_Date_Parsed'] = error_df['Effective Date'].apply(parse_date)
-    error_df['Expiration_Date_Parsed'] = error_df['Expiration Date'].apply(parse_date)    
-    
-    # Convert string dates to actual date objects for comparison
-    error_df['Effective_Date_Dt'] = error_df['Effective_Date_Parsed'].apply(string_to_date)
-    error_df['Expiration_Date_Dt'] = error_df['Expiration_Date_Parsed'].apply(string_to_date)
 
-    # Use these for comparisons
+    # Convert date strings to datetime objects, invalid dates become NaT
+    error_df['Effective_Date_Dt'] = pd.to_datetime(error_df['Effective Date'], errors='coerce')
+    error_df['Expiration_Date_Dt'] = pd.to_datetime(error_df['Expiration Date'], errors='coerce')
+
+    # Create YYYY-MM-DD string versions for the output
+    error_df['Effective Date'] = error_df['Effective_Date_Dt'].dt.strftime('%Y-%m-%d')
+    error_df['Expiration Date'] = error_df['Expiration_Date_Dt'].dt.strftime('%Y-%m-%d')
+
+    # Mark rows with unparseable dates
+    error_df.loc[error_df['Effective_Date_Dt'].isna() & ~(error_df['Effective Date'].isna() | (error_df['Effective Date'].str.strip() == '')), 'Error-Date'] = 'Invalid Effective Date format'
+    error_df.loc[error_df['Effective_Date_Dt'].isna() & ~(error_df['Effective Date'].isna() | (error_df['Effective Date'].str.strip() == '')), 'Has Error'] = True
+
+    error_df.loc[error_df['Expiration_Date_Dt'].isna() & ~(error_df['Expiration Date'].isna() | (error_df['Expiration Date'].str.strip() == '')), 'Error-Date'] = 'Invalid Expiration Date format'
+    error_df.loc[error_df['Expiration_Date_Dt'].isna() & ~(error_df['Expiration Date'].isna() | (error_df['Expiration Date'].str.strip() == '')), 'Has Error'] = True
+
+    # Skip validation for already marked error rows
     valid_dates_mask = (~error_df['Effective_Date_Dt'].isna()) & (~error_df['Expiration_Date_Dt'].isna())
 
-    # Compare date objects, not strings
-    error_df.loc[valid_dates_mask & (error_df['Effective_Date_Dt'] < today_dt), 'Error-Date'] = 'Effective Date must be >= today'
-    error_df.loc[valid_dates_mask & (error_df['Effective_Date_Dt'] < today_dt), 'Has Error'] = True
+    # # Validate effective date >= today
+    # invalid_eff_mask = valid_dates_mask & (error_df['Effective_Date_Dt'].dt.date < today_dt)
+    # error_df.loc[invalid_eff_mask, 'Error-Invalid Date'] = 'Effective Date must be >= today'
+    # error_df.loc[invalid_eff_mask, 'Has Error'] = True
 
-    
-    # Expiration date should be >= today and >= effective date
-    # For expiration date
+    # Validate expiration date >= today and >= effective date
     invalid_exp_mask = valid_dates_mask & (
-        (error_df['Expiration_Date_Dt'] < today_dt) | 
+        (error_df['Expiration_Date_Dt'].dt.date < today_dt) | 
         (error_df['Expiration_Date_Dt'] < error_df['Effective_Date_Dt'])
     )
-    error_df.loc[invalid_exp_mask, 'Error-Date'] = 'Expiration Date must be >= Effective Date and today'
+    error_df.loc[invalid_exp_mask, 'Error-Invalid Date'] = 'Expiration Date must be >= Effective Date and today'
     error_df.loc[invalid_exp_mask, 'Has Error'] = True
     
     # 1.2.3 Validate Contract Price
@@ -155,11 +149,50 @@ def validate_file(df, column_mapping):
     error_df.loc[error_df['QOE_Parsed'].isna(), 'Error-Invalid QOE'] = 'QOE not Recognized'
     error_df.loc[error_df['QOE_Parsed'].isna(), 'Has Error'] = True
     
+    # 1.2.5 Validate UOM (Units of Measure)
+    # First, save the original UOM values before converting to uppercase
+    error_df['Original UOM'] = error_df['UOM'].apply(lambda x: np.nan if pd.isnull(x) else x.strip().upper())
+    
+    # Load the UOM mapping file
+    try:
+        uom_file_path = os.path.join(current_app.root_path, 'preprocessorEC', 'data', 'UOM.csv')
+        uom_df = pd.read_csv(uom_file_path)
+        
+        # Create UOM dictionary mapping from "see UOM" to "use UOM"
+        uom_dict = dict(zip(uom_df['see UOM'].str.upper(), uom_df['use UOM']))
+        
+        # Check if UOM values exist in the dictionary
+        invalid_uom_mask = ~error_df['Original UOM'].isin(uom_dict.keys())
+        
+        # Mark rows with invalid UOM values
+        error_df.loc[invalid_uom_mask, 'Error-Invalid UOM'] = 'UOM not recognized'
+        error_df.loc[invalid_uom_mask, 'Has Error'] = True
+        
+        # For valid UOMs, map to the standardized value
+        valid_uom_mask = ~invalid_uom_mask
+        error_df.loc[valid_uom_mask, 'UOM'] = error_df.loc[valid_uom_mask, 'Original UOM'].map(uom_dict)
+        
+        # Set invalid UOMs to NaN
+        error_df.loc[invalid_uom_mask, 'UOM'] = np.nan
+        
+    except Exception as e:
+        print(f"Error loading or processing UOM file: {str(e)}")
+        # If there's an error with the UOM file, we don't fail the whole validation
+        # Just log the error and continue with other validations
+    
+    # 1.2.6 Validate UOM-QOE Compatibility
+    # when UOM == 'EA', QOE should be 1
+    error_df.loc[(error_df['UOM'] == 'EA') & (error_df['QOE_Parsed'] != 1), 'Error-EA QOE NOT 1'] = 'QOE must be 1 for UOM EA'
+    error_df.loc[(error_df['UOM'] == 'EA') & (error_df['QOE_Parsed'] != 1), 'Has Error'] = True
+    
     # Drop temporary columns used for validation
-    # Don't forget to drop these new columns too
-    error_df.drop(['Effective_Date_Parsed', 'Expiration_Date_Parsed', 
-               'Effective_Date_Dt', 'Expiration_Date_Dt', 
-               'Price_Parsed', 'QOE_Parsed'], axis=1, inplace=True)
+    temp_columns = ['Effective_Date_Dt', 'Expiration_Date_Dt', 
+                   'Price_Parsed', 'QOE_Parsed']
+    
+    # Only drop columns that exist in the dataframe
+    columns_to_drop = [col for col in temp_columns if col in error_df.columns]
+    if columns_to_drop:
+        error_df.drop(columns_to_drop, axis=1, inplace=True)
     
     # Check if there are any errors
     has_errors = error_df['Has Error'].any()

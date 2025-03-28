@@ -19,7 +19,6 @@ def load_user(user_id):
 
 # Register blueprints
 app.register_blueprint(auth_blueprint)
-app.register_blueprint(main_blueprint)
 
 # Step validation functions
 def validate_step_progress(requested_step):
@@ -59,9 +58,63 @@ def mark_step_complete(step_id):
         
     return session['current_step_id']
 
+def get_current_step():
+    """Get the current step object"""
+    workflow_steps = [
+        {'id': 1, 'name': 'Pre-Checking'},
+        {'id': 2, 'name': 'Duplication Overview'},
+        {'id': 3, 'name': 'Duplication Resolution'},
+        {'id': 4, 'name': 'Item Master Matching'},
+        {'id': 5, 'name': 'Change Simulation'},
+        {'id': 6, 'name': 'Export Changes'},
+        {'id': 7, 'name': 'Synchronization Inspection'},
+        {'id': 8, 'name': 'Completion Verified'}
+    ]
+    
+    current_step_id = session.get('current_step_id', 1)
+    return next((step for step in workflow_steps if step['id'] == current_step_id), workflow_steps[0])
+
+def get_all_steps():
+    """Get all steps with their status"""
+    workflow_steps = [
+        {'id': 1, 'name': 'Pre-Checking'},
+        {'id': 2, 'name': 'Duplication Overview'},
+        {'id': 3, 'name': 'Duplication Resolution'},
+        {'id': 4, 'name': 'Item Master Matching'},
+        {'id': 5, 'name': 'Change Simulation'},
+        {'id': 6, 'name': 'Export Changes'},
+        {'id': 7, 'name': 'Synchronization Inspection'},
+        {'id': 8, 'name': 'Completion Verified'}
+    ]
+    
+    current_step_id = session.get('current_step_id', 1)
+    completed_steps = session.get('completed_steps', [])
+    
+    # Add status to each step
+    for step in workflow_steps:
+        if step['id'] in completed_steps:
+            step['status'] = 'completed'
+        elif step['id'] == current_step_id:
+            step['status'] = 'current'
+        else:
+            step['status'] = 'future'
+    
+    return workflow_steps
+
 # Register validators with the app context
 app.jinja_env.globals.update(validate_step_progress=validate_step_progress)
 app.jinja_env.globals.update(mark_step_complete=mark_step_complete)
+app.jinja_env.globals.update(get_current_step=get_current_step)
+app.jinja_env.globals.update(get_all_steps=get_all_steps)
+
+# Make the functions available to the app object directly
+app.validate_step_progress = validate_step_progress
+app.mark_step_complete = mark_step_complete
+app.get_current_step = get_current_step  # Add this line
+app.get_all_steps = get_all_steps  # Add this line
+
+app.register_blueprint(main_blueprint)
+
 
 @app.context_processor
 def inject_workflow_steps():

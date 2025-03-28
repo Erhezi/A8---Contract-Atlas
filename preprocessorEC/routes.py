@@ -5,8 +5,25 @@ import pandas as pd
 from utils import validate_file
 import os
 import time
+import pyodbc
+import json
 
 main_blueprint = Blueprint('main', __name__, template_folder='templates')
+
+def get_db_connection():
+    """Establish a connection to SQL Server using Windows authentication"""
+    try:
+        # Connection string for Windows authentication
+        conn = pyodbc.connect(
+            'DRIVER={ODBC Driver 17 for SQL Server};'
+            'SERVER=MISCPrdAdhocDB;'  # Replace with your actual SQL Server name
+            'DATABASE=PRIME;'  # Replace with your database name
+            'Trusted_Connection=yes;'
+        )
+        return conn
+    except Exception as e:
+        print(f"Database connection error: {str(e)}")
+        return None
 
 @main_blueprint.route('/')
 def home():
@@ -28,7 +45,11 @@ def dashboard():
         session['completed_steps'] = []
         flash('Starting a new process', 'info')
     
-    return render_template('dashboard.html')
+    # Get current step and all steps
+    current_step = current_app.get_current_step()
+    all_steps = current_app.get_all_steps()
+    
+    return render_template('dashboard.html', current_step=current_step, steps=all_steps)
 
 @main_blueprint.route('/step/<int:step_id>')
 @login_required
@@ -61,23 +82,76 @@ def process_step(step_id):
     
     try:
         if step_id == 1:
-            # Pre-checking logic
-            if 'file' not in request.files:
-                raise ValueError("No file uploaded")
+            # Step 1: File validation
+            # Check if we have validated data in the session
+            if 'validated_data' not in session or 'column_mapping' not in session:
+                raise ValueError("File validation incomplete. Please upload and validate a file first.")
             
-            file = request.files['file']
-            if file.filename == '':
-                raise ValueError("No file selected")
-                
-            # Process the file (dummy implementation)
-            time.sleep(1)  # Simulate processing time
-            success = True
+            # Get validated data from session
+            validated_data = session.get('validated_data')
+            
+            # If we have validated data, then the file has been processed successfully
+            if validated_data:
+                success = True
+                flash("File validated successfully!", "success")
+            else:
+                raise ValueError("File validation failed or no validated data available.")
             
         elif step_id == 2:
             # Duplication overview logic
-            # In a real app, you'd process form data here
-            time.sleep(1)  # Simulate processing time
-            success = True
+            if 'validated_data' not in session:
+                raise ValueError("No validated data available. Please complete Step 1 first.")
+            
+            # Convert validated data from session back to dataframe
+            validated_df = pd.DataFrame.from_dict(session['validated_data'])
+            
+            # Get column mapping from session
+            column_mapping = session.get('column_mapping', {})
+            
+            # Check for duplicates based on key fields
+            # Typically, duplicates would be identified based on vendor part number, manufacturer part number, contract number
+            duplicate_keys = ['Mfg Part Num', 'Vendor Part Num', 'Contract Number']
+            
+            # Map the duplicate keys to the actual column names in the dataframe
+            mapped_dup_keys = [column_mapping[key] for key in duplicate_keys if key in column_mapping]
+            
+            if not mapped_dup_keys:
+                raise ValueError("Required fields for duplication check not found in column mapping")
+            
+            # Find duplicates
+            duplicates = validated_df.duplicated(subset=mapped_dup_keys, keep=False)
+            
+            if duplicates.any():
+                # Get duplicate records
+                duplicate_df = validated_df[duplicates].copy()
+                
+                # Add a row index for reference (Excel-style row numbering)
+                duplicate_df['Excel Row'] = duplicate_df.index + 2  # +2 for header row + 1-based indexing
+                
+                # Reorder columns for better visibility
+                cols = ['Excel Row'] + [col for col in duplicate_df.columns if col != 'Excel Row']
+                duplicate_df = duplicate_df[cols]
+                
+                # Store duplicate info in session (for use in step 3)
+                session['duplicates'] = {
+                    'count': int(duplicates.sum()),
+                    'keys': duplicate_keys,
+                    'duplicate_indices': duplicates[duplicates].index.tolist()
+                }
+                
+                # Generate HTML table of duplicates for display
+                duplicate_table = duplicate_df.to_html(classes='table table-striped table-bordered', index=False)
+                session['duplicate_table'] = duplicate_table
+                
+                # We still consider this step successful as we've identified duplicates
+                success = True
+                flash(f"Found {duplicates.sum()} duplicate entries. Please review in Step 3.", "warning")
+            else:
+                # No duplicates found
+                session['duplicates'] = {'count': 0, 'keys': duplicate_keys, 'duplicate_indices': []}
+                session['duplicate_table'] = None
+                success = True
+                flash("No duplicates found in the data.", "success")
             
         elif step_id == 3:
             # Duplication resolution logic
@@ -350,3 +424,24 @@ def upload_file():
             return jsonify({'success': False, 'message': f'Error processing file: {str(e)}'})
     
     return jsonify({'success': False, 'message': 'File upload failed'})
+
+@main_blueprint.route('/get-duplicates', methods=['GET'])
+@login_required
+def get_duplicates():
+    """Return duplicate data for display in the UI"""
+    if 'duplicates' not in session or 'duplicate_table' not in session:
+        return jsonify({
+            'success': False,
+            'message': 'No duplicate data available. Please complete Step 2 first.'
+        })
+    
+    duplicates = session['duplicates']
+    duplicate_table = session['duplicate_table']
+    
+    return jsonify({
+        'success': True,
+        'count': duplicates['count'],
+        'keys': duplicates['keys'],
+        'table': duplicate_table
+    })
+
