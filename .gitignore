@@ -1,0 +1,27 @@
+# Ignore everything by default
+*
+*/**
+
+# Allow these specific directories and file types
+!preprocessorEC/
+!preprocessorEC/**/*.py
+!preprocessorEC/templates/
+!preprocessorEC/templates/**/*.html
+!.gitignore
+
+# Explicit ignores even if they match the patterns above
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+.env
+.venv
+*.log
+*.sqlite
+*.db
+temp_files/
+preprocessorEC/static/uploads/
