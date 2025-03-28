@@ -41,7 +41,7 @@
         <!-- Pre-Checking Content -->
         <div class="step-content">
             <h3>Step 1.1: Upload Contract Price File</h3>
-            <p>Upload your contract price file to begin the pre-checking process. Accepted formats: .xlsx, .csv</p>
+            <p>Upload your contract price file to begin the pre-checking process. Accepted formats: .xlsx, .csv. Click to download the <a href="{{ url_for('main.download_template') }}" class="template-link">template</a> if needed.</p>
             
             <div id="upload-container">
                 <form id="upload-form" enctype="multipart/form-data">
@@ -149,7 +149,27 @@
                         </div>
                     </div>
                     <p><small>* Required fields</small></p>
-                    <button type="submit" class="btn btn-primary btn-sm">Validate</button>
+                    <button type="submit" class="btn btn-primary mb-4">Validate</button>
+                    <div class="form-group mt-5" style="margin-top: 20px;">
+                        <label><strong>Duplicate Checking Mode:</strong></label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="duplicate_mode" id="defaultMode" value="default" 
+                                   {% if not session.get('duplicate_check_mode') or session.get('duplicate_check_mode') == 'default' %}checked{% endif %}>
+                            <label class="form-check-label" for="defaultMode">
+                                Default (Contract Number + Reduced Mfg Part Num)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="duplicate_mode" id="explicitMode" value="explicit"
+                                   {% if session.get('duplicate_check_mode') == 'explicit' %}checked{% endif %}>
+                            <label class="form-check-label" for="explicitMode">
+                                Explicit (Contract Number + Mfg Part Num + UOM)
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            Use explicit mode only after you have first reviewed all your potential duplicates and you are sure they should be identified by their explicit manufacturer part number and UOM.
+                        </small>
+                    </div>
                 </form>
             </div>
             
@@ -159,7 +179,9 @@
                 
                 <div id="error-display" style="display:none;">
                     <h4>Validation Errors</h4>
-                    <div id="error-table-container"></div>
+                    <div class="table-responsive-container">
+                        <div id="error-table-container"></div>
+                    </div>
                     <div class="button-group" style="margin-top: 15px;">
                         <a id="download-error-link" href="{{ url_for('main.download_error_file') }}" class="btn btn-warning">Download Error Report</a>
                         <a href="{{ url_for('main.dashboard', restart=1) }}" class="btn btn-secondary">Start Over</a>
@@ -354,7 +376,8 @@
                         if (data.success) {
                             // Now validate the file
                             return fetch('/validate-file', {
-                                method: 'POST'
+                                method: 'POST',
+                                body: formData
                             });
                         } else {
                             throw new Error(data.message);
@@ -380,6 +403,11 @@
                                 <div class="alert alert-danger">${data.message}</div>
                             `;
                             document.getElementById('error-table-container').innerHTML = data.error_table;
+                            const table = document.querySelector('#error-table-container table');
+                            if (table) {
+                                table.style.width = 'max-content';
+                                table.style.minwidth = '100%';
+                            }
                             document.getElementById('error-display').style.display = 'block';
                             document.getElementById('success-display').style.display = 'none';
                             
@@ -721,21 +749,20 @@
         color: #7f8c8d;
     }
 
-    /* Add this to your existing CSS */
-.row {
-    display: flex;
-    flex-wrap: wrap;
-    margin-right: -15px;
-    margin-left: -15px;
-}
+    .row {
+        display: flex;
+        flex-wrap: wrap;
+        margin-right: -15px;
+        margin-left: -15px;
+    }
 
-.col-md-6 {
-    flex: 0 0 50%;
-    max-width: 50%;
-    padding-right: 15px;
-    padding-left: 15px;
-    box-sizing: border-box;
-}
+    .col-md-6 {
+        flex: 0 0 50%;
+        max-width: 50%;
+        padding-right: 15px;
+        padding-left: 15px;
+        box-sizing: border-box;
+    }
 
 /* For mobile responsiveness */
 @media (max-width: 991px) {
@@ -783,5 +810,75 @@
         font-weight: normal;
         margin-left: 5px;
     }
+
+    .table-responsive-container {
+        max-height: 500px;
+        overflow-y: auto;
+        overflow-x: auto;
+        margin-bottom: 15px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        background-color: white;
+    }
+
+    .table-responsive-container table {
+        width: 100%;
+        margin-bottom: 0;
+        font-size: 0.85rem;
+    }
+
+    .table-responsive-container th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .table-responsive-container td, 
+    .table-responsive-container th {
+        white-space: nowrap;
+        padding: 6px 10px;
+        border: 1px solid #dee2e6;
+    }
+
+    .table-responsive-container tbody tr:nth-of-type(odd) {
+        background-color: rgba(0,0,0,.05);
+    }
+
+    .table-responsive-container tbody tr:hover {
+        background-color: rgba(0,0,0,.075);
+    }
+
+    .form-check-label {
+        font-size: 0.95rem; /* Smaller font size */
+    }
+
+    /* Control width of Description column specifically */
+    #error_table td:nth-child(5),
+    #error_table th:nth-child(5) {
+        max-width: 100px !important;
+        width: 100px !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+    
+    .table-responsive-container th {
+        text-align: center !important;
+    }
+
+    /* Template link styling */
+    .template-link {
+        color: #3498db;
+        font-weight: 500;
+        text-decoration: underline;
+    }
+    
+    .template-link:hover {
+        color: #2980b9;
+        text-decoration: underline;
+    }
+
 </style>
 {% endblock %}

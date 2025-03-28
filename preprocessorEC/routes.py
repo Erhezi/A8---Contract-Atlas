@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, send_from_directory, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, send_from_directory, jsonify, send_file
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -6,6 +6,7 @@ from utils import validate_file
 import os
 import time
 import pyodbc
+import re
 import json
 
 main_blueprint = Blueprint('main', __name__, template_folder='templates')
@@ -273,9 +274,13 @@ def validate_file_route():
             df = pd.read_csv(file_path, dtype=str)
         else:
             df = pd.read_excel(file_path, dtype=str)
+
+        # Get duplicate checking mode from session or form
+        duplicate_mode = request.form.get('duplicate_mode', session.get('duplicate_check_mode', 'default'))
+        session['duplicate_check_mode'] = duplicate_mode
         
         # Validate the file
-        valid_df, error_df, has_errors = validate_file(df, column_mapping)
+        valid_df, error_df, has_errors = validate_file(df, column_mapping, duplicate_mode)
         
         if isinstance(has_errors, str):
             # This means there was an error in the validation process
@@ -293,15 +298,19 @@ def validate_file_route():
             # First, get only the rows with errors
             error_rows = error_df[error_df['Has Error']].copy()
 
-            # Add a new column with adjusted row numbers (Excel style: adding 2 for header row + 1-based indexing)
-            error_rows['Excel Row'] = error_rows.index + 2  # +2 accounts for header row and 0-based to 1-based conversion
-
             # Move this new column to the front for better visibility
-            cols = ['Excel Row'] + [col for col in error_rows.columns if col != 'Excel Row']
+            cols = ['File Row'] + [col for col in error_rows.columns if col != 'File Row']
             error_rows = error_rows[cols]
 
             # Generate the HTML table
-            error_table = error_rows.to_html(classes='table table-striped table-bordered', index = False)
+            error_table = error_rows.to_html(classes='table table-striped table-bordered', index = False, table_id = 'error_table',
+                                             render_links = True, escape = False)
+            # Generate HTML table properly by stripping out pandas default attributes
+            html_content = error_rows.to_html(classes="", index=False, header=True)
+            # Replace the entire table tag, not just part of it
+            html_content = re.sub(r'<table[^>]*>', '', html_content)
+            html_content = html_content.replace('</table>', '')
+            error_table = f'<div class="table-responsive-container"><table id="error_table" class="table table-striped table-bordered">{html_content}</table></div>'
             
             return jsonify({
                 'success': False, 
@@ -321,6 +330,8 @@ def validate_file_route():
         
     except Exception as e:
         return jsonify({'success': False, 'message': f'Error validating file: {str(e)}'})
+
+
 
 @main_blueprint.route('/download-error-file')
 @login_required
@@ -425,6 +436,7 @@ def upload_file():
     
     return jsonify({'success': False, 'message': 'File upload failed'})
 
+
 @main_blueprint.route('/get-duplicates', methods=['GET'])
 @login_required
 def get_duplicates():
@@ -445,3 +457,32 @@ def get_duplicates():
         'table': duplicate_table
     })
 
+
+@main_blueprint.route('/download-template')
+def download_template():
+    """Download the upload template file"""
+    try:
+        # Use the same path structure as your UOM file in utils.py
+        template_path = os.path.join(current_app.root_path, 'data', 'upload_template.xlsx')
+        # Check if file exists
+        if not os.path.exists(template_path):
+            print(f"Template file not found at: {template_path}")
+            flash("Template file not found. Please contact the administrator.", "error")
+            return redirect(url_for('main.dashboard'))
+        
+        # Log that we found the file
+        print(f"Serving template from: {template_path}")
+        
+        # Return the file as a download attachment
+        return send_file(
+            template_path,
+            as_attachment=True,
+            download_name='contract_price_template.xlsx',
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        # Log the exception
+        print(f"Error downloading template: {str(e)}")
+        flash(f"Error downloading template: {str(e)}", "error")
+        return redirect(url_for('main.dashboard'))
