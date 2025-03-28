@@ -1,0 +1,71 @@
+{% extends 'layout.html' %}
+
+{% block title %}Home - Contract Atlas{% endblock %}
+
+{% block content %}
+<div class="welcome-section">
+    <h1>Welcome to Contract Atlas, {{ current_user.id }}</h1>
+    <p>Your intelligent contract management solution</p>
+</div>
+
+<div class="dashboard-options">
+    <div class="dashboard-card">
+        <h3>Process Contract</h3>
+        <p>Upload and process a new contract</p>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">Start New Process</a>
+    </div>
+    
+    <div class="dashboard-card">
+        <h3>View History</h3>
+        <p>Access your previously processed contracts</p>
+        <a href="#" class="btn btn-secondary">View History</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .welcome-section {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+    
+    .dashboard-options {
+        display: flex;
+        justify-content: space-between;
+        gap: 30px;
+    }
+    
+    .dashboard-card {
+        flex: 1;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 25px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .dashboard-card h3 {
+        margin-top: 0;
+        color: #2c3e50;
+    }
+    
+    .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: bold;
+        margin-top: 15px;
+    }
+    
+    .btn-primary {
+        background-color: #3498db;
+        color: white;
+    }
+    
+    .btn-secondary {
+        background-color: #95a5a6;
+        color: white;
+    }
+</style>
+{% endblock %}

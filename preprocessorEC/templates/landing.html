@@ -1,0 +1,60 @@
+{% extends 'layout.html' %}
+
+{% block title %}Welcome to Contract Atlas{% endblock %}
+
+{% block content %}
+<div class="landing-container">
+    <h1>Welcome to Contract Atlas</h1>
+    <p>Your intelligent contract management solution</p>
+    
+    <div class="landing-actions">
+        <a href="{{ url_for('auth.login') }}" class="btn btn-primary">Login</a>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-secondary">Register</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .landing-container {
+        text-align: center;
+        margin-top: 80px;
+    }
+    
+    .landing-container h1 {
+        font-size: 2.5em;
+        margin-bottom: 20px;
+    }
+    
+    .landing-container p {
+        font-size: 1.2em;
+        margin-bottom: 40px;
+        color: #666;
+    }
+    
+    .landing-actions {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+    }
+    
+    .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    
+    .btn-primary {
+        background-color: #3498db;
+        color: white;
+    }
+    
+    .btn-secondary {
+        background-color: #95a5a6;
+        color: white;
+    }
+</style>
+{% endblock %}
