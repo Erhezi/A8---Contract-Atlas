@@ -290,23 +290,25 @@ def validate_file_route():
         from utils import save_error_file
         
         if has_errors:
-            # Save the full result dataframe (not just error rows)
+           # Calculate statistics
+            total_rows = int(len(error_df))  # Convert to Python int
+            error_rows = int(error_df['Has Error'].sum())  # Convert to Python int
+            duplicate_rows = int(len(error_df[(error_df['Warning-Potential Duplicates'] != '')]))  # Convert to Python int
+            
+            # Save the full result dataframe for user download
             error_file = save_error_file(error_df, current_user.id, file_info['name'])
             session['error_file'] = error_file
             
             # Convert error dataframe to HTML table for display
             # First, get only the rows with errors
-            error_rows = error_df[error_df['Has Error']].copy()
+            error_rows_df = error_df[error_df['Has Error']].copy()
 
-            # Move this new column to the front for better visibility
-            cols = ['File Row'] + [col for col in error_rows.columns if col != 'File Row']
-            error_rows = error_rows[cols]
+            # Move the File Row column to the front for better visibility
+            cols = ['File Row'] + [col for col in error_rows_df.columns if col != 'File Row']
+            error_rows_df = error_rows_df[cols]
 
-            # Generate the HTML table
-            error_table = error_rows.to_html(classes='table table-striped table-bordered', index = False, table_id = 'error_table',
-                                             render_links = True, escape = False)
             # Generate HTML table properly by stripping out pandas default attributes
-            html_content = error_rows.to_html(classes="", index=False, header=True)
+            html_content = error_rows_df.to_html(classes="", index=False, header=True)
             # Replace the entire table tag, not just part of it
             html_content = re.sub(r'<table[^>]*>', '', html_content)
             html_content = html_content.replace('</table>', '')
@@ -315,17 +317,28 @@ def validate_file_route():
             return jsonify({
                 'success': False, 
                 'message': 'Validation failed. See the errors below. Review and make changes accordingly, then try again.',
-                'error_table': error_table
+                'error_table': error_table,
+                'stats': {
+                    'total_rows': total_rows,
+                    'error_rows': error_rows,
+                    'duplicate_rows': duplicate_rows
+                }
             })
-        
+                
         # No errors, store validated dataframe in session
         # Since we can't store the dataframe directly in session, convert to dict
+        total_rows = len(valid_df)
         session['validated_data'] = valid_df.to_dict()
         session['result_file'] = save_error_file(valid_df, current_user.id, file_info['name'])
         
         return jsonify({
             'success': True,
-            'message': 'File validation passed successfully!'
+            'message': 'File validation passed successfully!',
+            'stats': {
+                'total_rows': total_rows,
+                'error_rows': 0,
+                'duplicate_rows': 0
+            },
         })
         
     except Exception as e:
