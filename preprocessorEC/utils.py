@@ -5,6 +5,7 @@ from datetime import datetime
 import re
 from flask import current_app
 from werkzeug.utils import secure_filename
+from contextlib import contextmanager
 
 def allowed_file(filename):
     """Check if the file has an allowed extension"""
@@ -24,8 +25,6 @@ def get_file_headers(file_path):
     if df is not None:
         return df.columns.tolist()
     return []
-
-# Replace the entire validate_file function with these smaller functions
 
 def reduce_mfg_part_num(mfg_part_num):
     """Simplify manufacturer part number by removing dashes and leading zeros"""
@@ -310,3 +309,480 @@ def save_error_file(error_df, user_id, original_filename):
     error_df.to_excel(os.path.join(current_app.root_path, file_path), index=False)
     
     return file_path
+
+def get_db_connection():
+    """Get a connection from the SQLAlchemy pool"""
+    try:
+        # Get the engine from the Flask app
+        engine = current_app.config['DB_ENGINE']
+        # Get a connection from the pool
+        conn = engine.connect().connection
+        return conn
+    except Exception as e:
+        print(f"Database connection error: {str(e)}")
+        return None
+
+@contextmanager
+def db_transaction():
+    """Context manager for database transactions"""
+    conn = get_db_connection()
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        if conn:
+            conn.close()
+
+def create_temp_table(table_name, df, conn):
+    """Create a temporary table in the database for the uploaded file data
+    
+    Args:
+        table_name: The name to give the temp table
+        df: DataFrame containing the data
+        conn: Active database connection
+    
+    Returns:
+        tuple: (success boolean, message string)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Drop the table if it already exists
+        cursor.execute(f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE {table_name}")
+        
+        # Create the temp table with appropriate columns
+        create_table_sql = f"""
+        CREATE TABLE {table_name} (
+            Mfg_Part_Num VARCHAR(255) NOT NULL,
+            Vendor_Part_Num VARCHAR(255),
+            Buyer_Part_Num VARCHAR(255),
+            Description NVARCHAR(MAX) NOT NULL,
+            Contract_Price MONEY NOT NULL,
+            UOM VARCHAR(50) NOT NULL,
+            QOE INT NOT NULL,
+            Effective_Date DATE NOT NULL,
+            Expiration_Date DATE NOT NULL,
+            Contract_Number VARCHAR(100) NOT NULL,
+            ERP_Vendor_ID VARCHAR(20) NOT NULL,
+            Reduced_Mfg_Part_Num VARCHAR(255),
+            File_Row INT,
+            PRIMARY KEY (Mfg_Part_Num, Contract_Number, UOM)
+        )
+        """
+        cursor.execute(create_table_sql)
+        
+        # Define SQL table columns
+        columns = ['Mfg_Part_Num', 'Vendor_Part_Num', 'Buyer_Part_Num', 'Description', 
+                'Contract_Price', 'UOM', 'QOE', 'Effective_Date', 'Expiration_Date', 
+                'Contract_Number', 'ERP_Vendor_ID', 'Reduced_Mfg_Part_Num', 'File_Row']
+        
+        # columns we want from our input DataFrame
+        pre_checked_columns = ['Mfg Part Num', 'Vendor Part Num', 'Buyer Part Num', 'Description',
+                               'Contract Price', 'UOM', 'QOE', 'Effective Date', 'Expiration Date',
+                               'Contract Number', 'ERP Vendor ID', 'Reduced Mfg Part Num', 'File Row']
+        df = df[pre_checked_columns].copy()
+        
+        
+        # Map from DataFrame columns to SQL table columns
+        insert_df = pd.DataFrame(index=df.index)
+        for col in columns:
+            if col in df.columns:
+                insert_df[col] = df[col]
+            else:
+                # Handle column name variations
+                mapped_col = col.replace('_', ' ')
+                if mapped_col in df.columns:
+                    insert_df[col] = df[mapped_col]
+                elif col == 'Buyer_Part_Num':
+                    insert_df[col] = ''
+                elif col == 'Reduced_Mfg_Part_Num' and 'Reduced Mfg Part Num' in df.columns:
+                    insert_df[col] = df['Reduced Mfg Part Num']
+                else:
+                    print(f"Missing column in DataFrame: {col}")
+                    insert_df[col] = None
+
+        # Batch insert for better performance
+        for _, row in insert_df.iterrows():
+            row_values = [None if pd.isnull(v) or v == '' else v for v in row.values]
+            placeholders = ','.join(['?' for _ in row_values])
+            column_names = ','.join(columns)
+            insert_sql = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
+            cursor.execute(insert_sql, row_values)
+        
+        return True, table_name
+    
+    except Exception as e:
+        print(f"Database error: {str(e)}")
+        return False, str(e)
+    
+
+def find_duplicates_with_ccx(temp_table, conn):
+    """Find potential duplicates between the temp table and CCX database
+        
+        Args:
+            temp_table: Name of the temporary table
+            conn: Active database connection
+        
+        Returns:
+            tuple: (success boolean, error message, result list)
+        """
+    try:
+        cursor = conn.cursor()
+        
+        # SQL query to find potential duplicates
+        query = f"""
+        SELECT 
+            ccx.CONTRACT_NUMBER AS contract_number_ccx,
+            ccx.CONTRACT_DESCRIPTION AS contract_description_ccx,
+            ccx.CONTRACT_OWNER AS contract_owner_ccx,
+            ccx.SOURCE_CONTRACT_TYPE AS source_contract_type_ccx,
+            ccx.REDUCED_MANUFACTURER_PART_NUMBER AS reduced_mfg_part_num_ccx,
+            ccx.MANUFACTURER_NAME AS manufacturer_name_ccx,
+            ccx.MANUFACTURER_PART_NUMBER AS mfg_part_num_ccx,
+            ccx.UOM AS uom_ccx,
+            ccx.QOE AS qoe_ccx,
+            ccx.PRICE AS price_ccx,
+            ccx.ITEM_PRICE_START_DATE AS effective_date_ccx,
+            ccx.ITEM_PRICE_END_DATE AS expiration_date_ccx,
+            ccx.VENDOR_ERP_NUMBER AS erp_vendor_id_ccx,
+            ccx.VENDOR_NAME AS vendor_name_ccx,
+            ccx.PART_DESCRIPTION AS description_ccx,
+            temp.Mfg_Part_Num,
+            temp.Vendor_Part_Num,
+            temp.Buyer_Part_Num,
+            temp.Description,
+            temp.Contract_Price,
+            temp.UOM,
+            temp.QOE,
+            temp.Effective_Date,
+            temp.Expiration_Date,
+            temp.Contract_Number,
+            temp.ERP_Vendor_ID,
+            temp.Reduced_Mfg_Part_Num,
+            temp.File_Row,
+            CASE WHEN ccx.MANUFACTURER_PART_NUMBER = temp.Mfg_Part_Num THEN 1 ELSE 0 END AS same_mfg_part_num
+        FROM 
+            (
+                SELECT 
+                    CONTRACT_NUMBER, 
+                    CONTRACT_DESCRIPTION, 
+                    CONTRACT_OWNER, 
+                    SOURCE_CONTRACT_TYPE,
+                    CASE
+                        WHEN MANUFACTURER_PART_NUMBER IS NULL OR LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)) = '' THEN NULL
+                        ELSE
+                            CASE
+                                WHEN ISNUMERIC(REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) = 1
+                                THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) AS VARCHAR(255))
+                                ELSE
+                                    REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')
+                            END
+                    END AS REDUCED_MANUFACTURER_PART_NUMBER,
+                    MANUFACTURER_NAME, 
+                    MANUFACTURER_PART_NUMBER, 
+                    UOM,
+                    QOE, 
+                    PRICE, 
+                    ITEM_PRICE_START_DATE, 
+                    ITEM_PRICE_END_DATE,
+                    VENDOR_ERP_NUMBER, 
+                    VENDOR_NAME, 
+                    PART_DESCRIPTION
+                FROM 
+                    [DM_MONTYNT\\dli2].ccx_dump_validation_stg
+                WHERE 
+                    IS_SUOM = 'f'
+                    AND ITEM_PRICE_START_DATE <= LAST_UPDATE_DATE 
+                    AND ITEM_PRICE_END_DATE > LAST_UPDATE_DATE
+            ) as ccx
+        INNER JOIN 
+            {temp_table} as temp
+        ON 
+            CAST(ccx.REDUCED_MANUFACTURER_PART_NUMBER AS VARCHAR(255)) = CAST(temp.Reduced_Mfg_Part_Num AS VARCHAR(255))
+        ORDER BY 
+            ccx.CONTRACT_NUMBER, ccx.MANUFACTURER_PART_NUMBER
+        """
+        
+        # Execute the query
+        cursor.execute(query)
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            results.append(dict(zip(columns, row)))
+        
+        # Group by contract number (CCX side)
+        contract_summary = {}
+        for item in results:
+            contract_num = item['contract_number_ccx']
+            if contract_num not in contract_summary:
+                contract_summary[contract_num] = {
+                    'contract_number': contract_num,
+                    'contract_description': item['contract_description_ccx'],
+                    'manufacturer_name': item['manufacturer_name_ccx'],
+                    'contract_owner': item['contract_owner_ccx'],
+                    'total_matches': 0,
+                    'exact_matches': 0,
+                    'items': []
+                }
+            
+            # Count this item
+            contract_summary[contract_num]['total_matches'] += 1
+            if item['same_mfg_part_num'] == 1:
+                contract_summary[contract_num]['exact_matches'] += 1
+            
+            # Add this item to the contract's items
+            contract_summary[contract_num]['items'].append(item)
+        
+        # Convert to a list
+        contract_list = list(contract_summary.values())
+        
+        return True, "", contract_list
+    
+    except Exception as e:
+        print(f"Database error in find_duplicates_with_ccx: {str(e)}")
+        return False, str(e), None
+
+def calculate_mfn_match_score(ccx_mfn, upload_mfn):
+    """Calculate manufacturer part number match score (15% weight)
+    
+    Args:
+        ccx_mfn: Manufacturer part number from CCX
+        upload_mfn: Manufacturer part number from upload
+        
+    Returns:
+        float: Score between 0 and 1
+    """
+    if ccx_mfn == upload_mfn:
+        return 1.0  # Exact match
+    
+    # Normalize strings for comparison
+    ccx_norm = str(ccx_mfn).strip().lower()
+    upload_norm = str(upload_mfn).strip().lower()
+    
+    if ccx_norm == upload_norm:
+        return 1.0  # Case-insensitive match
+    
+    # Remove non-alphanumeric characters
+    ccx_alphanum = ''.join(c for c in ccx_norm if c.isalnum())
+    upload_alphanum = ''.join(c for c in upload_norm if c.isalnum())
+    
+    if ccx_alphanum == upload_alphanum:
+        return 0.9  # Match after removing special characters
+    
+    # Check if one is contained in the other
+    if ccx_alphanum in upload_alphanum or upload_alphanum in ccx_alphanum:
+        return 0.7  # Partial containment
+    
+    # Simple string distance-based comparison
+    max_len = max(len(ccx_alphanum), len(upload_alphanum))
+    if max_len == 0:
+        return 0  # Both strings are empty or non-alphanumeric
+    
+    # Calculate Levenshtein distance
+    try:
+        from rapidfuzz.distance import Levenshtein
+        distance = Levenshtein.distance(ccx_alphanum, upload_alphanum)
+        similarity = 1 - (distance / max_len)
+        return max(0, min(0.5, similarity))  # Cap at 0.5 for Levenshtein
+    except ImportError:
+        # Fallback if rapidfuzz is not available
+        # Simple character overlap calculation
+        common_chars = set(ccx_alphanum) & set(upload_alphanum)
+        if not common_chars:
+            return 0
+        overlap = len(common_chars) / max(len(set(ccx_alphanum)), len(set(upload_alphanum)))
+        return max(0, min(0.5, overlap))  # Cap at 0.5 for simple overlap
+
+def calculate_ea_price_match_score(ccx_price, upload_price, ccx_qoe, upload_qoe):
+    """Calculate EA price match score (10% weight)
+    
+    Args:
+        ccx_price: Contract price from CCX
+        upload_price: Contract price from upload
+        ccx_qoe: Quantity of each from CCX
+        upload_qoe: Quantity of each from upload
+        
+    Returns:
+        float: Score between 0 and 1
+    """
+    try:
+        # Calculate EA price (Contract Price / QOE)
+        ccx_ea_price = float(ccx_price) / float(ccx_qoe)
+        upload_ea_price = float(upload_price) / float(upload_qoe)
+        
+        # Prevent division by zero
+        if ccx_ea_price == 0 and upload_ea_price == 0:
+            return 1.0  # Both prices are zero
+        if ccx_ea_price == 0 or upload_ea_price == 0:
+            return 0.0  # One price is zero, the other isn't
+        
+        # Calculate percentage difference
+        price_diff = abs(ccx_ea_price - upload_ea_price)
+        price_diff_percent = price_diff / max(ccx_ea_price, upload_ea_price) * 100
+        
+        # Score based on percentage difference
+        if price_diff_percent < 5:
+            return 1.0
+        elif price_diff_percent < 30:
+            return 0.9
+        elif price_diff_percent < 50:
+            return 0.5
+        else:
+            return 0.0
+    except (ValueError, TypeError, ZeroDivisionError):
+        # Handle conversion or division errors
+        return 0.0
+
+def calculate_description_similarity(ccx_desc, upload_desc):
+    """Calculate description similarity score (50% weight)
+    
+    Args:
+        ccx_desc: Description from CCX
+        upload_desc: Description from upload
+        
+    Returns:
+        float: Score between 0 and 1
+    """
+    # Normalize strings
+    ccx_norm = str(ccx_desc).strip().lower()
+    upload_norm = str(upload_desc).strip().lower()
+    
+    if not ccx_norm or not upload_norm:
+        return 0.0
+    
+    if ccx_norm == upload_norm:
+        return 1.0  # Exact match
+    
+    # Implement a simplified version without NLP for now
+    # In production, we would use an NLP transformer model
+    
+    # Tokenize descriptions into words
+    ccx_words = set(ccx_norm.split())
+    upload_words = set(upload_norm.split())
+    
+    # Calculate Jaccard similarity
+    intersection = len(ccx_words.intersection(upload_words))
+    union = len(ccx_words.union(upload_words))
+    
+    if union == 0:
+        return 0.0
+    
+    return intersection / union
+
+def calculate_confidence_score(item):
+    """Calculate overall confidence score based on weighted factors
+    
+    Args:
+        item: Dictionary containing match data
+        
+    Returns:
+        dict: Updated item with confidence scores
+    """
+    # Make a copy of the item to avoid modifying the original
+    result = item.copy()
+    
+    # Individual factor scores
+    mfn_score = calculate_mfn_match_score(item['mfg_part_num_ccx'], item['Mfg_Part_Num'])
+    
+    # Exact match checks
+    uom_score = 1.0 if item['uom_ccx'] == item['UOM'] else 0.0
+    qoe_score = 1.0 if str(item['qoe_ccx']) == str(item['QOE']) else 0.0
+    
+    # Price comparison
+    price_score = calculate_ea_price_match_score(
+        item['price_ccx'], item['Contract_Price'],
+        item['qoe_ccx'], item['QOE']
+    )
+    
+    # Description similarity
+    desc_score = calculate_description_similarity(item['description_ccx'], item['Description'])
+    
+    # Calculate EA prices for display
+    try:
+        ccx_ea_price = float(item['price_ccx']) / float(item['qoe_ccx'])
+        upload_ea_price = float(item['Contract_Price']) / float(item['QOE'])
+    except (ValueError, TypeError, ZeroDivisionError):
+        ccx_ea_price = None
+        upload_ea_price = None
+    
+    # Weighted score calculation
+    weighted_score = (
+        (mfn_score * 0.15) +  # MFN match (15%)
+        (uom_score * 0.10) +  # UOM match (10%)
+        (qoe_score * 0.15) +  # QOE match (15%)
+        (price_score * 0.10) + # EA price match (10%)
+        (desc_score * 0.50)   # Description similarity (50%)
+    )
+    
+    # Add scores to result
+    result['mfn_score'] = mfn_score
+    result['uom_score'] = uom_score
+    result['qoe_score'] = qoe_score
+    result['price_score'] = price_score
+    result['desc_score'] = desc_score
+    result['weighted_score'] = weighted_score
+    result['ccx_ea_price'] = ccx_ea_price
+    result['upload_ea_price'] = upload_ea_price
+    
+    # Assign confidence level
+    if weighted_score >= 0.8:
+        result['confidence_level'] = 'high'
+    elif weighted_score >= 0.5:
+        result['confidence_level'] = 'medium'
+    else:
+        result['confidence_level'] = 'low'
+    
+    # Initialize false positive flag
+    result['false_positive'] = False
+    
+    return result
+
+def process_item_comparisons(contract_items):
+    """Process all items and calculate confidence scores
+    
+    Args:
+        contract_items: List of contract items with CCX and upload data
+        
+    Returns:
+        dict: Items grouped by confidence level
+    """
+    scored_items = []
+    
+    for item in contract_items:
+        scored_item = calculate_confidence_score(item)
+        scored_items.append(scored_item)
+    
+    # Group by confidence level
+    result = {
+        'high': [],
+        'medium': [],
+        'low': []
+    }
+    
+    for item in scored_items:
+        result[item['confidence_level']].append(item)
+    
+    # Add summary counts
+    result['summary'] = {
+        'high': {
+            'total': len(result['high']),
+            'false_positives': 0
+        },
+        'medium': {
+            'total': len(result['medium']),
+            'false_positives': 0
+        },
+        'low': {
+            'total': len(result['low']),
+            'false_positives': 0
+        },
+        'total_items': len(scored_items)
+    }
+    
+    return result

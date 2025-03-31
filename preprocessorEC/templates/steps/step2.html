@@ -145,10 +145,11 @@
     .modal-table {
         width: 100%;
         border-collapse: collapse;
+        font-size: 0.75rem; /* Add smaller font size here too */
     }
     
     .modal-table th, .modal-table td {
-        padding: 8px 12px;
+        padding: 6px 10px; /* Reduce from 8px 12px */
         text-align: left;
         border-bottom: 1px solid #ecf0f1;
     }
@@ -359,6 +360,7 @@
         border: 1px solid #ddd;
         border-radius: 4px;
         overflow: hidden;
+        height: 38px;
     }
     
     .search-type-select {
@@ -370,12 +372,244 @@
         cursor: pointer;
     }
     
-    .search-input {
-        padding: 8px 12px;
-        border: none;
-        width: 300px;
+
+    /* Item-Level Comparison Styles */
+    .item-comparison-container {
+        display: none; /* Hidden initially, shown after contract review */
+        margin-top: 40px;
+        border-top: 1px solid #e0e0e0;
+        padding-top: 30px;
     }
 
+    .confidence-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .confidence-card {
+        flex: 1;
+        min-width: 240px;
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .confidence-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .confidence-card.selected {
+        border: 2px solid #3498db;
+    }
+    
+    .confidence-card.high {
+        border-top: 5px solid #2ecc71;
+    }
+    
+    .confidence-card.medium {
+        border-top: 5px solid #f39c12;
+    }
+    
+    .confidence-card.low {
+        border-top: 5px solid #e74c3c;
+    }
+    
+    .confidence-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .confidence-card.high .confidence-title {
+        color: #2ecc71;
+    }
+    
+    .confidence-card.medium .confidence-title {
+        color: #f39c12;
+    }
+    
+    .confidence-card.low .confidence-title {
+        color: #e74c3c;
+    }
+    
+    .count-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .count-label {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+    }
+    
+    .false-positive-count {
+        color: #e74c3c;
+        font-size: 0.9rem;
+        margin-top: 10px;
+    }
+    
+    .items-table-container {
+        margin-top: 20px;
+        overflow-x: auto;
+        overflow-y: auto; /* Add vertical scrolling */
+        max-width: 100%;
+        max-height: 700px; /* Limit table height to 700px */
+        border: 1px solid #eee; /* Optional: add a subtle border */
+    }
+    
+    .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem; /* Reduce from 0.85rem to 0.75rem */
+    }
+    
+    .items-table th, 
+    .items-table td {
+        padding: 6px; /* Reduce padding from 8px to 6px for more compact rows */
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .items-table th {
+        background-color: #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        cursor: pointer;
+    }
+    
+    .items-table th:hover {
+        background-color: #e9e9e9;
+    }
+    
+    .items-table tbody tr:hover {
+        background-color: #f0f7ff;
+    }
+    
+    .items-table .sort-indicator {
+        margin-left: 5px;
+        opacity: 0.5;
+    }
+    
+    .items-table th.sort-asc .sort-indicator::after {
+        content: "▲";
+    }
+    
+    .items-table th.sort-desc .sort-indicator::after {
+        content: "▼";
+    }
+    
+    .controls-container {
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .filter-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .filter-input {
+        padding: 6px 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 200px;
+    }
+    
+    .batch-controls {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .score-cell {
+        text-align: center;
+        font-weight: bold;
+    }
+    
+    .high-score {
+        color: #2ecc71;
+    }
+    
+    .medium-score {
+        color: #f39c12;
+    }
+    
+    .low-score {
+        color: #e74c3c;
+    }
+    
+    .match-indicator {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+    }
+    
+    .match-indicator.match::before {
+        content: "✓";
+        color: #2ecc71;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+    
+    .match-indicator.no-match::before {
+        content: "✗";
+        color: #e74c3c;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+    
+    .no-matches {
+        text-align: center;
+        padding: 40px;
+        color: #7f8c8d;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        margin: 20px 0;
+    }
+
+    .table-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .clear-search-btn {
+        background: #f5f5f5;
+        border: none;
+        border-left: 1px solid #ddd;
+        padding: 0 12px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: #666;
+        transition: all 0.2s;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        min-width: 60px;
+    }
+    
+    .clear-search-btn:hover {
+        background: #e0e0e0;
+        color: #333;
+    }
 </style>
 
 <div class="step-content">
@@ -451,6 +685,8 @@
                                 <th>Upload Price</th>
                                 <th>CCX Description</th>
                                 <th>Upload Description</th>
+                                <th>Contract Number</th>
+                                <th>Manufacturer (CCX)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -465,6 +701,105 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay" style="display: none;">
         <div class="spinner"></div>
+    </div>
+
+    <!-- Item Level Comparison Section - Initially Hidden -->
+    <div id="item-comparison-container" class="item-comparison-container">
+        <h3>Step 2.2: Item-Level Comparison</h3>
+        <p>Review detailed item-level comparisons for the contracts you've included. Items are grouped by confidence level based on multiple matching criteria.</p>
+        
+        <div id="start-comparison-container">
+            <p>Click the button below to start the item-level comparison.</p>
+            <button id="start-comparison-btn" class="btn btn-primary">Start Item Comparison</button>
+        </div>
+        
+        <div id="comparison-results-container" style="display:none;">
+            <div class="confidence-cards">
+                <div id="high-confidence-card" class="confidence-card high" data-level="high">
+                    <div class="confidence-title">High Confidence</div>
+                    <div class="count-number" id="high-count">0</div>
+                    <div class="count-label">Items</div>
+                    <div class="false-positive-count" id="high-false-positive-count">0 marked as false positive</div>
+                </div>
+                
+                <div id="medium-confidence-card" class="confidence-card medium" data-level="medium">
+                    <div class="confidence-title">Medium Confidence</div>
+                    <div class="count-number" id="medium-count">0</div>
+                    <div class="count-label">Items</div>
+                    <div class="false-positive-count" id="medium-false-positive-count">0 marked as false positive</div>
+                </div>
+                
+                <div id="low-confidence-card" class="confidence-card low" data-level="low">
+                    <div class="confidence-title">Low Confidence</div>
+                    <div class="count-number" id="low-count">0</div>
+                    <div class="count-label">Items</div>
+                    <div class="false-positive-count" id="low-false-positive-count">0 marked as false positive</div>
+                </div>
+            </div>
+            
+            <div id="items-detail-view" style="display:none;">
+                <h4 id="detail-title">High Confidence Matches</h4>
+                
+                <div class="controls-container">
+                    <div class="filter-container">
+                        <div class="search-wrapper">
+                            <select id="item-search-type" class="search-type-select">
+                                <option value="contains">Contains</option>
+                                <option value="not-contains">Not Contains</option>
+                            </select>
+                            <input type="text" id="item-search" class="search-input" placeholder="Filter items...">
+                            <button type="button" id="clear-search-btn" class="clear-search-btn" title="Clear search">Clear</button>
+                        </div>
+                    </div>
+                    
+                    
+                    <div class="batch-controls">
+                        <button id="select-all-btn" class="btn btn-sm btn-secondary">Select All</button>
+                        <button id="deselect-all-btn" class="btn btn-sm btn-secondary">Deselect All</button>
+                        <button id="save-selections-btn" class="btn btn-sm btn-primary">Save Selections</button>
+                    </div>
+                </div>
+                
+                <div class="items-table-container">
+                    <table id="items-table" class="items-table">
+                        <thead>
+                            <tr>
+                                <th data-sort="mfg_part_num_ccx">Mfg Part Num (CCX)<span class="sort-indicator"></span></th>
+                                <th data-sort="Mfg_Part_Num">Mfg Part Num (Upload)<span class="sort-indicator"></span></th>
+                                <th data-sort="uom_ccx">UOM (CCX)<span class="sort-indicator"></span></th>
+                                <th data-sort="UOM">UOM (Upload)<span class="sort-indicator"></span></th>
+                                <th data-sort="qoe_ccx">QOE (CCX)<span class="sort-indicator"></span></th>
+                                <th data-sort="QOE">QOE (Upload)<span class="sort-indicator"></span></th>
+                                <th data-sort="ccx_ea_price">EA Price (CCX)<span class="sort-indicator"></span></th>
+                                <th data-sort="upload_ea_price">EA Price (Upload)<span class="sort-indicator"></span></th>
+                                <th data-sort="same_mfg_part_num">Exact MFN Match<span class="sort-indicator"></span></th>
+                                <th data-sort="weighted_score">Confidence<span class="sort-indicator"></span></th>
+                                <th>False Positive</th>
+                                <th data-sort="description_ccx">Description (CCX)<span class="sort-indicator"></span></th>
+                                <th data-sort="Description">Description (Upload)<span class="sort-indicator"></span></th>
+                                <th data-sort="contract_number_ccx">Contract Number (CCX)<span class="sort-indicator"></span></th>
+                                <th data-sort="manufacturer_name_ccx">Manufacturer (CCX)<span class="sort-indicator"></span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="items-tbody">
+                            <!-- Items will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="no-matches-message" class="no-matches" style="display:none;">
+                    <h4>No items found in this confidence level</h4>
+                    <p>Please select a different confidence level or adjust your filters.</p>
+                </div>
+            </div>
+            
+            <div class="action-buttons" style="margin-top: 20px; text-align: right;">
+                <form method="POST" action="{{ url_for('main.process_step', step_id=2) }}">
+                    <input type="hidden" name="step_completed" value="true">
+                    <button type="submit" class="btn btn-success">Complete Duplication Review</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -534,6 +869,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 !includedContracts.includes(contract.contract_number)) {
                 includedContracts.push(contract.contract_number);
             }
+        });
+        
+        // Sync the included contracts with the server
+        fetch('/initialize-included-contracts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contract_numbers: includedContracts
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update local variables with server data
+                includedContracts = data.included_contracts;
+                excludedContracts = data.excluded_contracts;
+            } else {
+                console.error('Error initializing contracts:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error initializing contracts:', error);
         });
         
         // Update included contracts tags display
@@ -792,6 +1151,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td>$${parseFloat(item.Contract_Price).toFixed(2) || 'N/A'}</td>
                         <td>${item.description_ccx || 'N/A'}</td>
                         <td>${item.Description || 'N/A'}</td>
+                        <td>${item.contract_number_ccx || 'N/A'}</td>
+                        <td>${item.manufacturer_name_ccx || 'N/A'}</td>
                     `;
                     
                     itemsTable.appendChild(row);
@@ -821,21 +1182,409 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Continue to item-level review
+    // Modify the continue button to show item comparison AND start the process automatically
     continueBtn.addEventListener('click', function() {
         if (includedContracts.length === 0) {
             alert('Please include at least one contract before proceeding.');
             return;
         }
         
-        // In a real implementation, we'd submit to the server
-        // For now, just simulate a POST request to process-step
+        // Show the item-level comparison section
+        document.getElementById('item-comparison-container').style.display = 'block';
         
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/process-step/2';
-        document.body.appendChild(form);
-        form.submit();
+        // Scroll to the item comparison section
+        document.getElementById('item-comparison-container').scrollIntoView({
+            behavior: 'smooth'
+        });
+        
+        // Automatically start the item comparison process
+        // Show loading overlay
+        loadingOverlay.style.display = 'flex';
+        
+        // Hide the start comparison button and container
+        document.getElementById('start-comparison-container').style.display = 'none';
+        
+        // Start the item comparison process
+        fetch('/process-item-comparison', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingOverlay.style.display = 'none';
+            
+            if (data.success) {
+                // Show results container
+                comparisonResultsContainer.style.display = 'block';
+                
+                // Update summary counts
+                updateSummaryCounts(data.summary);
+                
+                // Automatically show high confidence items if available
+                if (data.summary.high.total > 0) {
+                    loadConfidenceItems('high');
+                } else if (data.summary.medium.total > 0) {
+                    loadConfidenceItems('medium');
+                } else if (data.summary.low.total > 0) {
+                    loadConfidenceItems('low');
+                }
+            } else {
+                // Show the manual start button if there was an error
+                document.getElementById('start-comparison-container').style.display = 'block';
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            loadingOverlay.style.display = 'none';
+            // Show the manual start button if there was an error
+            document.getElementById('start-comparison-container').style.display = 'block';
+            alert('Error: ' + error);
+        });
     });
+
+    // Item-Level Comparison Code
+    const startComparisonBtn = document.getElementById('start-comparison-btn');
+    const startComparisonContainer = document.getElementById('start-comparison-container');
+    const comparisonResultsContainer = document.getElementById('comparison-results-container');
+    const clearSearchBtn = document.getElementById('clear-search-btn');
+    const itemSearchInput = document.getElementById('item-search');
+    const itemSearchType = document.getElementById('item-search-type');
+    const itemsDetailView = document.getElementById('items-detail-view');
+    const detailTitle = document.getElementById('detail-title');
+    const itemsTable = document.getElementById('items-table');
+    const itemsTbody = document.getElementById('items-tbody');
+    const noMatchesMessage = document.getElementById('no-matches-message');
+    const selectAllBtn = document.getElementById('select-all-btn');
+    const deselectAllBtn = document.getElementById('deselect-all-btn');
+    const saveSelectionsBtn = document.getElementById('save-selections-btn');
+    
+    let currentItems = [];
+    let currentLevel = null;
+    let sortField = null;
+    let sortDirection = 'asc';
+    
+    // Keep the original start comparison button functionality as a fallback
+    startComparisonBtn.addEventListener('click', function() {
+        loadingOverlay.style.display = 'flex';
+        
+        fetch('/process-item-comparison', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingOverlay.style.display = 'none';
+            
+            if (data.success) {
+                // Hide start container and show results
+                startComparisonContainer.style.display = 'none';
+                comparisonResultsContainer.style.display = 'block';
+                
+                // Update summary counts
+                updateSummaryCounts(data.summary);
+                
+                // Automatically show high confidence items if available
+                if (data.summary.high.total > 0) {
+                    loadConfidenceItems('high');
+                } else if (data.summary.medium.total > 0) {
+                    loadConfidenceItems('medium');
+                } else if (data.summary.low.total > 0) {
+                    loadConfidenceItems('low');
+                }
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            loadingOverlay.style.display = 'none';
+            alert('Error: ' + error);
+        });
+    });
+    
+    // Confidence card click handlers
+    document.querySelectorAll('.confidence-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const level = this.dataset.level;
+            loadConfidenceItems(level);
+        });
+    });
+    
+    // Table header click for sorting
+    document.querySelectorAll('.items-table th[data-sort]').forEach(th => {
+        th.addEventListener('click', function() {
+            const field = this.dataset.sort;
+            
+            // Toggle direction if same field, otherwise default to asc
+            if (field === sortField) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            
+            // Update sort indicators
+            document.querySelectorAll('.items-table th').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+            });
+            
+            this.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // Re-render the table with new sort
+            renderItemsTable(currentItems);
+        });
+    });
+    
+    // Filter input handler
+    // Add event listeners for filtering
+    itemSearchInput.addEventListener('input', filterItemTable);
+    itemSearchType.addEventListener('change', filterItemTable);
+
+    function filterItemTable() {
+        const searchTerm = itemSearchInput.value.toLowerCase();
+        const searchType = itemSearchType.value;
+        const tableRows = document.querySelectorAll('#items-tbody tr');
+        
+        tableRows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const matchesContains = text.includes(searchTerm);
+            
+            // Show/hide based on search type
+            if (searchType === 'contains') {
+                row.style.display = matchesContains ? '' : 'none';
+            } else { // not-contains
+                row.style.display = matchesContains ? 'none' : '';
+            }
+        });
+        
+        // Update visible count
+        updateVisibleItemCount();
+    }
+
+    clearSearchBtn.addEventListener('click', function() {
+        // Clear the search input
+        itemSearchInput.value = '';
+        // Reset search type to "contains"
+        itemSearchType.value = 'contains';
+        // Trigger filtering to show all items
+        filterItemTable();
+    });
+
+    function updateVisibleItemCount() {
+        const visibleRows = document.querySelectorAll('#items-tbody tr[style="display: none;"]').length;
+        const totalRows = document.querySelectorAll('#items-tbody tr').length;
+        const visibleCount = totalRows - visibleRows;
+        
+        // If you have an element to display the count, update it here
+        const countElement = document.getElementById('visible-item-count');
+        if (countElement) {
+            countElement.textContent = `Showing ${visibleCount} of ${totalRows} items`;
+        }
+    }
+    
+    // Select/Deselect all buttons
+    selectAllBtn.addEventListener('click', function() {
+        document.querySelectorAll('#items-tbody input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+    });
+    
+    deselectAllBtn.addEventListener('click', function() {
+        document.querySelectorAll('#items-tbody input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    });
+    
+    // Save selections button
+    saveSelectionsBtn.addEventListener('click', function() {
+        saveSelections();
+    });
+    
+    // Function to update summary counts
+    function updateSummaryCounts(summary) {
+        document.getElementById('high-count').textContent = summary.high.total;
+        document.getElementById('medium-count').textContent = summary.medium.total;
+        document.getElementById('low-count').textContent = summary.low.total;
+        
+        document.getElementById('high-false-positive-count').textContent = 
+            summary.high.false_positives + ' marked as false positive';
+        document.getElementById('medium-false-positive-count').textContent = 
+            summary.medium.false_positives + ' marked as false positive';
+        document.getElementById('low-false-positive-count').textContent = 
+            summary.low.false_positives + ' marked as false positive';
+    }
+    
+    // Function to load items for a confidence level
+    function loadConfidenceItems(level) {
+        // Update selected card
+        document.querySelectorAll('.confidence-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        document.getElementById(level + '-confidence-card').classList.add('selected');
+        
+        // Update level title
+        detailTitle.textContent = level.charAt(0).toUpperCase() + level.slice(1) + ' Confidence Matches';
+        
+        loadingOverlay.style.display = 'flex';
+        currentLevel = level;
+        
+        fetch(`/get-comparison-items/${level}`)
+        .then(response => response.json())
+        .then(data => {
+            loadingOverlay.style.display = 'none';
+            
+            if (data.success) {
+                // Store current items
+                currentItems = data.items;
+                
+                // Reset sorting and filtering
+                sortField = null;
+                sortDirection = 'asc';
+                document.querySelectorAll('.items-table th').forEach(header => {
+                    header.classList.remove('sort-asc', 'sort-desc');
+                });
+                
+                // Render items
+                renderItemsTable(currentItems);
+                
+                // Show the detail view
+                itemsDetailView.style.display = 'block';
+                
+                // Show/hide no matches message
+                noMatchesMessage.style.display = currentItems.length === 0 ? 'block' : 'none';
+                document.querySelector('.items-table-container').style.display = 
+                    currentItems.length === 0 ? 'none' : 'block';
+
+                // Reaplly filter after rendering
+                filterItemTable(); 
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            loadingOverlay.style.display = 'none';
+            alert('Error: ' + error);
+        });
+    }
+    
+    // Function to render the items table
+    function renderItemsTable(items) {
+        // Clear the table
+        itemsTbody.innerHTML = '';
+        
+        // Sort items if sort field is set
+        if (sortField) {
+            items = [...items].sort((a, b) => {
+                let valA = a[sortField];
+                let valB = b[sortField];
+                
+                // Handle numeric fields
+                if (typeof valA === 'number' && typeof valB === 'number') {
+                    return sortDirection === 'asc' ? valA - valB : valB - valA;
+                }
+                
+                // Handle string fields
+                valA = String(valA || '').toLowerCase();
+                valB = String(valB || '').toLowerCase();
+                
+                if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        
+        // Add rows to table
+        items.forEach((item, index) => {
+            const row = document.createElement('tr');
+            
+            // Get confidence class based on score
+            const scoreClass = item.weighted_score >= 0.8 ? 'high-score' : 
+                              (item.weighted_score >= 0.5 ? 'medium-score' : 'low-score');
+            
+            // Format EA prices
+            const ccxEaPrice = item.ccx_ea_price !== null ? 
+                '$' + parseFloat(item.ccx_ea_price).toFixed(2) : 'N/A';
+            const uploadEaPrice = item.upload_ea_price !== null ? 
+                '$' + parseFloat(item.upload_ea_price).toFixed(2) : 'N/A';
+            
+            row.innerHTML = `
+                <td>${item.mfg_part_num_ccx || 'N/A'}</td>
+                <td>${item.Mfg_Part_Num || 'N/A'}</td>
+                <td>${item.uom_ccx || 'N/A'}</td>
+                <td>${item.UOM || 'N/A'}</td>
+                <td>${item.qoe_ccx || 'N/A'}</td>
+                <td>${item.QOE || 'N/A'}</td>
+                <td>${ccxEaPrice}</td>
+                <td>${uploadEaPrice}</td>
+                <td>
+                    <div class="match-indicator ${item.same_mfg_part_num === 1 ? 'match' : 'no-match'}"></div>
+                </td>
+                <td class="score-cell ${scoreClass}">${Math.round(item.weighted_score * 100)}%</td>
+                <td>
+                    <input type="checkbox" class="false-positive-checkbox" 
+                        data-index="${index}" 
+                        ${item.false_positive ? 'checked' : ''}>
+                </td>
+                <td title="${item.description_ccx || 'N/A'}">${(item.description_ccx || 'N/A').substring(0, 50)}${(item.description_ccx && item.description_ccx.length > 50) ? '...' : ''}</td>
+                <td title="${item.Description || 'N/A'}">${(item.Description || 'N/A').substring(0, 50)}${(item.Description && item.Description.length > 50) ? '...' : ''}</td>
+                <td>${item.contract_number_ccx || 'N/A'}</td>
+                <td>${item.manufacturer_name_ccx || 'N/A'}</td>
+            `;
+            
+            itemsTbody.appendChild(row);
+        });
+    }
+    
+    
+    // Function to save false positive selections
+    function saveSelections() {
+        // Show loading overlay
+        loadingOverlay.style.display = 'flex';
+        
+        // Get all checkboxes and their status
+        const checkboxes = document.querySelectorAll('#items-tbody input[type="checkbox"]');
+        
+        // Create a map of all items and their status
+        const itemUpdates = Array.from(checkboxes).map(checkbox => {
+            return {
+                index: parseInt(checkbox.dataset.index),
+                is_false_positive: checkbox.checked
+            };
+        });
+        
+        // Send a single request with complete state
+        fetch('/update-false-positives', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                confidence_level: currentLevel,
+                item_updates: itemUpdates
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingOverlay.style.display = 'none';
+            
+            if (data.success) {
+                // Update the item states in the local array
+                itemUpdates.forEach(update => {
+                    if (update.index < currentItems.length) {
+                        currentItems[update.index].false_positive = update.is_false_positive;
+                    }
+                });
+                
+                // Update the summary display
+                updateSummaryCounts(data.summary);
+                
+                // Show success message
+                alert('Selections saved successfully');
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            loadingOverlay.style.display = 'none';
+            alert('Error saving selections: ' + error.message);
+        });
+    }
 });
 </script>

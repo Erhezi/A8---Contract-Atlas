@@ -250,7 +250,7 @@
                     {% set is_active = step.id == current_step.id if current_step else False %}
                     {% set is_completed = loop.index <= current_step_index if current_step_index is defined else False %}
                     <div class="milestone-item {% if is_active %}active{% endif %} {% if is_completed %}completed{% endif %}">
-                        <div onclick="showStepInfo({{ step.id }}, event)" class="milestone-item-content" style="cursor: pointer; display: flex; align-items: center; width: 100%;">
+                        <div data-step-id="{{ step.id }}" onclick="showStepInfo(parseInt(this.getAttribute('data-step-id')), event)" class="milestone-item-content" style="cursor: pointer; display: flex; align-items: center; width: 100%;">
                             <div class="milestone-number">
                                 {{ loop.index }}
                                 <div class="milestone-connector"></div>
