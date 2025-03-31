@@ -250,13 +250,13 @@
                     {% set is_active = step.id == current_step.id if current_step else False %}
                     {% set is_completed = loop.index <= current_step_index if current_step_index is defined else False %}
                     <div class="milestone-item {% if is_active %}active{% endif %} {% if is_completed %}completed{% endif %}">
-                        <a href="{{ url_for('main.step_view', step_id=step.id) }}">
+                        <div onclick="showStepInfo({{ step.id }}, event)" class="milestone-item-content" style="cursor: pointer; display: flex; align-items: center; width: 100%;">
                             <div class="milestone-number">
                                 {{ loop.index }}
                                 <div class="milestone-connector"></div>
                             </div>
                             <div class="milestone-text">{{ step.name }}</div>
-                        </a>
+                        </div>
                     </div>
                 {% endfor %}
             </div>
@@ -276,5 +276,139 @@
     </div>
     
     {% block scripts %}{% endblock %}
+
+    <!-- Step Information Modals -->
+    <div id="stepInfoModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeStepInfo()">&times;</span>
+            <h2 id="stepInfoTitle">Step Information</h2>
+            <div id="stepInfoContent"></div>
+        </div>
+    </div>
 </body>
 </html>
+
+<style>
+    /* Modal styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.4);
+    }
+    
+    .modal-content {
+        background-color: #fefefe;
+        margin: 15% auto;
+        padding: 30px;
+        border: 1px solid #888;
+        border-radius: 8px;
+        width: 70%;
+        max-width: 600px;
+        position: relative;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .modal-close {
+        color: #aaa;
+        position: absolute;
+        top: 10px;
+        right: 20px;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    .modal-close:hover {
+        color: #333;
+    }
+</style>
+
+<script>
+    // Step information modal functionality
+    function showStepInfo(stepId, event) {
+        // Prevent navigation to the step
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const modal = document.getElementById('stepInfoModal');
+        const title = document.getElementById('stepInfoTitle');
+        const content = document.getElementById('stepInfoContent');
+        
+        // Set content based on step ID
+        switch(stepId) {
+            case 1:
+                title.textContent = "Step 1: Upload Contract Price File";
+                content.innerHTML = `
+                    <p>This step allows you to upload a contract price file for validation and processing.</p>
+                    <ul>
+                        <li><strong>Supported formats:</strong> .xlsx, .csv</li>
+                        <li><strong>File columns:</strong> The system will ask you to map your columns to the required fields.</li>
+                        <li><strong>Validation:</strong> Your file will be checked for required fields, data formats, and potential duplicates.</li>
+                    </ul>
+                    <p>After successful validation, you'll proceed to the next step for database matching.</p>
+                `;
+                break;
+            case 2:
+                title.textContent = "Step 2: Database Matching";
+                content.innerHTML = `
+                    <p>In this step, your uploaded contract data is matched against existing contracts in the database.</p>
+                    <ul>
+                        <li><strong>Matching criteria:</strong> Manufacturer part numbers, contract numbers</li>
+                        <li><strong>Duplicate detection:</strong> The system identifies potential duplicate contracts</li>
+                        <li><strong>Review:</strong> You can review matches and make decisions on duplicates</li>
+                    </ul>
+                    <p>This helps ensure data consistency and prevents duplicate contract entries.</p>
+                `;
+                break;
+            case 3:
+                title.textContent = "Step 3: Enrichment";
+                content.innerHTML = `
+                    <p>This step enriches your contract data with additional information from our databases.</p>
+                    <ul>
+                        <li><strong>Data enrichment:</strong> Additional product details, market data</li>
+                        <li><strong>Classification:</strong> Automatic categorization of products</li>
+                        <li><strong>Standardization:</strong> Units of measure, descriptions, etc.</li>
+                    </ul>
+                    <p>This improves the quality and completeness of your contract data.</p>
+                `;
+                break;
+            case 4:
+                title.textContent = "Step 4: Final Review & Submit";
+                content.innerHTML = `
+                    <p>The final step where you review all processed data before submission to the contract database.</p>
+                    <ul>
+                        <li><strong>Complete review:</strong> Check all processed and enriched contract data</li>
+                        <li><strong>Summary report:</strong> View changes and additions to be made</li>
+                        <li><strong>Submission:</strong> Finalize and submit contracts to the system</li>
+                    </ul>
+                    <p>Once submitted, your contract data will be available in the main contract system.</p>
+                `;
+                break;
+            default:
+                title.textContent = `Step ${stepId} Information`;
+                content.innerHTML = `<p>Information about step ${stepId} will be provided here.</p>`;
+        }
+
+        // Show the modal
+        modal.style.display = 'block';
+    }
+
+    function closeStepInfo() {
+        const modal = document.getElementById('stepInfoModal');
+        modal.style.display = 'none';
+    }
+    
+    // Close the modal if user clicks outside of it
+    window.onclick = function(event) {
+        const modal = document.getElementById('stepInfoModal');
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+</script>

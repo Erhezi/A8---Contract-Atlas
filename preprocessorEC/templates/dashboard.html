@@ -25,10 +25,17 @@
             {% set is_completed = step.id in completed_steps %}
             {% set is_current = step.id == current_step.id %}
             <div class="step-indicator">
-                <div class="step-number {% if is_completed %}completed{% elif is_current %}current{% endif %}">
-                    {{ step.id }}
-                </div>
-                <div class="step-name">{{ step.name }}</div>
+                {% if is_completed or is_current %}
+                    <a href="{{ url_for('main.goto_step', step_id=step.id) }}" class="step-link">
+                        <div class="step-number {% if is_completed %}completed{% elif is_current %}current{% endif %}">
+                            {{ step.id }}
+                        </div>
+                        <div class="step-name">{{ step.name }}</div>
+                    </a>
+                {% else %}
+                    <div class="step-number">{{ step.id }}</div>
+                    <div class="step-name">{{ step.name }}</div>
+                {% endif %}
             </div>
         {% endfor %}
     </div>
@@ -139,6 +146,23 @@
 
     .step-content {
         margin-top: 20px;
+    }
+
+    .step-link {
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .step-link:hover .step-name {
+        color: #3498db;
+        font-weight: bold;
+    }
+    
+    .step-link:hover .step-number {
+        box-shadow: 0 0 8px rgba(52, 152, 219, 0.5);
     }
 </style>
 {% endblock %}

@@ -36,6 +36,12 @@ def reduce_mfg_part_num(mfg_part_num):
         return str(int(mfg_part_num))
     return mfg_part_num
 
+def strip_columns(df):
+    """Strip whitespace from all string columns in the DataFrame"""
+    for col in df.select_dtypes(include=['object']).columns:
+        df[col] = df[col].str.strip()
+    return df
+
 def prepare_dataframe(df, column_mapping):
     """Map columns and prepare dataframe for validation"""
     # Required fields (all required except 'Buyer Part Num')
@@ -47,6 +53,7 @@ def prepare_dataframe(df, column_mapping):
     
     # Create a copy of the dataframe with standard field names
     mapped_df = df.copy()
+    mapped_df = strip_columns(mapped_df)
     
     # Rename columns according to the mapping
     for std_field, user_field in column_mapping.items():

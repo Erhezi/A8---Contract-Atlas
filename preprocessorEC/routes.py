@@ -5,26 +5,411 @@ import pandas as pd
 from utils import validate_file
 import os
 import time
-import pyodbc
 import re
+from random import randint
 import json
+from contextlib import contextmanager
 
 main_blueprint = Blueprint('main', __name__, template_folder='templates')
 
 def get_db_connection():
-    """Establish a connection to SQL Server using Windows authentication"""
+    """Get a connection from the SQLAlchemy pool"""
     try:
-        # Connection string for Windows authentication
-        conn = pyodbc.connect(
-            'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=MISCPrdAdhocDB;'  # Replace with your actual SQL Server name
-            'DATABASE=PRIME;'  # Replace with your database name
-            'Trusted_Connection=yes;'
-        )
+        # Get the engine from the Flask app
+        engine = current_app.config['DB_ENGINE']
+        # Get a connection from the pool
+        conn = engine.connect().connection
         return conn
     except Exception as e:
         print(f"Database connection error: {str(e)}")
         return None
+
+@contextmanager
+def db_transaction():
+    """Context manager for database transactions"""
+    conn = get_db_connection()
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        if conn:
+            conn.close()
+
+def create_temp_table(table_name, df, conn):
+    """Create a temporary table in the database for the uploaded file data
+    
+    Args:
+        table_name: The name to give the temp table
+        df: DataFrame containing the data
+        conn: Active database connection
+    
+    Returns:
+        tuple: (success boolean, message string)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Drop the table if it already exists
+        cursor.execute(f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE {table_name}")
+        
+        # Create the temp table with appropriate columns
+        create_table_sql = f"""
+        CREATE TABLE {table_name} (
+            Mfg_Part_Num VARCHAR(255) NOT NULL,
+            Vendor_Part_Num VARCHAR(255),
+            Buyer_Part_Num VARCHAR(255),
+            Description NVARCHAR(MAX) NOT NULL,
+            Contract_Price MONEY NOT NULL,
+            UOM VARCHAR(50) NOT NULL,
+            QOE INT NOT NULL,
+            Effective_Date DATE NOT NULL,
+            Expiration_Date DATE NOT NULL,
+            Contract_Number VARCHAR(100) NOT NULL,
+            ERP_Vendor_ID VARCHAR(20) NOT NULL,
+            Reduced_Mfg_Part_Num VARCHAR(255),
+            File_Row INT,
+            PRIMARY KEY (Mfg_Part_Num, Contract_Number, UOM)
+        )
+        """
+        cursor.execute(create_table_sql)
+        
+        # Define SQL table columns
+        columns = ['Mfg_Part_Num', 'Vendor_Part_Num', 'Buyer_Part_Num', 'Description', 
+                'Contract_Price', 'UOM', 'QOE', 'Effective_Date', 'Expiration_Date', 
+                'Contract_Number', 'ERP_Vendor_ID', 'Reduced_Mfg_Part_Num', 'File_Row']
+        
+        # columns we want from our input DataFrame
+        pre_checked_columns = ['Mfg Part Num', 'Vendor Part Num', 'Buyer Part Num', 'Description',
+                               'Contract Price', 'UOM', 'QOE', 'Effective Date', 'Expiration Date',
+                               'Contract Number', 'ERP Vendor ID', 'Reduced Mfg Part Num', 'File Row']
+        df = df[pre_checked_columns].copy()
+        
+        
+        # Map from DataFrame columns to SQL table columns
+        insert_df = pd.DataFrame(index=df.index)
+        for col in columns:
+            if col in df.columns:
+                insert_df[col] = df[col]
+            else:
+                # Handle column name variations
+                mapped_col = col.replace('_', ' ')
+                if mapped_col in df.columns:
+                    insert_df[col] = df[mapped_col]
+                elif col == 'Buyer_Part_Num':
+                    insert_df[col] = ''
+                elif col == 'Reduced_Mfg_Part_Num' and 'Reduced Mfg Part Num' in df.columns:
+                    insert_df[col] = df['Reduced Mfg Part Num']
+                else:
+                    print(f"Missing column in DataFrame: {col}")
+                    insert_df[col] = None
+
+        # Batch insert for better performance
+        for _, row in insert_df.iterrows():
+            row_values = [None if pd.isnull(v) or v == '' else v for v in row.values]
+            placeholders = ','.join(['?' for _ in row_values])
+            column_names = ','.join(columns)
+            insert_sql = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
+            cursor.execute(insert_sql, row_values)
+        
+        return True, table_name
+    
+    except Exception as e:
+        print(f"Database error: {str(e)}")
+        return False, str(e)
+    
+
+def find_duplicates_with_ccx(temp_table, conn):
+    """Find potential duplicates between the temp table and CCX database
+        
+        Args:
+            temp_table: Name of the temporary table
+            conn: Active database connection
+        
+        Returns:
+            tuple: (success boolean, error message, result list)
+        """
+    try:
+        cursor = conn.cursor()
+        
+        # SQL query to find potential duplicates
+        query = f"""
+        SELECT 
+            ccx.CONTRACT_NUMBER AS contract_number_ccx,
+            ccx.CONTRACT_DESCRIPTION AS contract_description_ccx,
+            ccx.CONTRACT_OWNER AS contract_owner_ccx,
+            ccx.SOURCE_CONTRACT_TYPE AS source_contract_type_ccx,
+            ccx.REDUCED_MANUFACTURER_PART_NUMBER AS reduced_mfg_part_num_ccx,
+            ccx.MANUFACTURER_NAME AS manufacturer_name_ccx,
+            ccx.MANUFACTURER_PART_NUMBER AS mfg_part_num_ccx,
+            ccx.UOM AS uom_ccx,
+            ccx.QOE AS qoe_ccx,
+            ccx.PRICE AS price_ccx,
+            ccx.ITEM_PRICE_START_DATE AS effective_date_ccx,
+            ccx.ITEM_PRICE_END_DATE AS expiration_date_ccx,
+            ccx.VENDOR_ERP_NUMBER AS erp_vendor_id_ccx,
+            ccx.VENDOR_NAME AS vendor_name_ccx,
+            ccx.PART_DESCRIPTION AS description_ccx,
+            temp.Mfg_Part_Num,
+            temp.Vendor_Part_Num,
+            temp.Buyer_Part_Num,
+            temp.Description,
+            temp.Contract_Price,
+            temp.UOM,
+            temp.QOE,
+            temp.Effective_Date,
+            temp.Expiration_Date,
+            temp.Contract_Number,
+            temp.ERP_Vendor_ID,
+            temp.Reduced_Mfg_Part_Num,
+            temp.File_Row,
+            CASE WHEN ccx.MANUFACTURER_PART_NUMBER = temp.Mfg_Part_Num THEN 1 ELSE 0 END AS same_mfg_part_num
+        FROM 
+            (
+                SELECT 
+                    CONTRACT_NUMBER, 
+                    CONTRACT_DESCRIPTION, 
+                    CONTRACT_OWNER, 
+                    SOURCE_CONTRACT_TYPE,
+                    CASE
+                        WHEN MANUFACTURER_PART_NUMBER IS NULL OR LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)) = '' THEN NULL
+                        ELSE
+                            CASE
+                                WHEN ISNUMERIC(REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) = 1
+                                THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) AS VARCHAR(255))
+                                ELSE
+                                    REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')
+                            END
+                    END AS REDUCED_MANUFACTURER_PART_NUMBER,
+                    MANUFACTURER_NAME, 
+                    MANUFACTURER_PART_NUMBER, 
+                    UOM,
+                    QOE, 
+                    PRICE, 
+                    ITEM_PRICE_START_DATE, 
+                    ITEM_PRICE_END_DATE,
+                    VENDOR_ERP_NUMBER, 
+                    VENDOR_NAME, 
+                    PART_DESCRIPTION
+                FROM 
+                    [DM_MONTYNT\\dli2].ccx_dump_validation_stg
+                WHERE 
+                    IS_SUOM = 'f'
+                    AND ITEM_PRICE_START_DATE <= LAST_UPDATE_DATE 
+                    AND ITEM_PRICE_END_DATE > LAST_UPDATE_DATE
+            ) as ccx
+        INNER JOIN 
+            {temp_table} as temp
+        ON 
+            CAST(ccx.REDUCED_MANUFACTURER_PART_NUMBER AS VARCHAR(255)) = CAST(temp.Reduced_Mfg_Part_Num AS VARCHAR(255))
+        ORDER BY 
+            ccx.CONTRACT_NUMBER, ccx.MANUFACTURER_PART_NUMBER
+        """
+        
+        # Execute the query
+        cursor.execute(query)
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            results.append(dict(zip(columns, row)))
+        
+        # Group by contract number (CCX side)
+        contract_summary = {}
+        for item in results:
+            contract_num = item['contract_number_ccx']
+            if contract_num not in contract_summary:
+                contract_summary[contract_num] = {
+                    'contract_number': contract_num,
+                    'contract_description': item['contract_description_ccx'],
+                    'manufacturer_name': item['manufacturer_name_ccx'],
+                    'contract_owner': item['contract_owner_ccx'],
+                    'total_matches': 0,
+                    'exact_matches': 0,
+                    'items': []
+                }
+            
+            # Count this item
+            contract_summary[contract_num]['total_matches'] += 1
+            if item['same_mfg_part_num'] == 1:
+                contract_summary[contract_num]['exact_matches'] += 1
+            
+            # Add this item to the contract's items
+            contract_summary[contract_num]['items'].append(item)
+        
+        # Convert to a list
+        contract_list = list(contract_summary.values())
+        
+        return True, "", contract_list
+    
+    except Exception as e:
+        print(f"Database error in find_duplicates_with_ccx: {str(e)}")
+        return False, str(e), None
+
+@main_blueprint.route('/process-duplicates', methods=['POST'])
+@login_required
+def process_duplicates():
+    """Process the uploaded data to find duplications with CCX data"""
+    try:
+        # Check if we have validated data
+        if 'validated_data' not in session:
+            return jsonify({
+                'success': False,
+                'message': 'No validated data available. Please complete Step 1 first.'
+            })
+        
+        # Convert validated data from session back to dataframe
+        validated_df = pd.DataFrame.from_dict(session['validated_data'])
+        
+        # Get single connection for entire operation
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to connect to database'
+            })
+        
+        try:
+            # Create a unique table name
+            random_suffix = ''.join([str(randint(0, 9)) for _ in range(4)])
+            user_id = current_user.id
+            table_name = f"##temp_contract_{user_id}_{random_suffix}"  # Global Temp Table
+            table_name = f"test_temp_contract_{user_id}" # for testing purpose - TEST TEST TEST
+            print(table_name) # Debugging line - TEST TEST TEST
+            
+            # Create the temp table using the connection
+            success, result = create_temp_table(table_name, validated_df, conn)
+            
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'message': f'Failed to create temporary table: {result}'
+                })
+            
+            # Run duplicate checking using same connection
+            success, error_msg, contract_list = find_duplicates_with_ccx(table_name, conn)
+            
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'message': f'Error finding duplicates: {error_msg}'
+                })
+            
+            # Store results in session
+            session['contract_duplicates'] = contract_list
+            
+            # Commit at the end of all operations
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Duplicate analysis complete',
+                'contracts': contract_list
+            })
+        finally:
+            # Always close connection
+            conn.close()
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error processing duplicates: {str(e)}'
+        })
+
+@main_blueprint.route('/get-duplicate-contracts', methods=['GET'])
+@login_required
+def get_duplicate_contracts():
+    """Get the list of contracts with potential duplicates"""
+    if 'contract_duplicates' not in session:
+        # If not in session yet, process the duplicates
+        return jsonify({
+            'success': False,
+            'message': 'No duplicate data available. Please process duplicates first.'
+        })
+    
+    return jsonify({
+        'success': True,
+        'contracts': session['contract_duplicates']
+    })
+
+@main_blueprint.route('/get-duplicate-items/<contract_num>', methods=['GET'])
+@login_required
+def get_duplicate_items(contract_num):
+    """Get the items for a specific contract"""
+    if 'contract_duplicates' not in session:
+        return jsonify({
+            'success': False,
+            'message': 'No duplicate data available. Please process duplicates first.'
+        })
+    
+    # Find the contract in the session data
+    contract_list = session['contract_duplicates']
+    contract = next((c for c in contract_list if c['contract_number'] == contract_num), None)
+    
+    if not contract:
+        return jsonify({
+            'success': False,
+            'message': f'Contract {contract_num} not found'
+        })
+    
+    return jsonify({
+        'success': True,
+        'contract': contract
+    })
+
+@main_blueprint.route('/include-exclude-contract', methods=['POST'])
+@login_required
+def include_exclude_contract():
+    """Include or exclude a contract from further processing"""
+    data = request.json
+    contract_num = data.get('contract_num')
+    include = data.get('include', True)
+    
+    if not contract_num:
+        return jsonify({
+            'success': False,
+            'message': 'No contract number provided'
+        })
+    
+    if 'contract_duplicates' not in session:
+        return jsonify({
+            'success': False,
+            'message': 'No duplicate data available. Please process duplicates first.'
+        })
+    
+    # Initialize included/excluded contracts if not present
+    if 'included_contracts' not in session:
+        session['included_contracts'] = []
+    if 'excluded_contracts' not in session:
+        session['excluded_contracts'] = []
+    
+    # Update the lists
+    included = session['included_contracts']
+    excluded = session['excluded_contracts']
+    
+    if include:
+        if contract_num not in included:
+            included.append(contract_num)
+        if contract_num in excluded:
+            excluded.remove(contract_num)
+    else:
+        if contract_num not in excluded:
+            excluded.append(contract_num)
+        if contract_num in included:
+            included.remove(contract_num)
+    
+    # Update session
+    session['included_contracts'] = included
+    session['excluded_contracts'] = excluded
+    
+    return jsonify({
+        'success': True,
+        'included_contracts': included,
+        'excluded_contracts': excluded
+    })
 
 @main_blueprint.route('/')
 def home():
@@ -51,6 +436,21 @@ def dashboard():
     all_steps = current_app.get_all_steps()
     
     return render_template('dashboard.html', current_step=current_step, steps=all_steps)
+
+@main_blueprint.route('/goto-step/<int:step_id>', methods=['GET'])
+@login_required
+def goto_step(step_id):
+    """Navigate to a specific step"""
+    # Check if the requested step is accessible
+    is_allowed, current_step_id, message = current_app.validate_step_progress(step_id)
+    
+    if is_allowed:
+        # Update the current step in the session without affecting completion status
+        session['current_step_id'] = step_id
+        return redirect(url_for('main.dashboard'))
+    else:
+        flash(message, 'warning')
+        return redirect(url_for('main.dashboard'))
 
 @main_blueprint.route('/step/<int:step_id>')
 @login_required
@@ -327,9 +727,10 @@ def validate_file_route():
                 
         # No errors, store validated dataframe in session
         # Since we can't store the dataframe directly in session, convert to dict
+        session.pop('error_file', None)  # Clear any previous error file
         total_rows = len(valid_df)
         session['validated_data'] = valid_df.to_dict()
-        session['result_file'] = save_error_file(valid_df, current_user.id, file_info['name'])
+        # session['result_file'] = save_error_file(valid_df, current_user.id, file_info['name'])
         
         return jsonify({
             'success': True,

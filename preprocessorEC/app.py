@@ -2,9 +2,39 @@ from flask import Flask, redirect, url_for, session, flash, request
 from flask_login import LoginManager, current_user
 from auth import auth_blueprint
 from routes import main_blueprint
+from sqlalchemy import create_engine
+from sqlalchemy.pool import QueuePool
+from flask_session import Session
+import tempfile
+import os
+from datetime import timedelta
+
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Replace with a secure key in production
+
+# Configure session to use filesystem (or Redis, etc.)
+app.config['SESSION_TYPE'] = 'filesystem'   
+app.config['SESSION_FILE_DIR'] = tempfile.gettempdir()  # Use temp directory for session files
+app.config['SESSION_PERMANENT'] = False  # Session will expire when the browser is closed
+app.config['SESSION_USE_SIGNER'] = True  # Sign the session cookie
+app.config['SESSION_FILE_DIR'] = os.path.join(app.root_path, 'temp_files', 'flask_session')  # Directory for session files
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+print(app.root_path)
+Session(app)  # Initialize the session
+
+# Initialize the database engine with connection pooling
+app.config['DB_ENGINE'] = create_engine(
+    'mssql+pyodbc:///?odbc_connect=' + 
+    'DRIVER={ODBC Driver 17 for SQL Server};'
+    'SERVER=MISCPrdAdhocDB;'
+    'DATABASE=PRIME;'
+    'Trusted_Connection=yes;',
+    poolclass=QueuePool,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True
+)
 
 # Set up login manager
 login_manager = LoginManager()
