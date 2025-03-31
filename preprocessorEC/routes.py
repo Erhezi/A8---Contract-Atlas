@@ -382,7 +382,7 @@ def include_exclude_contract():
     
     # Initialize included/excluded contracts if not present
     if 'included_contracts' not in session:
-        session['included_contracts'] = []
+        session['included_contracts'] = [contract['contract_number'] for contract in contract_num]
     if 'excluded_contracts' not in session:
         session['excluded_contracts'] = []
     
