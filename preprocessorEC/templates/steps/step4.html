@@ -1,0 +1,18 @@
+<!-- Item Master Matching Content -->
+<div class="step-content">
+    <p>Match items to the master database.</p>
+    <div class="matching-table">
+        <!-- Matching interface would go here -->
+        <form method="POST" action="{{ url_for('main.process_step', step_id=4) }}">
+            <div class="form-group">
+                <label>Matching Method</label>
+                <select class="form-control" name="matching_method">
+                    <option value="exact">Exact Match</option>
+                    <option value="fuzzy">Fuzzy Match</option>
+                    <option value="manual">Manual Match</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Complete Matching</button>
+        </form>
+    </div>
+</div>

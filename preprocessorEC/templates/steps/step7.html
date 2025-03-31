@@ -1,0 +1,18 @@
+<!-- Synchronization Inspection Content -->
+<div class="step-content">
+    <p>Inspect the synchronization status.</p>
+    <div class="sync-status">
+        <div class="status-indicator success">
+            <span class="icon">✓</span>
+            <span class="text">Synchronization Complete</span>
+        </div>
+        <div class="sync-details">
+            <p><strong>Total Items:</strong> 52</p>
+            <p><strong>Successfully Synced:</strong> 52</p>
+            <p><strong>Sync Time:</strong> 2023-06-01 14:32:45</p>
+        </div>
+        <form method="POST" action="{{ url_for('main.process_step', step_id=7) }}">
+            <button type="submit" class="btn btn-primary">Verify and Continue</button>
+        </form>
+    </div>
+</div>

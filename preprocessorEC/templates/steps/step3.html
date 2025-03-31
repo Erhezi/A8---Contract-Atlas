@@ -1,0 +1,18 @@
+<!-- Duplication Resolution Content -->
+<div class="step-content">
+    <p>Resolve the identified duplications.</p>
+    <div class="resolution-controls">
+        <form method="POST" action="{{ url_for('main.process_step', step_id=3) }}">
+            <!-- Resolution UI would go here -->
+            <div class="form-group">
+                <label>Resolution Strategy</label>
+                <select class="form-control" name="resolution_strategy">
+                    <option value="merge">Merge Duplicates</option>
+                    <option value="keep_latest">Keep Latest</option>
+                    <option value="manual">Manual Resolution</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Apply Resolution</button>
+        </form>
+    </div>
+</div>

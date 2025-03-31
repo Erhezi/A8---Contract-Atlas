@@ -1,0 +1,24 @@
+<!-- Change Simulation Content -->
+<div class="step-content">
+    <p>Review the simulated changes before applying.</p>
+    <div class="simulation-results">
+        <!-- Simulation data would go here -->
+        <div class="stats-summary">
+            <div class="stat-box">
+                <div class="stat-number">42</div>
+                <div class="stat-label">Items to Update</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">7</div>
+                <div class="stat-label">Items to Create</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">3</div>
+                <div class="stat-label">Items to Delete</div>
+            </div>
+        </div>
+        <form method="POST" action="{{ url_for('main.process_step', step_id=5) }}">
+            <button type="submit" class="btn btn-primary">Approve Changes</button>
+        </form>
+    </div>
+</div>

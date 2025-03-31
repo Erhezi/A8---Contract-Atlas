@@ -7,6 +7,8 @@
 !preprocessorEC/**/*.py
 !preprocessorEC/templates/
 !preprocessorEC/templates/**/*.html
+!preprocessorEC/templates/steps/
+!preprocessorEC/templates/steps/*.html
 !.gitignore
 
 # Explicit ignores even if they match the patterns above
