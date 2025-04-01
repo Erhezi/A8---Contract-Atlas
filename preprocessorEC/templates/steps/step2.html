@@ -469,9 +469,9 @@
     .items-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.75rem; /* Reduce from 0.85rem to 0.75rem */
+        font-size: 0.75rem; 
     }
-    
+
     .items-table th, 
     .items-table td {
         padding: 6px; /* Reduce padding from 8px to 6px for more compact rows */
@@ -637,6 +637,7 @@
                     <option value="not-contains">Not Contains</option>
                 </select>
                 <input type="text" id="contract-search" class="search-input" placeholder="Filter results...">
+                <button type="button" id="contract-clear-search-btn" class="clear-search-btn" title="Clear search">Clear</button>
             </div>
         </div>
         
@@ -807,6 +808,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const contractCardsContainer = document.getElementById('contract-cards-container');
     const startAnalysisBtn = document.getElementById('start-analysis-btn');
+    const contractClearSearchBtn = document.getElementById('contract-clear-search-btn');
     const continueBtn = document.getElementById('continue-btn');
     const contractSearch = document.getElementById('contract-search');
     const searchTypeSelect = document.getElementById('search-type');
@@ -848,6 +850,16 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingOverlay.style.display = 'none';
             alert('Error: ' + error);
         });
+    });
+
+    
+    contractClearSearchBtn.addEventListener('click', function() {
+        // Clear the search input
+        contractSearch.value = '';
+        // Reset search type to "contains"
+        searchTypeSelect.value = 'contains';
+        // Trigger filtering to show all contracts
+        filterContracts();
     });
     
     function displayContracts(contracts) {
@@ -929,6 +941,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="card-stat">
                         <div class="stat-value">${contract.exact_matches}</div>
                         <div class="stat-label">Exact MFN Matches</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="stat-value">${contract.total_line_count_ccx || 'N/A'}</div>
+                        <div class="stat-label">Total CCX Lines</div>
                     </div>
                 </div>
             `;

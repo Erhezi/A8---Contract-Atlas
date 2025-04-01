@@ -450,6 +450,7 @@ def find_duplicates_with_ccx(temp_table, conn):
             ccx.VENDOR_ERP_NUMBER AS erp_vendor_id_ccx,
             ccx.VENDOR_NAME AS vendor_name_ccx,
             ccx.PART_DESCRIPTION AS description_ccx,
+            ccx_count.total_line_count AS total_line_count_ccx,
             temp.Mfg_Part_Num,
             temp.Vendor_Part_Num,
             temp.Buyer_Part_Num,
@@ -502,6 +503,13 @@ def find_duplicates_with_ccx(temp_table, conn):
             {temp_table} as temp
         ON 
             CAST(ccx.REDUCED_MANUFACTURER_PART_NUMBER AS VARCHAR(255)) = CAST(temp.Reduced_Mfg_Part_Num AS VARCHAR(255))
+        		INNER JOIN
+			(
+			 SELECT CONTRACT_NUMBER, Total_Line_Count
+			 FROM [DM_MONTYNT\\dli2].ccx_dump_line_count_stg
+			 ) [ccx_count]
+		ON
+			ccx_count.CONTRACT_NUMBER = ccx.CONTRACT_NUMBER
         ORDER BY 
             ccx.CONTRACT_NUMBER, ccx.MANUFACTURER_PART_NUMBER
         """
@@ -528,6 +536,7 @@ def find_duplicates_with_ccx(temp_table, conn):
                     'contract_owner': item['contract_owner_ccx'],
                     'total_matches': 0,
                     'exact_matches': 0,
+                    'total_line_count_ccx': item['total_line_count_ccx'],
                     'items': []
                 }
             
@@ -541,6 +550,8 @@ def find_duplicates_with_ccx(temp_table, conn):
         
         # Convert to a list
         contract_list = list(contract_summary.values())
+        for contract in contract_list:
+            print(f"Contract {contract['contract_number']} has {contract.get('total_line_count_ccx', 'MISSING')} total lines")
         
         return True, "", contract_list
     
