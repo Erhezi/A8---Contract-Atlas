@@ -1,3 +1,4 @@
+import pip_system_certs.wrapt_requests
 import pandas as pd
 import numpy as np
 import os
@@ -6,6 +7,11 @@ import re
 from flask import current_app
 from werkzeug.utils import secure_filename
 from contextlib import contextmanager
+import pip_system_certs
+
+# model cache for sentence transformers
+# This is a simple cache to avoid reloading the model multiple times
+_MODEL_CACHE = {}
 
 def allowed_file(filename):
     """Check if the file has an allowed extension"""
@@ -550,8 +556,6 @@ def find_duplicates_with_ccx(temp_table, conn):
         
         # Convert to a list
         contract_list = list(contract_summary.values())
-        for contract in contract_list:
-            print(f"Contract {contract['contract_number']} has {contract.get('total_line_count_ccx', 'MISSING')} total lines")
         
         return True, "", contract_list
     
@@ -559,56 +563,136 @@ def find_duplicates_with_ccx(temp_table, conn):
         print(f"Database error in find_duplicates_with_ccx: {str(e)}")
         return False, str(e), None
 
+def calculate_mfn_complexity(mfn):
+    """Calculate how unique/complex an MFN string is (0.0-1.0)
+    
+    Args:
+        mfn: Manufacturer part number string
+        
+    Returns:
+        float: Complexity score between 0 and 1
+    """
+    if not mfn or pd.isna(mfn):
+        return 0.0
+    
+    mfn = str(mfn).strip()
+    
+    # Length factor (longer is better, max at 12 chars)
+    length_score = 0.0 if len(mfn) < 3 else min(len(mfn) / 12.0, 1.0)
+    
+    # Character diversity (unique chars / total length)
+    unique_chars = set(mfn)
+    diversity_ratio = len(unique_chars) / max(len(mfn), 1)
+    
+    # Character type variety (digits, letters, special chars)
+    has_digits = any(c.isdigit() for c in mfn)
+    has_letters = any(c.isalpha() for c in mfn)
+    char_type_score = (has_digits + has_letters) / 2.0
+    
+    # Combined score with weights
+    complexity_score = (
+        (length_score * 0.6) +          # 60% from length
+        (diversity_ratio * 0.2) +       # 20% from character diversity
+        (char_type_score * 0.2)         # 20% from character type variety
+    )
+    
+    return complexity_score
+
+
 def calculate_mfn_match_score(ccx_mfn, upload_mfn):
-    """Calculate manufacturer part number match score (15% weight)
+    """Calculate manufacturer part number match score with complexity consideration (20% weight)
     
     Args:
         ccx_mfn: Manufacturer part number from CCX
         upload_mfn: Manufacturer part number from upload
         
     Returns:
-        float: Score between 0 and 1
+        tuple: (match_score, complexity_score) both between 0 and 1
     """
+    # Calculate complexity of the MFNs
+    complexity_score = (calculate_mfn_complexity(ccx_mfn) + calculate_mfn_complexity(upload_mfn))/2
+    
+    # if cmplexity_score < 0.3, we don't trust the the mfn match, so the final mfn score get to multiplied by 0.5
+    # if complexity_score > 0.75, exact match and reduced mfn match are both get * 2
+    # if complexity_score > 0.85, exact match and reduced mfn match are both get * 3
+    # if it is between 0.3 to 0.7, we will trust the mfn match but not the reduced mfn match
+    
+    # For exact matches, return perfect score
     if ccx_mfn == upload_mfn:
-        return 1.0  # Exact match
+        if complexity_score > 0.85:
+            return 3.0, complexity_score
+        if complexity_score > 0.75:
+            return 2.0, complexity_score
+        elif complexity_score < 0.3:
+            return 0.5, complexity_score
+        return 1.0, complexity_score
     
     # Normalize strings for comparison
     ccx_norm = str(ccx_mfn).strip().lower()
     upload_norm = str(upload_mfn).strip().lower()
-    
-    if ccx_norm == upload_norm:
-        return 1.0  # Case-insensitive match
-    
     # Remove non-alphanumeric characters
     ccx_alphanum = ''.join(c for c in ccx_norm if c.isalnum())
     upload_alphanum = ''.join(c for c in upload_norm if c.isalnum())
     
+    # reduced mfn match
     if ccx_alphanum == upload_alphanum:
-        return 0.9  # Match after removing special characters
+        if complexity_score > 0.85:
+            return 3.0, complexity_score  # Perfect match with high complexity
+        elif complexity_score > 0.75:
+            return 2.0, complexity_score
+        if complexity_score < 0.3:
+            return 0.5, complexity_score  # Perfect match with low complexity
+        else:
+            return 0.95, complexity_score
     
-    # Check if one is contained in the other
+
+    # Check if one is contained in the other (only apply to mfn that are longer than 5 letters)
     if ccx_alphanum in upload_alphanum or upload_alphanum in ccx_alphanum:
-        return 0.7  # Partial containment
+        base_score = 0.8
+        # further constrains on length
+        if len(ccx_alphanum) > 5 and len(upload_alphanum) > 5: 
+            adjusted_score = base_score * (0.8 + (0.2 * complexity_score))
+            return adjusted_score, complexity_score
     
-    # Simple string distance-based comparison
-    max_len = max(len(ccx_alphanum), len(upload_alphanum))
-    if max_len == 0:
-        return 0  # Both strings are empty or non-alphanumeric
-    
-    # Calculate Levenshtein distance
+    # If we get here, use Levenshtein distance or fallback
     try:
         from rapidfuzz.distance import Levenshtein
+        max_len = max(len(ccx_alphanum), len(upload_alphanum))
+        if max_len == 0:
+            return 0.0, complexity_score
+            
         distance = Levenshtein.distance(ccx_alphanum, upload_alphanum)
         similarity = 1 - (distance / max_len)
-        return max(0, min(0.5, similarity))  # Cap at 0.5 for Levenshtein
+        
+        # Apply complexity adjustment to Levenshtein similarity
+        # Simple strings need to be more similar to get the same score
+        base_score = max(0, min(0.5, similarity))
+        
+        if complexity_score < 0.3:
+            # For very simple strings, be more strict
+            adjusted_score = base_score * 0.6
+        else:
+            # For complex strings, be more lenient
+            adjusted_score = base_score * (0.7 + (0.3 * complexity_score))
+            
+        return adjusted_score, complexity_score
+    
     except ImportError:
         # Fallback if rapidfuzz is not available
-        # Simple character overlap calculation
         common_chars = set(ccx_alphanum) & set(upload_alphanum)
         if not common_chars:
-            return 0
+            return 0.0, complexity_score
+            
         overlap = len(common_chars) / max(len(set(ccx_alphanum)), len(set(upload_alphanum)))
-        return max(0, min(0.5, overlap))  # Cap at 0.5 for simple overlap
+        base_score = max(0, min(0.5, overlap))
+        
+        # Similar complexity adjustment
+        if complexity_score < 0.3:
+            adjusted_score = base_score * 0.5
+        else:
+            adjusted_score = base_score * (0.7 + (0.3 * complexity_score))
+            
+        return adjusted_score, complexity_score
 
 def calculate_ea_price_match_score(ccx_price, upload_price, ccx_qoe, upload_qoe):
     """Calculate EA price match score (10% weight)
@@ -620,7 +704,9 @@ def calculate_ea_price_match_score(ccx_price, upload_price, ccx_qoe, upload_qoe)
         upload_qoe: Quantity of each from upload
         
     Returns:
-        float: Score between 0 and 1
+        tuple( float: Score, float: EA price percent diff with direction) 
+        Score: between 0 and 1
+        EA price percent diff with direction: positive if upload > CCX, negative if upload < CCX
     """
     try:
         # Calculate EA price (Contract Price / QOE)
@@ -629,62 +715,181 @@ def calculate_ea_price_match_score(ccx_price, upload_price, ccx_qoe, upload_qoe)
         
         # Prevent division by zero
         if ccx_ea_price == 0 and upload_ea_price == 0:
-            return 1.0  # Both prices are zero
+            return (1.0, 0.0)  # Both prices are zero
         if ccx_ea_price == 0 or upload_ea_price == 0:
-            return 0.0  # One price is zero, the other isn't
+            return (0.0, 0.0)  # One price is zero, the other isn't
         
-        # Calculate percentage difference
-        price_diff = abs(ccx_ea_price - upload_ea_price)
-        price_diff_percent = price_diff / max(ccx_ea_price, upload_ea_price) * 100
+        # Calculate percentage difference (use ccx as base)
+        price_diff = abs(upload_ea_price - ccx_ea_price)
+        price_diff_direction = 1 if upload_ea_price > ccx_ea_price else -1
+        price_diff_percent = price_diff / ccx_ea_price * 100
+        price_diff_percent_with_direction = price_diff_percent * price_diff_direction
         
         # Score based on percentage difference
-        if price_diff_percent < 5:
-            return 1.0
-        elif price_diff_percent < 30:
-            return 0.9
+        if price_diff_percent < 10:
+            return (1.0, price_diff_percent_with_direction)
+        elif price_diff_percent < 25:
+            return (0.95, price_diff_percent_with_direction)
         elif price_diff_percent < 50:
-            return 0.5
+            return (0.75, price_diff_percent_with_direction)
         else:
-            return 0.0
+            return (0.0, price_diff_percent_with_direction)
     except (ValueError, TypeError, ZeroDivisionError):
         # Handle conversion or division errors
-        return 0.0
+        return (0.0, 0.0)
+
+def get_sentence_transformer_model():
+    """Get or initialize the sentence transformer model from local cache if available"""
+    if 'transformer_model' not in _MODEL_CACHE:
+        try:
+            from sentence_transformers import SentenceTransformer
+            import os
+            
+            # Define path to local model storage
+            local_model_path = os.path.join(current_app.root_path, 'models', 'all-MiniLM-L6-v2')
+            
+            # Check if model exists locally
+            if os.path.exists(local_model_path):
+                print(f"Loading model from local path: {local_model_path}")
+                _MODEL_CACHE['transformer_model'] = SentenceTransformer(local_model_path)
+            else:
+                # First time: download and save the model locally
+                print("Downloading model and saving to local path...")
+                os.makedirs(os.path.dirname(local_model_path), exist_ok=True)
+                
+                # Download and save model
+                model = SentenceTransformer('all-MiniLM-L6-v2')
+                model.save(local_model_path)
+                _MODEL_CACHE['transformer_model'] = model
+                print(f"Model saved to {local_model_path}")
+                
+        except ImportError:
+            _MODEL_CACHE['transformer_model'] = None
+            print("Warning: sentence-transformers package not available. Using fallback similarity.")
+            
+    return _MODEL_CACHE['transformer_model']
+
 
 def calculate_description_similarity(ccx_desc, upload_desc):
-    """Calculate description similarity score (50% weight)
+    """Calculate description similarity score using transformer models
     
     Args:
         ccx_desc: Description from CCX
         upload_desc: Description from upload
         
     Returns:
-        float: Score between 0 and 1
+        float: Similarity score between 0 and 1
     """
     # Normalize strings
     ccx_norm = str(ccx_desc).strip().lower()
     upload_norm = str(upload_desc).strip().lower()
     
+    # Handle empty descriptions
     if not ccx_norm or not upload_norm:
         return 0.0
     
+    # Check for exact match first
     if ccx_norm == upload_norm:
-        return 1.0  # Exact match
+        return 1.0
     
-    # Implement a simplified version without NLP for now
-    # In production, we would use an NLP transformer model
+    # Import necessary libraries (only imported when needed)
+    try:
+        import re
+        import numpy as np
+        from scipy.spatial.distance import cosine
+
+        model = get_sentence_transformer_model()
+        
+        # Extract numbers and measurements from descriptions
+        def extract_numbers_and_measurements(text):
+            """Extract and normalize measurements from text descriptions"""
+            # Unit normalization mapping
+            unit_mapping = {
+                'mm': 'mm', 'millimeter': 'mm', 'millimeters': 'mm', 
+                'cm': 'cm', 'centimeter': 'cm', 'centimeters': 'cm',
+                'in': 'in', 'inch': 'in', 'inches': 'in',
+                'ft': 'ft', 'foot': 'ft', 'feet': 'ft',
+                'ml': 'ml', 'milliliter': 'ml', 'milliliters': 'ml',
+                'l': 'l', 'liter': 'l', 'liters': 'l',
+                'kg': 'kg', 'kilogram': 'kg', 'kilograms': 'kg',
+                'g': 'g', 'gram': 'g', 'grams': 'g',
+                # Add more unit mappings as needed
+            }
+            
+            normalized_measurements = set()
+            
+            # 1. Extract measurements with units
+            measurement_pattern = r'(\d+\.?\d*)\s*([a-zA-Z]+)'
+            for match in re.finditer(measurement_pattern, text):
+                value, unit = match.groups()
+                # Normalize the number by removing trailing zeros
+                value = str(float(value)).rstrip('0').rstrip('.') if '.' in value else value
+                
+                # Normalize the unit if possible
+                unit = unit.lower()
+                normalized_unit = unit_mapping.get(unit, unit)
+                
+                # Create normalized measurement string
+                normalized_measurements.add(f"{value}{normalized_unit}")
+            
+            # 2. Extract dimensions (like 10x20x30)
+            dimension_pattern = r'(\d+\.?\d*)\s*[xX]\s*(\d+\.?\d*)(?:\s*[xX]\s*(\d+\.?\d*))?'
+            for match in re.finditer(dimension_pattern, text):
+                dims = [str(float(d)).rstrip('0').rstrip('.') if '.' in d else d for d in match.groups() if d]
+                normalized_measurements.add('x'.join(dims))
+            
+            # 3. Extract product codes with numbers (from the original pattern)
+            product_code_pattern = r'\b[A-Za-z]+-?\d+[A-Za-z0-9-]*\b'
+            for match in re.finditer(product_code_pattern, text):
+                normalized_measurements.add(match.group(0).lower())
+            
+            # 4. Extract standalone numbers
+            number_pattern = r'\b(\d+\.?\d*)\b'
+            for match in re.finditer(number_pattern, text):
+                value = match.group(1)
+                # Normalize by removing trailing zeros
+                value = str(float(value)).rstrip('0').rstrip('.') if '.' in value else value
+                normalized_measurements.add(value)
+            
+            return normalized_measurements
+        
+        # Extract numerical components from both descriptions
+        ccx_nums = extract_numbers_and_measurements(ccx_norm)
+        upload_nums = extract_numbers_and_measurements(upload_norm)
+        
+        # Calculate numerical overlap score (Jaccard similarity)
+        if ccx_nums or upload_nums:
+            intersection = len(ccx_nums.intersection(upload_nums))
+            union = len(ccx_nums.union(upload_nums))
+            numerical_similarity = ((intersection / union) + 1) if union > 0 else 1
+        else:
+            numerical_similarity = 1  # Neutral score if no numbers present
+        
+        # Generate embeddings for semantic similarity
+        embeddings = model.encode([ccx_norm, upload_norm])
+        
+        # Calculate cosine similarity between embeddings
+        semantic_similarity = 1 - cosine(embeddings[0], embeddings[1])
+        
+        # Combine scores with weights (70% semantic, 30% numerical)
+        combined_similarity = semantic_similarity if numerical_similarity == 1 else (semantic_similarity * 0.5) + (numerical_similarity * 0.5)
+        
+        return float(min(max(combined_similarity, 0.0), 1.0))  # Ensure score is between 0 and 1
     
-    # Tokenize descriptions into words
-    ccx_words = set(ccx_norm.split())
-    upload_words = set(upload_norm.split())
-    
-    # Calculate Jaccard similarity
-    intersection = len(ccx_words.intersection(upload_words))
-    union = len(ccx_words.union(upload_words))
-    
-    if union == 0:
-        return 0.0
-    
-    return intersection / union
+    except ImportError:
+        # Fallback to simpler approach if dependencies aren't available
+        # Tokenize descriptions into words
+        ccx_words = set(ccx_norm.split())
+        upload_words = set(upload_norm.split())
+        
+        # Calculate Jaccard similarity
+        intersection = len(ccx_words.intersection(upload_words))
+        union = len(ccx_words.union(upload_words))
+        
+        if union == 0:
+            return 0.0
+        
+        return intersection / union
 
 def calculate_confidence_score(item):
     """Calculate overall confidence score based on weighted factors
@@ -699,14 +904,14 @@ def calculate_confidence_score(item):
     result = item.copy()
     
     # Individual factor scores
-    mfn_score = calculate_mfn_match_score(item['mfg_part_num_ccx'], item['Mfg_Part_Num'])
+    mfn_score, mfn_complexity = calculate_mfn_match_score(item['mfg_part_num_ccx'], item['Mfg_Part_Num'])
     
     # Exact match checks
     uom_score = 1.0 if item['uom_ccx'] == item['UOM'] else 0.0
     qoe_score = 1.0 if str(item['qoe_ccx']) == str(item['QOE']) else 0.0
     
     # Price comparison
-    price_score = calculate_ea_price_match_score(
+    price_score, price_diff_pct = calculate_ea_price_match_score(
         item['price_ccx'], item['Contract_Price'],
         item['qoe_ccx'], item['QOE']
     )
@@ -723,19 +928,22 @@ def calculate_confidence_score(item):
         upload_ea_price = None
     
     # Weighted score calculation
-    weighted_score = (
-        (mfn_score * 0.15) +  # MFN match (15%)
+    weighted_score = min((
+        (mfn_score * 0.30) +  # MFN match (30%)
         (uom_score * 0.10) +  # UOM match (10%)
-        (qoe_score * 0.15) +  # QOE match (15%)
-        (price_score * 0.10) + # EA price match (10%)
-        (desc_score * 0.50)   # Description similarity (50%)
-    )
+        (qoe_score * 0.10) +  # QOE match (10%)
+        (price_score * 0.15) + # EA price match (15%)
+        (desc_score * 0.35)   # Description similarity (35%)
+    ), 1)
+    print(item['Mfg_Part_Num'], mfn_score, mfn_complexity, uom_score, qoe_score, price_score, desc_score, weighted_score)
     
     # Add scores to result
     result['mfn_score'] = mfn_score
+    result['mfn_complexity'] = mfn_complexity  # Add this
     result['uom_score'] = uom_score
     result['qoe_score'] = qoe_score
     result['price_score'] = price_score
+    result['price_diff_pct'] = price_diff_pct  # Add this
     result['desc_score'] = desc_score
     result['weighted_score'] = weighted_score
     result['ccx_ea_price'] = ccx_ea_price
@@ -754,20 +962,26 @@ def calculate_confidence_score(item):
     
     return result
 
-def process_item_comparisons(contract_items):
+def process_item_comparisons(contract_items, skip_scoring=False):
     """Process all items and calculate confidence scores
     
     Args:
         contract_items: List of contract items with CCX and upload data
+        skip_scoring: Flag to skip scoring
         
     Returns:
         dict: Items grouped by confidence level
     """
     scored_items = []
     
-    for item in contract_items:
-        scored_item = calculate_confidence_score(item)
-        scored_items.append(scored_item)
+    if skip_scoring:
+        # If skipping scoring, just return the items as is
+        scored_items = contract_items
+    else:
+        # Calculate confidence scores for each item
+        for item in contract_items:
+            scored_item = calculate_confidence_score(item)
+            scored_items.append(scored_item)
     
     # Group by confidence level
     result = {

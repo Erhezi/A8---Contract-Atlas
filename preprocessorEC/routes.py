@@ -1,9 +1,11 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, send_from_directory, jsonify, send_file
+from flask import (Blueprint, render_template, request, redirect, url_for, flash, session, 
+                   current_app, send_from_directory, jsonify, send_file, Response, stream_with_context)
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import pandas as pd
 from utils import (validate_file, save_error_file, get_db_connection, 
-                  db_transaction, create_temp_table, find_duplicates_with_ccx)
+                  db_transaction, create_temp_table, find_duplicates_with_ccx,
+                  calculate_confidence_score, process_item_comparisons)
 import os
 import time
 import re
@@ -205,6 +207,112 @@ def initialize_included_contracts():
         'excluded_contracts': session.get('excluded_contracts', [])
     })
 
+@main_blueprint.route('/get-included-contracts', methods=['GET'])
+@login_required
+def get_included_contracts():
+    """Get the current list of included contracts"""
+    included = session.get('included_contracts', [])
+    excluded = session.get('excluded_contracts', [])
+    
+    return jsonify({
+        'success': True,
+        'included_contracts': included,
+        'excluded_contracts': excluded,
+        'count': len(included)
+    })
+
+@main_blueprint.route('/process-item-comparison-with-progress', methods=['GET'])
+def process_item_comparison_with_progress():
+    """Process item comparison with real-time progress updates via SSE"""
+    def generate():
+        try:
+            # Clear previous results
+            session.pop('item_comparison_results', None)
+            
+            # Force session write to ensure cleared results are saved
+            session.modified = True
+
+            # Check if we have contract data and included contracts
+            if 'contract_duplicates' not in session:
+                yield f"data: {{" \
+                      f"\"progress\": 100, \"total\": 0, \"processed\": 0, " \
+                      f"\"message\": \"No contract data available\", \"status\": \"error\"}}\n\n"
+                return
+            
+            # Get included contracts - USING THE SAME LOGIC AS process_item_comparison()
+            included_contracts = session.get('included_contracts', [])
+            
+            # Log included contracts for debugging
+            print(f"Processing with included contracts: {included_contracts}")
+            
+            if not included_contracts:
+                yield f"data: {{" \
+                      f"\"progress\": 100, \"total\": 0, \"processed\": 0, " \
+                      f"\"message\": \"No contracts included\", \"status\": \"error\"}}\n\n"
+                return
+            
+            # Filter items from only the included contracts
+            all_items = []
+            contract_dict = {}
+            
+            # First create a dictionary of contract_number -> contract for faster lookup
+            for contract in session['contract_duplicates']:
+                contract_dict[contract['contract_number']] = contract
+            
+            # Then process only included contracts
+            for contract_num in included_contracts:
+                if contract_num in contract_dict:
+                    all_items.extend(contract_dict[contract_num]['items'])
+                else:
+                    print(f"Warning: Contract {contract_num} not found in session data")
+            
+            # Log item count for debugging
+            print(f"Found {len(all_items)} items from {len(included_contracts)} included contracts")
+            
+            total_items = len(all_items)
+            if not total_items:
+                yield f"data: {{" \
+                      f"\"progress\": 100, \"total\": 0, \"processed\": 0, " \
+                      f"\"message\": \"No items found\", \"status\": \"done\"}}\n\n"
+                return
+
+
+            # Initial progress update
+            yield f"data: {{" \
+                  f"\"progress\": 0, \"total\": {total_items}, \"processed\": 0, " \
+                  f"\"message\": \"Starting comparison...\"}}\n\n"
+            
+            # Process items and calculate confidence scores
+            scored_items = []
+            for i, item in enumerate(all_items):
+                scored_item = calculate_confidence_score(item)
+                scored_items.append(scored_item)
+                
+                # Send progress update every 5 items or at the end
+                if i % 5 == 0 or i == total_items - 1:
+                    progress = round(((i + 1) / total_items) * 100)
+                    yield f"data: {{" \
+                          f"\"progress\": {progress}, \"total\": {total_items}, \"processed\": {i+1}, " \
+                          f"\"message\": \"Processing item comparisons...\"}}\n\n"
+            
+            # Group by confidence level using skip_scoring=True (since we already calculated scores)
+            result = process_item_comparisons(scored_items, skip_scoring=True)
+            session['item_comparison_results'] = result
+            
+            # Final message
+            yield f"data: {{" \
+                  f"\"progress\": 100, \"total\": {total_items}, \"processed\": {total_items}, " \
+                  f"\"message\": \"Comparison complete!\", \"status\": \"done\"}}\n\n"
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Error in process-item-comparison-with-progress: {error_msg}")
+            yield f"data: {{" \
+                  f"\"progress\": 100, \"message\": \"Error: {error_msg}\", \"status\": \"error\"}}\n\n"
+    
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+    
+
 @main_blueprint.route('/process-item-comparison', methods=['POST'])
 @login_required
 def process_item_comparison():
@@ -258,6 +366,33 @@ def process_item_comparison():
             'success': False,
             'message': f'Error processing item comparison: {str(e)}'
         })
+
+
+@main_blueprint.route('/get-item-comparison-summary', methods=['GET'])
+@login_required
+def get_item_comparison_summary():
+    """Get summary of item comparison results"""
+    try:
+        if 'item_comparison_results' not in session:
+            return jsonify({
+                'success': False,
+                'message': 'No comparison results available. Please complete the item comparison first.'
+            })
+        
+        comparison_results = session['item_comparison_results']
+        print(comparison_results)  # Debugging line
+        summary = comparison_results.get('summary', {})
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error getting summary: {str(e)}'
+        })
+
 
 @main_blueprint.route('/get-comparison-items/<confidence_level>', methods=['GET'])
 @login_required
