@@ -8,6 +8,7 @@ from flask import current_app
 from werkzeug.utils import secure_filename
 from contextlib import contextmanager
 import pip_system_certs
+from scipy.spatial.distance import cosine
 
 # model cache for sentence transformers
 # This is a simple cache to avoid reloading the model multiple times
@@ -621,7 +622,7 @@ def calculate_mfn_match_score(ccx_mfn, upload_mfn):
     if ccx_mfn == upload_mfn:
         if complexity_score > 0.85:
             return 3.0, complexity_score
-        if complexity_score > 0.75:
+        if complexity_score > 0.7:
             return 2.0, complexity_score
         elif complexity_score < 0.3:
             return 0.5, complexity_score
@@ -638,7 +639,7 @@ def calculate_mfn_match_score(ccx_mfn, upload_mfn):
     if ccx_alphanum == upload_alphanum:
         if complexity_score > 0.85:
             return 3.0, complexity_score  # Perfect match with high complexity
-        elif complexity_score > 0.75:
+        elif complexity_score > 0.70:
             return 2.0, complexity_score
         if complexity_score < 0.3:
             return 0.5, complexity_score  # Perfect match with low complexity
@@ -739,43 +740,26 @@ def calculate_ea_price_match_score(ccx_price, upload_price, ccx_qoe, upload_qoe)
         return (0.0, 0.0)
 
 def get_sentence_transformer_model():
-    """Get or initialize the sentence transformer model from local cache if available"""
-    if 'transformer_model' not in _MODEL_CACHE:
-        try:
-            from sentence_transformers import SentenceTransformer
-            import os
-            
-            # Define path to local model storage
-            local_model_path = os.path.join(current_app.root_path, 'models', 'all-MiniLM-L6-v2')
-            
-            # Check if model exists locally
-            if os.path.exists(local_model_path):
-                print(f"Loading model from local path: {local_model_path}")
-                _MODEL_CACHE['transformer_model'] = SentenceTransformer(local_model_path)
-            else:
-                # First time: download and save the model locally
-                print("Downloading model and saving to local path...")
-                os.makedirs(os.path.dirname(local_model_path), exist_ok=True)
-                
-                # Download and save model
-                model = SentenceTransformer('all-MiniLM-L6-v2')
-                model.save(local_model_path)
-                _MODEL_CACHE['transformer_model'] = model
-                print(f"Model saved to {local_model_path}")
-                
-        except ImportError:
-            _MODEL_CACHE['transformer_model'] = None
-            print("Warning: sentence-transformers package not available. Using fallback similarity.")
-            
-    return _MODEL_CACHE['transformer_model']
+    """Get the sentence transformer model from app config or local cache if available"""
+    from flask import current_app
+    
+    # Try to get model from app config first
+    if current_app.config.get('TRANSFORMER_MODEL_LOADED', False):
+        model = current_app.config.get('TRANSFORMER_MODEL')
+        if model:
+            return model
+    
+    # Fall back to module cache if not in app config
+    return _MODEL_CACHE.get('transformer_model')
 
 
-def calculate_description_similarity(ccx_desc, upload_desc):
+def calculate_description_similarity(ccx_desc, upload_desc, model=None):
     """Calculate description similarity score using transformer models
     
     Args:
         ccx_desc: Description from CCX
         upload_desc: Description from upload
+        model: Pre-loaded sentence transformer model (optional)
         
     Returns:
         float: Similarity score between 0 and 1
@@ -798,9 +782,13 @@ def calculate_description_similarity(ccx_desc, upload_desc):
         import numpy as np
         from scipy.spatial.distance import cosine
 
-        model = get_sentence_transformer_model()
-        
-        # Extract numbers and measurements from descriptions
+        # Use the passed model or get from app config/cache if not provided
+        if model is None:
+            model = get_sentence_transformer_model()
+            if model is None:
+                # Silently fall back to simpler approach rather than raising an error
+                raise ImportError("No transformer model available")
+                
         def extract_numbers_and_measurements(text):
             """Extract and normalize measurements from text descriptions"""
             # Unit normalization mapping
@@ -838,12 +826,7 @@ def calculate_description_similarity(ccx_desc, upload_desc):
                 dims = [str(float(d)).rstrip('0').rstrip('.') if '.' in d else d for d in match.groups() if d]
                 normalized_measurements.add('x'.join(dims))
             
-            # 3. Extract product codes with numbers (from the original pattern)
-            product_code_pattern = r'\b[A-Za-z]+-?\d+[A-Za-z0-9-]*\b'
-            for match in re.finditer(product_code_pattern, text):
-                normalized_measurements.add(match.group(0).lower())
-            
-            # 4. Extract standalone numbers
+            # 3. Extract standalone numbers
             number_pattern = r'\b(\d+\.?\d*)\b'
             for match in re.finditer(number_pattern, text):
                 value = match.group(1)
@@ -852,11 +835,11 @@ def calculate_description_similarity(ccx_desc, upload_desc):
                 normalized_measurements.add(value)
             
             return normalized_measurements
-        
+            
         # Extract numerical components from both descriptions
         ccx_nums = extract_numbers_and_measurements(ccx_norm)
         upload_nums = extract_numbers_and_measurements(upload_norm)
-        
+            
         # Calculate numerical overlap score (Jaccard similarity)
         if ccx_nums or upload_nums:
             intersection = len(ccx_nums.intersection(upload_nums))
@@ -864,7 +847,7 @@ def calculate_description_similarity(ccx_desc, upload_desc):
             numerical_similarity = ((intersection / union) + 1) if union > 0 else 1
         else:
             numerical_similarity = 1  # Neutral score if no numbers present
-        
+            
         # Generate embeddings for semantic similarity
         embeddings = model.encode([ccx_norm, upload_norm])
         
@@ -873,12 +856,13 @@ def calculate_description_similarity(ccx_desc, upload_desc):
         
         # Combine scores with weights (70% semantic, 30% numerical)
         combined_similarity = semantic_similarity if numerical_similarity == 1 else (semantic_similarity * 0.5) + (numerical_similarity * 0.5)
-        
+
         return float(min(max(combined_similarity, 0.0), 1.0))  # Ensure score is between 0 and 1
     
-    except ImportError:
+    except Exception as e:
         # Fallback to simpler approach if dependencies aren't available
         # Tokenize descriptions into words
+        print("fallback to simple approach", e)
         ccx_words = set(ccx_norm.split())
         upload_words = set(upload_norm.split())
         
@@ -891,7 +875,7 @@ def calculate_description_similarity(ccx_desc, upload_desc):
         
         return intersection / union
 
-def calculate_confidence_score(item):
+def calculate_confidence_score(item, model = None):
     """Calculate overall confidence score based on weighted factors
     
     Args:
@@ -917,7 +901,7 @@ def calculate_confidence_score(item):
     )
     
     # Description similarity
-    desc_score = calculate_description_similarity(item['description_ccx'], item['Description'])
+    desc_score = calculate_description_similarity(item['description_ccx'], item['Description'], model = model)
     
     # Calculate EA prices for display
     try:
@@ -935,7 +919,7 @@ def calculate_confidence_score(item):
         (price_score * 0.15) + # EA price match (15%)
         (desc_score * 0.35)   # Description similarity (35%)
     ), 1)
-    print(item['Mfg_Part_Num'], mfn_score, mfn_complexity, uom_score, qoe_score, price_score, desc_score, weighted_score)
+    # print(item['Mfg_Part_Num'], mfn_score, mfn_complexity, uom_score, qoe_score, price_score, desc_score, weighted_score)
     
     # Add scores to result
     result['mfn_score'] = mfn_score
@@ -962,7 +946,7 @@ def calculate_confidence_score(item):
     
     return result
 
-def process_item_comparisons(contract_items, skip_scoring=False):
+def process_item_comparisons(contract_items, skip_scoring=False, model = None):
     """Process all items and calculate confidence scores
     
     Args:
@@ -972,6 +956,18 @@ def process_item_comparisons(contract_items, skip_scoring=False):
     Returns:
         dict: Items grouped by confidence level
     """
+    # If model is provided, use it - no need to load again
+    # Otherwise, check if we should load it (if not skip_scoring)
+    if not model and not skip_scoring and contract_items:
+        try:
+            # Try to get the model if available
+            from flask import current_app
+            if current_app.config.get('TRANSFORMER_MODEL_LOADED', False):
+                model = current_app.config.get('TRANSFORMER_MODEL')
+                print("Using transformer model from app config in process_item_comparisons")
+        except Exception as e:
+            print(f"Error getting transformer model: {str(e)}")
+    
     scored_items = []
     
     if skip_scoring:
@@ -980,7 +976,7 @@ def process_item_comparisons(contract_items, skip_scoring=False):
     else:
         # Calculate confidence scores for each item
         for item in contract_items:
-            scored_item = calculate_confidence_score(item)
+            scored_item = calculate_confidence_score(item, model = model)
             scored_items.append(scored_item)
     
     # Group by confidence level

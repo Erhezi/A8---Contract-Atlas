@@ -222,12 +222,14 @@ def get_included_contracts():
     })
 
 @main_blueprint.route('/process-item-comparison-with-progress', methods=['GET'])
+@login_required
 def process_item_comparison_with_progress():
     """Process item comparison with real-time progress updates via SSE"""
     def generate():
         try:
             # Clear previous results
-            session.pop('item_comparison_results', None)
+            if 'item_comparison_results' in session:
+                del session['item_comparison_results']
             
             # Force session write to ensure cleared results are saved
             session.modified = True
@@ -241,9 +243,7 @@ def process_item_comparison_with_progress():
             
             # Get included contracts - USING THE SAME LOGIC AS process_item_comparison()
             included_contracts = session.get('included_contracts', [])
-            
-            # Log included contracts for debugging
-            print(f"Processing with included contracts: {included_contracts}")
+
             
             if not included_contracts:
                 yield f"data: {{" \
@@ -282,10 +282,32 @@ def process_item_comparison_with_progress():
                   f"\"progress\": 0, \"total\": {total_items}, \"processed\": 0, " \
                   f"\"message\": \"Starting comparison...\"}}\n\n"
             
+            # Check for transformer model 
+            model = None
+            if current_app.config.get('TRANSFORMER_MODEL_LOADED', False):
+                model = current_app.config.get('TRANSFORMER_MODEL')
+                if model:
+                    print("Using transformer model from app config")
+                    yield f"data: {{" \
+                          f"\"progress\": 0, \"total\": {total_items}, \"processed\": 0, " \
+                          f"\"message\": \"Using transformer model for enhanced comparisons\"}}\n\n"
+                else:
+                    print("Warning: Transformer model is None despite being marked as loaded")
+                    yield f"data: {{" \
+                          f"\"progress\": 0, \"total\": {total_items}, \"processed\": 0, " \
+                          f"\"message\": \"WARNING: Model unavailable, using basic comparison\"}}\n\n"
+            else:
+                print("Transformer model not loaded, using fallback method")
+                yield f"data: {{" \
+                      f"\"progress\": 0, \"total\": {total_items}, \"processed\": 0, " \
+                      f"\"message\": \"Using basic comparison method (transformer model not loaded)\"}}\n\n"
+            
+            
+
             # Process items and calculate confidence scores
             scored_items = []
             for i, item in enumerate(all_items):
-                scored_item = calculate_confidence_score(item)
+                scored_item = calculate_confidence_score(item, model=model)
                 scored_items.append(scored_item)
                 
                 # Send progress update every 5 items or at the end
@@ -297,7 +319,30 @@ def process_item_comparison_with_progress():
             
             # Group by confidence level using skip_scoring=True (since we already calculated scores)
             result = process_item_comparisons(scored_items, skip_scoring=True)
-            session['item_comparison_results'] = result
+
+            # debug test
+            h = len(result.get('high', []))
+            m = len(result.get('medium', []))
+            l = len(result.get('low', []))
+            t = h+m+l
+            print(f"DEBUG: High: {h}, Medium: {m}, Low: {l}, Total: {t}") # Debugging line TEST TEST TEST
+            
+            # Store the results in session AND a temp app cache 
+            session['item_comparison_results'] = None # set to none to clear previous results, we will use the cache
+            user_id = current_user.id
+            storage_key = f"temp_comparison_results_{user_id}"
+            current_app.config[storage_key] = result  # Store in app cache for quick access
+            # Mark session as modified to ensure it gets saved
+            session.modified = True
+
+            # create fresh summary objects
+            result['summary'] = {
+                'high': {'total': len(result.get('high', [])), 'false_positives': 0},
+                'medium': {'total': len(result.get('medium', [])), 'false_positives': 0},
+                'low': {'total': len(result.get('low', [])), 'false_positives': 0},
+                'total_items': total_items
+            }
+            print(f"DEBUG: Summary: {result['summary']}") # Debugging line TEST TEST TEST
             
             # Final message
             yield f"data: {{" \
@@ -311,7 +356,72 @@ def process_item_comparison_with_progress():
                   f"\"progress\": 100, \"message\": \"Error: {error_msg}\", \"status\": \"error\"}}\n\n"
     
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
-    
+
+@main_blueprint.route('/finalize-item-comparison', methods=['POST'])
+@login_required
+def finalize_item_comparison():
+    """Finalize item comparison results and save to session"""
+    try:
+        # Data should be saved to session by process_item_comparison_with_progress
+        # but due to SSE limitations, we need to explicitly finalize it here
+        comparison_results = None
+
+        # force re-sync session with app-level cache
+        if not comparison_results:
+            user_id = current_user.id
+            storage_key = f"temp_comparison_results_{user_id}"
+            if storage_key in current_app.config:
+                comparison_results = current_app.config[storage_key]
+                # save to session for future use
+                session['item_comparison_results'] = comparison_results
+                session.modified = True
+                # clean ap-level cache
+                del current_app.config[storage_key]
+                print(comparison_results['summary']) # Debugging line TEST TEST TEST
+
+        # if still no results, return error
+        # This should not happen if the process_item_comparison_with_progress was successful
+        if not comparison_results:
+            return jsonify({
+                'success': False,
+                'message': 'No comparison results found. Please try again. SSE process may have failed.'
+            })
+        
+        if comparison_results:
+            h_count = len(comparison_results.get('high', []))
+            m_count = len(comparison_results.get('medium', []))
+            l_count = len(comparison_results.get('low', []))
+            total_count = h_count + m_count + l_count
+            
+            # Verify and update summary if needed
+            summary = comparison_results.get('summary', {})
+            if summary.get('high', {}).get('total') != h_count or \
+            summary.get('medium', {}).get('total') != m_count or \
+            summary.get('low', {}).get('total') != l_count:
+                print(f"Correcting mismatched summary. Expected: {h_count}/{m_count}/{l_count}, Found: {summary}")
+                
+                comparison_results['summary'] = {
+                    'high': {'total': h_count, 'false_positives': summary.get('high', {}).get('false_positives', 0)},
+                    'medium': {'total': m_count, 'false_positives': summary.get('medium', {}).get('false_positives', 0)},
+                    'low': {'total': l_count, 'false_positives': summary.get('low', {}).get('false_positives', 0)},
+                    'total_items': total_count
+                }
+                session['item_comparison_results'] = comparison_results
+                session.modified = True
+                
+                # Update summary variable for response
+                summary = comparison_results['summary']
+        
+        return jsonify({
+            'success': True,
+            'message': 'Item comparison results finalized',
+            'summary': summary
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error finalizing results: {str(e)}'
+        })
 
 @main_blueprint.route('/process-item-comparison', methods=['POST'])
 @login_required
@@ -348,6 +458,17 @@ def process_item_comparison():
                 'message': 'No items found in the included contracts.'
             })
         
+        model = None
+        if current_app.config.get('TRANSFORMER_MODEL_LOADED', False):
+            model = current_app.config.get('TRANSFORMER_MODEL')
+            if model:
+                print("Using transformer model from app config")
+            else:
+                print("Warning: Transformer model is None despite being marked as loaded")
+        else:
+            print("Transformer model not loaded, using fallback method")
+
+            
         # Process comparison
         from utils import process_item_comparisons
         comparison_results = process_item_comparisons(all_items)
@@ -373,21 +494,86 @@ def process_item_comparison():
 def get_item_comparison_summary():
     """Get summary of item comparison results"""
     try:
-        if 'item_comparison_results' not in session:
+        print("Getting item comparison summary...")
+        
+        # Check in the session first
+        if 'item_comparison_results' in session:
+            comparison_results = session['item_comparison_results']
+        else:
+            # Check if we have results in the app-level cache
+            user_id = current_user.id
+            storage_key = f"temp_comparison_results_{user_id}"
+            
+            if storage_key in current_app.config:
+                # Found in app cache, store in session for future
+                comparison_results = current_app.config[storage_key]
+                session['item_comparison_results'] = comparison_results
+                session.modified = True
+            else:
+                # No data found
+                return jsonify({
+                    'success': False,
+                    'message': 'No comparison results available. Please complete the item comparison first.'
+                })
+        
+        # Verify the integrity of the data structure
+        if not isinstance(comparison_results, dict):
+            print(f"Invalid comparison_results type: {type(comparison_results)}")
             return jsonify({
                 'success': False,
-                'message': 'No comparison results available. Please complete the item comparison first.'
+                'message': 'Invalid comparison results format in session.'
             })
         
-        comparison_results = session['item_comparison_results']
-        print(comparison_results)  # Debugging line
-        summary = comparison_results.get('summary', {})
+        print(f"Comparison keys available: {list(comparison_results.keys())}")
+        
+        # IMPORTANT: Count actual items in each confidence level
+        h_count = len(comparison_results.get('high', []))
+        m_count = len(comparison_results.get('medium', []))
+        l_count = len(comparison_results.get('low', []))
+        total_count = h_count + m_count + l_count
+        
+        # Get current summary
+        current_summary = comparison_results.get('summary', {})
+        
+        # Check if summary matches actual counts
+        if ('summary' not in comparison_results) or \
+           (current_summary.get('high', {}).get('total') != h_count) or \
+           (current_summary.get('medium', {}).get('total') != m_count) or \
+           (current_summary.get('low', {}).get('total') != l_count):
+            
+            print(f"REBUILDING SUMMARY - Current: {current_summary}, Actual counts: high={h_count}, medium={m_count}, low={l_count}")
+            
+            # Preserve false positives from existing summary
+            high_fp = current_summary.get('high', {}).get('false_positives', 0)
+            med_fp = current_summary.get('medium', {}).get('false_positives', 0)
+            low_fp = current_summary.get('low', {}).get('false_positives', 0)
+            
+            # Create corrected summary
+            summary = {
+                'high': {'total': h_count, 'false_positives': high_fp},
+                'medium': {'total': m_count, 'false_positives': med_fp},
+                'low': {'total': l_count, 'false_positives': low_fp},
+                'total_items': total_count
+            }
+            
+            # Update in stored results
+            comparison_results['summary'] = summary
+            session['item_comparison_results'] = comparison_results
+            session.modified = True
+            print(f"CORRECTED summary: {summary}")
+        else:
+            summary = current_summary
+            print(f"Using VALID summary: {summary}")
+        
         return jsonify({
             'success': True,
             'summary': summary
         })
         
     except Exception as e:
+        print(f"Error in get_item_comparison_summary: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'message': f'Error getting summary: {str(e)}'

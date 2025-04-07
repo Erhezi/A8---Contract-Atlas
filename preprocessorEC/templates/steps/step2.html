@@ -861,7 +861,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('item-modal');
     const closeBtn = modal.querySelector('.close-btn');
 
-
+    // this is the top level item comparison container
+    const itemComparisonContainer = document.getElementById('item-comparison-container');
+    // this is the container for the confidence cards
+    const comparisonResultsContainer = document.getElementById('comparison-results-container');
     // Item-Level Comparison Code
     const clearSearchBtn = document.getElementById('clear-search-btn');
     const itemSearchInput = document.getElementById('item-search');
@@ -871,8 +874,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemsTable = document.getElementById('items-table');
     const itemsTbody = document.getElementById('items-tbody');
     const noMatchesMessage = document.getElementById('no-matches-message');
-    // Load this first, otherwise it will not work
-    const comparisonResultsContainer = document.getElementById('comparison-results-container');
 
     // Progress bar elements
     const loadingOverlayProgress = document.getElementById('loading-overlay-progress');
@@ -1300,70 +1301,117 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // this triggers the item level comparison
+    // we have SSE call here to get the progress of the item level comparison
     continueBtn.addEventListener('click', function() {
         if (includedContracts.length === 0) {
             alert('Please include at least one contract before proceeding.');
             return;
         }
         
-        // Call this with a callback to ensure it completes before proceeding
-        initializeIncludedContractsWithCallback(function() {
-            // Show the item-level comparison section
-            document.getElementById('item-comparison-container').style.display = 'block';
+        // Show the item-level comparison section
+        const itemComparisonContainer = document.getElementById('item-comparison-container');
+        if (itemComparisonContainer) {
+            itemComparisonContainer.style.display = 'block';
             
             // Scroll to the item comparison section
-            document.getElementById('item-comparison-container').scrollIntoView({
+            itemComparisonContainer.scrollIntoView({
                 behavior: 'smooth'
             });
-            
-            // Show loading overlay with progress bar instead of spinner
+        }
+
+        
+        // Show loading overlay with progress bar instead of spinner
+        if (loadingOverlayProgress) {
             loadingOverlayProgress.style.display = 'flex';
             
             // Reset progress indicators
-            progressBar.style.width = '0%';
-            progressPercentage.textContent = '0%';
-            progressMessage.textContent = 'Starting comparison...';
-            itemsProcessed.textContent = 'Processed: 0 of 0 items';
-            
-            // Set up Server-Sent Events for progress updates
-            const eventSource = new EventSource('/process-item-comparison-with-progress');
-            
-            eventSource.onmessage = function(event) {
-                try {
-                    console.log("Raw event data:", event.data); // Check raw event data
-                    const data = JSON.parse(event.data);
-                    console.log("Parsed progress data:", data);
+            if (progressBar) progressBar.style.width = '0%';
+            if (progressPercentage) progressPercentage.textContent = '0%';
+            if (progressMessage) progressMessage.textContent = 'Starting comparison...';
+            if (itemsProcessed) itemsProcessed.textContent = 'Processed: 0 of 0 items';
+        }
+        
+        // Set up Server-Sent Events for progress updates
+        const eventSource = new EventSource('/process-item-comparison-with-progress');
+        
+        eventSource.onmessage = function(event) {
+            try {
+                console.log("Raw event data:", event.data);
+                const data = JSON.parse(event.data);
+                console.log("Parsed progress data:", data);
+                
+                // Update progress indicators
+                progressBar.style.width = data.progress + '%';
+                progressPercentage.textContent = data.progress + '%';
+                progressMessage.textContent = data.message;
+                itemsProcessed.textContent = `Processed: ${data.processed} of ${data.total} items`;
+                
+                // Check if processing is complete
+                if (data.status === 'done') {
+                    console.log("Processing complete!");
+                    eventSource.close();
                     
-                    // Update progress indicators
-                    progressBar.style.width = data.progress + '%';
-                    progressPercentage.textContent = data.progress + '%';
-                    progressMessage.textContent = data.message;
-                    itemsProcessed.textContent = `Processed: ${data.processed} of ${data.total} items`;
-                    
-                    // Check if processing is complete
-                    if (data.status === 'done') {
-                        console.log("Processing complete!");
-                        eventSource.close();
-                        
-                        // Wait a moment before hiding the overlay
-                        setTimeout(() => {
-                            loadingOverlayProgress.style.display = 'none';
-                            fetchItemComparisonSummary();
-                        }, 1000);
-                    }
-                } catch (error) {
-                    console.error("Error processing SSE message:", error);
+                    // Call finalize endpoint to ensure session data is saved
+                    fetch('/finalize-item-comparison', {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log("Results finalized successfully");                           
+                            // Wait a moment before hiding the overlay
+                            setTimeout(() => {
+                                loadingOverlayProgress.style.display = 'none';                                
+                                // Fetch and display summary AFTER finalizing
+                                fetchItemComparisonSummary();
+                            }, 1000);
+                        } else {
+                            console.error("Error finalizing results:", data.message);
+                            // retry logic for resilience
+                            setTimeout(() => {
+                                console.log("Retrying to finalize results...");
+                                fetch('/finalize-item-comparison', {
+                                    method: 'POST'
+                                })
+                                .then(response => response.json())
+                                .then(retryData => {
+                                    if (retryData.success) {
+                                        console.log("Results finalized successfully on retry");
+                                        loadingOverlayProgress.style.display = 'none';
+                                        fetchItemComparisonSummary();
+                                    } else {
+                                        console.error("Retry Failed:", retryData.message);
+                                        alert("Error finalizing results on retry. Please try again.");
+                                        loadingOverlayProgress.style.display = 'none';
+                                    }
+                                })
+                                .catch(retryError => {
+                                    console.error("Retry Error:", retryError);
+                                    alert("Error finalizing results on retry. Please try again.");
+                                    loadingOverlayProgress.style.display = 'none';
+                                });
+                            }, 1000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error finalizing results bbb:", error);
+                        alert("Error finalizing results. Please try again.");
+                        loadingOverlayProgress.style.display = 'none';
+                    });
                 }
-            };
-            
-            eventSource.onerror = function() {
-                eventSource.close();
-                progressMessage.textContent = 'Error processing items. Please try again.';
-                setTimeout(() => {
-                    loadingOverlayProgress.style.display = 'none';
-                }, 3000);
-            };
-        });
+            } catch (error) {
+                console.error("Error processing SSE message:", error);
+            }
+        };
+        
+        eventSource.onerror = function() {
+            eventSource.close();
+            progressMessage.textContent = 'Error processing items x. Please try again.';
+            setTimeout(() => {
+                loadingOverlayProgress.style.display = 'none';
+            }, 3000);
+        };
     });
 
     // Add a new function to make initialization synchronous with callback
@@ -1405,34 +1453,58 @@ document.addEventListener('DOMContentLoaded', function() {
     function fetchItemComparisonSummary() {
         console.log("Fetching comparison summary...");
         
+        // Check if comparison container exists before proceeding
+        if (!comparisonResultsContainer) {
+            console.error("comparison-results-container element not found in the DOM");
+            alert("UI Error: Could not find results container. Please refresh the page and try again.");
+            return;
+        }
+        
         fetch('/get-item-comparison-summary')
-            .then(response => response.json())
+            .then(response => {
+                // Check if response is ok before parsing JSON
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 console.log("Got summary data:", data);
                 
                 if (data.success) {
-                    // Make sure we have included contracts info in session
-                    fetch('/get-included-contracts')
-                        .then(response => response.json())
-                        .then(contractData => {
-                            console.log("Current included contracts:", contractData);
-                        })
-                        .catch(err => console.error("Error checking included contracts:", err));
-                    
+                    // Make container visible first
                     comparisonResultsContainer.style.display = 'block';
+                    
+                    // Debug summary data
+                    console.log("Summary data structure:", JSON.stringify(data.summary));
+                    
+                    // Explicitly check if summary data is actually populated
+                    if (!data.summary || Object.keys(data.summary).length === 0) {
+                        console.error("Summary data is empty or missing");
+                        alert("No item comparison data was retrieved. Please try again.");
+                        return;
+                    }
                     
                     // Update summary counts
                     updateSummaryCounts(data.summary);
                     
-                    // Load detail items
+                    // Make items detail view visible
+                    itemsDetailView.style.display = 'block';
+                    
+                    // Load appropriate confidence level items
                     if (data.summary.high && data.summary.high.total > 0) {
+                        console.log("Loading high confidence items...");
                         loadConfidenceItems('high');
                     } else if (data.summary.medium && data.summary.medium.total > 0) {
+                        console.log("Loading medium confidence items...");
                         loadConfidenceItems('medium');
                     } else if (data.summary.low && data.summary.low.total > 0) {
+                        console.log("Loading low confidence items...");
                         loadConfidenceItems('low');
                     } else {
                         console.warn("No items found in any confidence level");
+                        noMatchesMessage.style.display = 'block';
+                        document.querySelector('.items-table-container').style.display = 'none';
                     }
                 } else {
                     console.error("Error in summary data:", data.message);
@@ -1441,7 +1513,10 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error("Error fetching summary:", error);
-                alert("Error loading comparison results. Please try again.");
+                // Show more informative error message for users
+                alert("Error loading comparison results. Please check the console for details and try again.");
+                // Hide the progress overlay
+                loadingOverlayProgress.style.display = 'none';
             });
     }
 
@@ -1571,43 +1646,50 @@ document.addEventListener('DOMContentLoaded', function() {
         loadingOverlaySpinner.style.display = 'flex';
         currentLevel = level;
         
+        console.log(`Fetching items for confidence level: ${level}`);
+        
         fetch(`/get-comparison-items/${level}`)
-        .then(response => response.json())
-        .then(data => {
-            loadingOverlaySpinner.style.display = 'none';
-            
-            if (data.success) {
-                // Store current items
-                currentItems = data.items;
+            .then(response => response.json())
+            .then(data => {
+                loadingOverlaySpinner.style.display = 'none';
                 
-                // Reset sorting and filtering
-                sortField = null;
-                sortDirection = 'asc';
-                document.querySelectorAll('.items-table th').forEach(header => {
-                    header.classList.remove('sort-asc', 'sort-desc');
-                });
-                
-                // Render items
-                renderItemsTable(currentItems);
-                
-                // Show the detail view
-                itemsDetailView.style.display = 'block';
-                
-                // Show/hide no matches message
-                noMatchesMessage.style.display = currentItems.length === 0 ? 'block' : 'none';
-                document.querySelector('.items-table-container').style.display = 
-                    currentItems.length === 0 ? 'none' : 'block';
+                if (data.success) {
+                    console.log(`Received ${data.count} items for ${level} level`);
+                    
+                    // Store current items
+                    currentItems = data.items;
+                    
+                    // Reset sorting and filtering
+                    sortField = null;
+                    sortDirection = 'asc';
+                    document.querySelectorAll('.items-table th').forEach(header => {
+                        header.classList.remove('sort-asc', 'sort-desc');
+                    });
+                    
+                    // Render items
+                    renderItemsTable(currentItems);
+                    
+                    // Show the detail view - this should already be visible from fetchItemComparisonSummary
+                    // but ensure it's still visible
+                    itemsDetailView.style.display = 'block';
+                    
+                    // Show/hide no matches message
+                    noMatchesMessage.style.display = currentItems.length === 0 ? 'block' : 'none';
+                    document.querySelector('.items-table-container').style.display = 
+                        currentItems.length === 0 ? 'none' : 'block';
 
-                // Reaplly filter after rendering
-                filterItemTable(); 
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            loadingOverlaySpinner.style.display = 'none';
-            alert('Error: ' + error);
-        });
+                    // Reapply filter after rendering
+                    filterItemTable();
+                } else {
+                    console.error(`Error fetching ${level} items:`, data.message);
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                loadingOverlaySpinner.style.display = 'none';
+                console.error(`Error in fetch for ${level} items:`, error);
+                alert('Error: ' + error);
+            });
     }
     
     // Function to render the items table

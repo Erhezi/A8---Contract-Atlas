@@ -9,7 +9,6 @@ import tempfile
 import os
 from datetime import timedelta
 
-
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Replace with a secure key in production
 
@@ -48,7 +47,65 @@ def load_user(user_id):
     return User.get(user_id)
 
 # Register blueprints
+
 app.register_blueprint(auth_blueprint)
+
+# Initialize the model cache
+from utils import _MODEL_CACHE
+from threading import Thread
+
+# Initialize app config with model status
+app.config['TRANSFORMER_MODEL_LOADING'] = False
+app.config['TRANSFORMER_MODEL_LOADED'] = False
+
+def load_transformer_model():
+    """Load transformer model in background thread"""
+    try:
+        # Set flag to indicate loading is in progress
+        app.config['TRANSFORMER_MODEL_LOADING'] = True
+        print("Pre-loading sentence transformer model...")
+        from sentence_transformers import SentenceTransformer
+        import os
+        
+        # Define path to local model storage
+        local_model_path = os.path.join(app.root_path, 'models', 'all-MiniLM-L6-v2')
+        
+        # Check if model exists locally
+        if os.path.exists(local_model_path):
+            print("Loading model from local path...")
+            model = SentenceTransformer(local_model_path)
+            # Store in both places for backward compatibility
+            _MODEL_CACHE['transformer_model'] = model
+            app.config['TRANSFORMER_MODEL'] = model
+            app.config['TRANSFORMER_MODEL_LOADED'] = True
+            print("Sentence transformer model loaded successfully from local path")
+        else:
+            # First time: download and save the model
+            print("Downloading model and saving to local path...")
+            os.makedirs(os.path.dirname(local_model_path), exist_ok=True)
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            model.save(local_model_path)
+            # Store in both places for backward compatibility
+            _MODEL_CACHE['transformer_model'] = model
+            app.config['TRANSFORMER_MODEL'] = model
+            app.config['TRANSFORMER_MODEL_LOADED'] = True
+            print("Sentence transformer model downloaded and loaded successfully")
+    except ImportError:
+        print("Warning: sentence-transformers package not available. Using fallback similarity.")
+        _MODEL_CACHE['transformer_model'] = None
+        app.config['TRANSFORMER_MODEL'] = None
+        app.config['TRANSFORMER_MODEL_LOADED'] = False
+        print("Warning: Fallback similarity will be used. This may affect performance.")
+    except Exception as e:
+        print(f"Error loading transformer model: {str(e)}")
+        _MODEL_CACHE['transformer_model'] = None
+        app.config['TRANSFORMER_MODEL'] = None
+        app.config['TRANSFORMER_MODEL_LOADED'] = False
+    finally:
+        # Mark loading as complete (success or failure)
+        app.config['TRANSFORMER_MODEL_LOADING'] = False
+    
+    print(f"model loaded in cache {id(model)}") # debugging line TEST TEST TEST
 
 # Step validation functions
 def validate_step_progress(requested_step):
@@ -181,4 +238,10 @@ def inject_workflow_steps():
     }
 
 if __name__ == '__main__':
+    print("Loading transformer model synchronously before starting the application...")
+    # Load model synchronously instead of in a thread
+    load_transformer_model()
+    
+    print(f"Model loading complete. Status: {app.config['TRANSFORMER_MODEL_LOADED']}")
+    print("Starting Flask application...")
     app.run(debug=True)
