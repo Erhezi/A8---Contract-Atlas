@@ -638,9 +638,9 @@ def calculate_mfn_match_score(ccx_mfn, upload_mfn):
     # reduced mfn match
     if ccx_alphanum == upload_alphanum:
         if complexity_score > 0.85:
-            return 3.0, complexity_score  # Perfect match with high complexity
+            return 2.5, complexity_score  # Perfect match with high complexity
         elif complexity_score > 0.70:
-            return 2.0, complexity_score
+            return 1.8, complexity_score
         if complexity_score < 0.3:
             return 0.5, complexity_score  # Perfect match with low complexity
         else:

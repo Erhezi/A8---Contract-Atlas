@@ -468,7 +468,7 @@ def process_item_comparison():
         else:
             print("Transformer model not loaded, using fallback method")
 
-            
+
         # Process comparison
         from utils import process_item_comparisons
         comparison_results = process_item_comparisons(all_items)
@@ -620,7 +620,7 @@ def update_false_positives():
         confidence_level = data.get('confidence_level')
         item_updates = data.get('item_updates', [])
         
-        # Get the item data from session - CHANGED FROM comparison_results to item_comparison_results
+        # Get the item data from session
         if 'item_comparison_results' not in session:
             return jsonify({'success': False, 'message': 'No comparison results found in session'})
         
@@ -640,9 +640,8 @@ def update_false_positives():
             if 0 <= index < len(level_items):
                 level_items[index]['false_positive'] = is_false_positive
         
-        # Save back to session - CHANGED FROM comparison_results to item_comparison_results
+        # Save back to session
         comparison_results[confidence_level] = level_items
-        session['item_comparison_results'] = comparison_results
         
         # Recalculate summary
         summary = {
@@ -657,8 +656,21 @@ def update_false_positives():
             'low': {
                 'total': len(comparison_results.get('low', [])),
                 'false_positives': sum(1 for item in comparison_results.get('low', []) if item.get('false_positive'))
-            }
+            },
+            'total_items': len(comparison_results.get('high', [])) + 
+                          len(comparison_results.get('medium', [])) + 
+                          len(comparison_results.get('low', []))
         }
+        
+        # Update the summary in the comparison_results
+        comparison_results['summary'] = summary
+        
+        # Save the entire updated results back to session
+        session['item_comparison_results'] = comparison_results
+        session.modified = True  # Ensure session changes are saved
+        
+        # Print debug info to confirm summary updated
+        print(f"Updated summary: {comparison_results['summary']}")
         
         return jsonify({
             'success': True, 
@@ -666,6 +678,7 @@ def update_false_positives():
         })
         
     except Exception as e:
+        print(f"Error in update_false_positives: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
 
@@ -757,63 +770,88 @@ def process_step(step_id):
                 raise ValueError("File validation failed or no validated data available.")
             
         elif step_id == 2:
-            # Duplication overview logic
+            # Step 2: Duplication Overview - Real business logic
             if 'validated_data' not in session:
                 raise ValueError("No validated data available. Please complete Step 1 first.")
             
             # Convert validated data from session back to dataframe
             validated_df = pd.DataFrame.from_dict(session['validated_data'])
             
-            # Get column mapping from session
-            column_mapping = session.get('column_mapping', {})
+            # Check if we have contract data in session
+            if 'contract_duplicates' not in session:
+                raise ValueError("No contract data available. Please process duplicates first.")
             
-            # Check for duplicates based on key fields
-            # Typically, duplicates would be identified based on vendor part number, manufacturer part number, contract number
-            duplicate_keys = ['Mfg Part Num', 'Vendor Part Num', 'Contract Number']
+            contract_list = session['contract_duplicates']
             
-            # Map the duplicate keys to the actual column names in the dataframe
-            mapped_dup_keys = [column_mapping[key] for key in duplicate_keys if key in column_mapping]
+            # Get duplication results from session
+            if 'item_comparison_results' not in session:
+                raise ValueError("Item comparison not completed. Please complete the comparison process first.")
             
-            if not mapped_dup_keys:
-                raise ValueError("Required fields for duplication check not found in column mapping")
+            comparison_results = session['item_comparison_results']
             
-            # Find duplicates
-            duplicates = validated_df.duplicated(subset=mapped_dup_keys, keep=False)
+            # Calculate true duplicates (total duplicates minus false positives)
+            high_total = comparison_results.get('summary', {}).get('high', {}).get('total', 0)
+            high_fp = comparison_results.get('summary', {}).get('high', {}).get('false_positives', 0)
             
-            if duplicates.any():
-                # Get duplicate records
-                duplicate_df = validated_df[duplicates].copy()
-                
-                # Add a row index for reference (Excel-style row numbering)
-                duplicate_df['Excel Row'] = duplicate_df.index + 2  # +2 for header row + 1-based indexing
-                
-                # Reorder columns for better visibility
-                cols = ['Excel Row'] + [col for col in duplicate_df.columns if col != 'Excel Row']
-                duplicate_df = duplicate_df[cols]
-                
-                # Store duplicate info in session (for use in step 3)
-                session['duplicates'] = {
-                    'count': int(duplicates.sum()),
-                    'keys': duplicate_keys,
-                    'duplicate_indices': duplicates[duplicates].index.tolist()
-                }
-                
-                # Generate HTML table of duplicates for display
-                duplicate_table = duplicate_df.to_html(classes='table table-striped table-bordered', index=False)
-                session['duplicate_table'] = duplicate_table
-                
-                # We still consider this step successful as we've identified duplicates
-                success = True
-                flash(f"Found {duplicates.sum()} duplicate entries. Please review in Step 3.", "warning")
+            medium_total = comparison_results.get('summary', {}).get('medium', {}).get('total', 0)
+            medium_fp = comparison_results.get('summary', {}).get('medium', {}).get('false_positives', 0)
+            
+            low_total = comparison_results.get('summary', {}).get('low', {}).get('total', 0)
+            low_fp = comparison_results.get('summary', {}).get('low', {}).get('false_positives', 0)
+            
+            true_duplicates = (high_total - high_fp) + (medium_total - medium_fp) + (low_total - low_fp)
+            
+            # Find contracts that actually have true duplicates
+            contracts_with_true_duplicates = set()
+            
+            # Check high confidence items
+            for i, item in enumerate(comparison_results.get('high', [])):
+                if not item.get('false_positive', False):
+                    contracts_with_true_duplicates.add(item.get('Contract_Number', ''))
+            
+            # Check medium confidence items
+            for i, item in enumerate(comparison_results.get('medium', [])):
+                if not item.get('false_positive', False):
+                    contracts_with_true_duplicates.add(item.get('Contract_Number', ''))
+            
+            # Check low confidence items
+            for i, item in enumerate(comparison_results.get('low', [])):
+                if not item.get('false_positive', False):
+                    contracts_with_true_duplicates.add(item.get('Contract_Number', ''))
+            
+            # Count unique contracts with true duplicates
+            total_contracts_with_duplicates = len(contracts_with_true_duplicates)
+            
+            # Set success flag for this step
+            success = True
+            
+            # Handle flow based on true duplicates count
+            if true_duplicates > 0:
+                flash(f"Found {total_contracts_with_duplicates} contracts with {true_duplicates} true duplicate items.", "success")
             else:
-                # No duplicates found
-                session['duplicates'] = {'count': 0, 'keys': duplicate_keys, 'duplicate_indices': []}
-                session['duplicate_table'] = None
-                success = True
-                flash("No duplicates found in the data.", "success")
-            
+                # No true duplicates found - auto-complete step 3
+                flash("No true duplicates found after false positive review.", "info")
+                
+                # Mark step 3 as complete automatically
+                current_app.mark_step_complete(3)
+                
+                # Update next step to be step 4
+                session['current_step_id'] = 4
+                session.modified = True
+                
+                flash("Step 3 (Duplication Resolution) automatically completed as no true duplicates were found.", "info")
+        
         elif step_id == 3:
-            # Duplication resolution logic
+            # Step 3: Duplication Resolution
+            
+            # Check if item comparison was completed
+            if 'item_comparison_results' not in session:
+                raise ValueError("Item comparison not completed. Please complete Step 2 first.")
+
+            comparison_results = session['item_comparison_results']
+            if not comparison_results or 'summary' not in comparison_results:
+                raise ValueError("Invalid comparison results. Please rerun the item comparison.")
+
             resolution_strategy = request.form.get('resolution_strategy')
             if not resolution_strategy:
                 raise ValueError("No resolution strategy selected")
