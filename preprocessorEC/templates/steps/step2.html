@@ -1724,7 +1724,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Get confidence class based on score
             const scoreClass = item.weighted_score >= 0.8 ? 'high-score' : 
-                              (item.weighted_score >= 0.5 ? 'medium-score' : 'low-score');
+                              (item.weighted_score >= 0.6 ? 'medium-score' : 'low-score');
             
             // Format EA prices
             const ccxEaPrice = item.ccx_ea_price !== null ? 
@@ -1757,7 +1757,6 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             
             itemsTbody.appendChild(row);
-            console.log("Item Score:", item.weighted_score, "Class:", scoreClass, "Row:", row.innerHTML);
         });
     }
     
