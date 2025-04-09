@@ -3,7 +3,7 @@ from flask import (Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import pandas as pd
-from utils import (validate_file, save_error_file, get_db_connection, 
+from preprocessorEC.utils_legacy import (validate_file, save_error_file, get_db_connection, 
                   db_transaction, create_temp_table, find_duplicates_with_ccx,
                   calculate_confidence_score, process_item_comparisons)
 import os
@@ -470,7 +470,7 @@ def process_item_comparison():
 
 
         # Process comparison
-        from utils import process_item_comparisons
+        from preprocessorEC.utils_legacy import process_item_comparisons
         comparison_results = process_item_comparisons(all_items)
         
         # Store in session

@@ -1,7 +1,7 @@
 from flask import Flask, redirect, url_for, session, flash, request
 from flask_login import LoginManager, current_user
 from auth import auth_blueprint
-from routes import main_blueprint
+from preprocessorEC.routes_legacy import main_blueprint
 from sqlalchemy import create_engine
 from sqlalchemy.pool import QueuePool
 from flask_session import Session
@@ -51,7 +51,7 @@ def load_user(user_id):
 app.register_blueprint(auth_blueprint)
 
 # Initialize the model cache
-from utils import _MODEL_CACHE
+from preprocessorEC.utils_legacy import _MODEL_CACHE
 from threading import Thread
 
 # Initialize app config with model status

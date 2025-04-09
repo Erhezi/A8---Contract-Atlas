@@ -26,7 +26,7 @@
             {% set is_current = step.id == current_step.id %}
             <div class="step-indicator">
                 {% if is_completed or is_current %}
-                    <a href="{{ url_for('main.goto_step', step_id=step.id) }}" class="step-link">
+                    <a href="{{ url_for('common.goto_step', step_id=step.id) }}" class="step-link">
                         <div class="step-number {% if is_completed %}completed{% elif is_current %}current{% endif %}">
                             {{ step.id }}
                         </div>

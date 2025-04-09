@@ -901,47 +901,45 @@ def calculate_confidence_score(item, model = None):
     )
     
     # Description similarity
-    desc_score = calculate_description_similarity(item['description_ccx'], item['Description'], model = model)
+    desc_score = calculate_description_similarity(item['description_ccx'], item['Description'], model)
     
-    # Calculate EA prices for display
-    try:
-        ccx_ea_price = float(item['price_ccx']) / float(item['qoe_ccx'])
-        upload_ea_price = float(item['Contract_Price']) / float(item['QOE'])
-    except (ValueError, TypeError, ZeroDivisionError):
-        ccx_ea_price = None
-        upload_ea_price = None
+    # Weight factors (total should be 1.0)
+    weights = {
+        'mfn': 0.40,       # 40% weight for manufacturer part number
+        'desc': 0.30,      # 30% weight for description
+        'price': 0.15,     # 15% weight for price
+        'uom': 0.10,       # 10% weight for unit of measure
+        'qoe': 0.05        # 5% weight for quantity of each
+    }
     
-    # Weighted score calculation
-    weighted_score = min((
-        (mfn_score * 0.30) +  # MFN match (30%)
-        (uom_score * 0.10) +  # UOM match (10%)
-        (qoe_score * 0.10) +  # QOE match (10%)
-        (price_score * 0.15) + # EA price match (15%)
-        (desc_score * 0.35)   # Description similarity (35%)
-    ), 1)
-    # print(item['Mfg_Part_Num'], mfn_score, mfn_complexity, uom_score, qoe_score, price_score, desc_score, weighted_score)
+    # Calculate weighted score
+    weighted_score = (
+        (mfn_score * weights['mfn']) +
+        (desc_score * weights['desc']) +
+        (price_score * weights['price']) +
+        (uom_score * weights['uom']) +
+        (qoe_score * weights['qoe'])
+    )
     
-    # Add scores to result
-    result['mfn_score'] = mfn_score
-    result['mfn_complexity'] = mfn_complexity  # Add this
+    # Store all scores in result
+    result['mfn_score'] = round(mfn_score, 3)
+    result['mfn_complexity'] = round(mfn_complexity, 3)
+    result['desc_score'] = round(desc_score, 3)
+    result['price_score'] = round(price_score, 3)
+    result['price_diff_pct'] = round(price_diff_pct, 1)
     result['uom_score'] = uom_score
     result['qoe_score'] = qoe_score
-    result['price_score'] = price_score
-    result['price_diff_pct'] = price_diff_pct  # Add this
-    result['desc_score'] = desc_score
-    result['weighted_score'] = weighted_score
-    result['ccx_ea_price'] = ccx_ea_price
-    result['upload_ea_price'] = upload_ea_price
+    result['confidence_score'] = round(weighted_score, 3)
     
-    # Assign confidence level
+    # Determine overall confidence level
     if weighted_score >= 0.8:
         result['confidence_level'] = 'high'
-    elif weighted_score >= 0.5:
+    elif weighted_score >= 0.6:
         result['confidence_level'] = 'medium'
     else:
         result['confidence_level'] = 'low'
     
-    # Initialize false positive flag
+    # Flag for false positive (to be set by user later)
     result['false_positive'] = False
     
     return result

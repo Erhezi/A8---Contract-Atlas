@@ -832,7 +832,7 @@
             </div>
             
             <div class="action-buttons" style="margin-top: 20px; text-align: right;">
-                <form method="POST" action="{{ url_for('main.process_step', step_id=2) }}">
+                <form method="POST" action="{{ url_for('common.process_step', step_id=2) }}">
                     <input type="hidden" name="step_completed" value="true">
                     <button type="submit" class="btn btn-success">Complete Duplication Review</button>
                 </form>
@@ -900,7 +900,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadingOverlaySpinner.style.display = 'flex';
         
         // Start the duplication analysis
-        fetch('/process-duplicates', {
+        fetch('/duplicate-detection/process-duplicates', {
             method: 'POST'
         })
         .then(response => response.json())
@@ -940,7 +940,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log("Saving included contracts:", includedContracts);
         
         // Send included contracts to the server
-        fetch('/initialize-included-contracts', {
+        fetch('/duplicate-detection/initialize-included-contracts', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -987,7 +987,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Sync the included contracts with the server
-        fetch('/initialize-included-contracts', {
+        fetch('/duplicate-detection/initialize-included-contracts', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1109,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadingOverlaySpinner.style.display = 'flex';
         
         // Send request to update inclusion status
-        fetch('/include-exclude-contract', {
+        fetch('/duplicate-detection/include-exclude-contract', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1198,7 +1198,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show loading
         loadingOverlaySpinner.style.display = 'flex';
         
-        fetch('/include-exclude-contract', {
+        fetch('/duplicate-detection/include-exclude-contract', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1233,7 +1233,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show loading
         loadingOverlaySpinner.style.display = 'flex';
         
-        fetch(`/get-duplicate-items/${contractNum}`)
+        fetch(`/duplicate-detection/get-duplicate-items/${contractNum}`)
         .then(response => response.json())
         .then(data => {
             loadingOverlaySpinner.style.display = 'none';
@@ -1333,7 +1333,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Set up Server-Sent Events for progress updates
-        const eventSource = new EventSource('/process-item-comparison-with-progress');
+        const eventSource = new EventSource('/duplicate-detection/process-item-comparison-with-progress');
         
         eventSource.onmessage = function(event) {
             try {
@@ -1353,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     eventSource.close();
                     
                     // Call finalize endpoint to ensure session data is saved
-                    fetch('/finalize-item-comparison', {
+                    fetch('/duplicate-detection/finalize-item-comparison', {
                         method: 'POST'
                     })
                     .then(response => response.json())
@@ -1371,7 +1371,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             // retry logic for resilience
                             setTimeout(() => {
                                 console.log("Retrying to finalize results...");
-                                fetch('/finalize-item-comparison', {
+                                fetch('/duplicate-detection/finalize-item-comparison', {
                                     method: 'POST'
                                 })
                                 .then(response => response.json())
@@ -1419,7 +1419,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log("Saving included contracts with callback:", includedContracts);
         
         // Send included contracts to the server
-        fetch('/initialize-included-contracts', {
+        fetch('/duplicate-detection/initialize-included-contracts', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1460,7 +1460,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        fetch('/get-item-comparison-summary')
+        fetch('/duplicate-detection/get-item-comparison-summary')
             .then(response => {
                 // Check if response is ok before parsing JSON
                 if (!response.ok) {
@@ -1648,7 +1648,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log(`Fetching items for confidence level: ${level}`);
         
-        fetch(`/get-comparison-items/${level}`)
+        fetch(`/duplicate-detection/get-comparison-items/${level}`)
             .then(response => response.json())
             .then(data => {
                 loadingOverlaySpinner.style.display = 'none';
@@ -1757,6 +1757,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             
             itemsTbody.appendChild(row);
+            console.log("Item Score:", item.weighted_score, "Class:", scoreClass, "Row:", row.innerHTML);
         });
     }
     
@@ -1778,7 +1779,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Send a single request with complete state
-        fetch('/update-false-positives', {
+        fetch('/duplicate-detection/update-false-positives', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

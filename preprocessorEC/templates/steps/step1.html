@@ -27,7 +27,7 @@
 
 <div class="step-content">
     <h3>Step 1.1: Upload Contract Price File</h3>
-    <p>Upload your contract price file to begin the pre-checking process. Accepted formats: .xlsx, .csv. Click to download the <a href="{{ url_for('main.download_template') }}" class="template-link">template</a> if needed.</p>
+    <p>Upload your contract price file to begin the pre-checking process. Accepted formats: .xlsx, .csv. Click to download the <a href="{{ url_for('common.download_template') }}" class="template-link">template</a> if needed.</p>
     <p style="font-size: 0.85rem; margin-top: -10px">We only support single file single sheet per run. If you have multiple contracts from the same manufacturer or manufacturer groups, merge them by stacking them into one file and upload.</p>
     
     <div id="upload-container">
@@ -155,7 +155,7 @@
                     </label>
                 </div>
                 <small class="form-text text-muted">
-                    Use explicit mode only after you have first reviewed all your potential duplicates and you are sure they should be identified by their explicit manufacturer part number and UOM.
+                    Before checking everything are converted into upper case with leading/trailing white white-space trimmed. Use explicit mode only after you have first reviewed all your potential duplicates and you are sure they should be identified by their explicit manufacturer part number and UOM.
                 </small>
             </div>
         </form>
@@ -190,8 +190,8 @@
                 <div id="error-table-container"></div>
             </div>
             <div class="button-group" style="margin-top: 15px;">
-                <a id="download-error-link" href="{{ url_for('main.download_error_file') }}" class="btn btn-warning">Download Error Report</a>
-                <a href="{{ url_for('main.dashboard', restart=1) }}" class="btn btn-secondary">Start Over</a>
+                <a id="download-error-link" href="{{ url_for('file_processing.download_error_file') }}" class="btn btn-warning">Download Error Report</a>
+                <a href="{{ url_for('common.dashboard', restart=1) }}" class="btn btn-secondary">Start Over</a>
             </div>
         </div>
         
@@ -200,7 +200,7 @@
                 <h4><i class="icon">✓</i> PASS!</h4>
                 <p>All validation checks have passed successfully.</p>
             </div>
-            <form method="POST" action="{{ url_for('main.process_step', step_id=1) }}">
+            <form method="POST" action="{{ url_for('common.process_step', step_id=1) }}">
                 <button type="submit" class="btn btn-success">Complete Step 1</button>
             </form>
         </div>
@@ -218,7 +218,7 @@
             uploadBtn.disabled = true;
             uploadBtn.textContent = 'Uploading...';
             
-            fetch('/upload-file', {
+            fetch('/file-processing/upload-file', {
                 method: 'POST',
                 body: formData
             })
@@ -374,7 +374,7 @@
             mappingBtn.textContent = 'Processing...';
             
             // First save the column mapping
-            fetch('/map-columns', {
+            fetch('/file-processing/map-columns', {
                 method: 'POST',
                 body: formData
             })
@@ -382,7 +382,7 @@
             .then(data => {
                 if (data.success) {
                     // Now validate the file
-                    return fetch('/validate-file', {
+                    return fetch('/file-processing/validate-file', {
                         method: 'POST',
                         body: formData
                     });
