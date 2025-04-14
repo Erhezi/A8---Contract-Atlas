@@ -8,7 +8,6 @@ import tempfile
 import os
 from datetime import timedelta
 import importlib.util
-from .routes_legacy import main_blueprint
 
 
 def create_app(config_name=None, test_config=None):
@@ -61,7 +60,7 @@ def create_app(config_name=None, test_config=None):
     
     app.register_blueprint(auth_blueprint)
     app.register_blueprint(common_bp)
-    app.register_blueprint(file_bp)
+    app.register_blueprint(file_bp, url_prefix='/file-processing')
     app.register_blueprint(duplicate_bp, url_prefix='/duplicate-detection')
 
     # Initialize model management
