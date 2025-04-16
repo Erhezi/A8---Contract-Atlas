@@ -4,15 +4,344 @@
     <div class="resolution-controls">
         <form method="POST" action="{{ url_for('common.process_step', step_id=3) }}">
             <!-- Resolution UI would go here -->
-            <div class="form-group">
-                <label>Resolution Strategy</label>
-                <select class="form-control" name="resolution_strategy">
-                    <option value="merge">Merge Duplicates</option>
-                    <option value="keep_latest">Keep Latest</option>
-                    <option value="manual">Manual Resolution</option>
+            <div class="input-group mb-3">
+                <div class="input-group-prepend">
+                    <span class="input-group-text">Deduplication Policy</span>
+                </div>
+                <select class="form-control" name="resolution_strategy" id="resolution_strategy">
+                    <option value="keep_latest" selected>Keep Latest</option>
+                    <option value="keep_lowest_price">Keep Lowest Price</option>
+                    <option value="custom">Custom</option>
+                    <option value="manual">Manual (Resolve Item by Item)</option>
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Apply Resolution</button>
+            <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
+                <small>Select how you want to handle duplicate items. "Keep Latest" is defaulted and will retain the most recent entries (meaning we will keep the upload file you currently working on).</small>
+            </div>
+            
+            <!-- Custom deduplication policy options -->
+            <div id="custom_policy_options" class="mt-4" style="display: none;">
+                <h4>Custom Deduplication Policy</h4>
+                <p class="text-muted">Drag and drop the parameters below to set their priority order (Top = Highest Priority). Select your preference within each card.</p>
+                
+                <!-- Hidden fields to store the final priorities and preferences -->
+                <input type="hidden" name="contract_source_priority" id="contract_source_priority">
+                <input type="hidden" name="contract_source_preference" id="contract_source_preference">
+                <input type="hidden" name="unit_price_priority" id="unit_price_priority">
+                <input type="hidden" name="unit_price_preference" id="unit_price_preference">
+                <input type="hidden" name="contract_status_priority" id="contract_status_priority">
+                <input type="hidden" name="contract_status_preference" id="contract_status_preference">
+                <input type="hidden" name="expiration_priority" id="expiration_priority">
+                <input type="hidden" name="expiration_preference" id="expiration_preference">
+
+                <div id="priority_ranking_area" class="border p-3 rounded" style="min-height: 200px;">
+                    <!-- Draggable Cards -->
+                    <div class="card mb-2 draggable-card" draggable="true" id="card_contract_source">
+                        <div class="card-body p-2">
+                            <div class="input-group">
+                                <div class="input-group-prepend priority-rank">
+                                    <span class="input-group-text rank-indicator">1</span>
+                                </div>
+                                <select class="form-control preference-select" name="contract_source_preference_options" data-parameter="contract_source">
+                                    <option value="" selected disabled>Use dropdown to choose...</option>
+                                    <option value="gpo_first">GPO First</option>
+                                    <option value="local_first">Local First</option>
+                                </select>
+                                <div class="input-group-append">
+                                    <span class="input-group-text">Contract Source Type</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-2 draggable-card" draggable="true" id="card_contract_status">
+                        <div class="card-body p-2">
+                            <div class="input-group">
+                                <div class="input-group-prepend priority-rank">
+                                    <span class="input-group-text rank-indicator">2</span>
+                                </div>
+                                <select class="form-control preference-select" name="contract_status_preference_options" data-parameter="contract_status">
+                                    <option value="" selected disabled>Use dropdown to choose...</option>
+                                    <option value="new_first">New First</option>
+                                    <option value="existing_first">Existing First</option>
+                                </select>
+                                <div class="input-group-append">
+                                    <span class="input-group-text">Contract Status</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-2 draggable-card" draggable="true" id="card_unit_price">
+                        <div class="card-body p-2">
+                            <div class="input-group">
+                                <div class="input-group-prepend priority-rank">
+                                    <span class="input-group-text rank-indicator">3</span>
+                                </div>
+                                <select class="form-control preference-select" name="unit_price_preference_options" data-parameter="unit_price">
+                                    <option value="" selected disabled>Use dropdown to choose...</option>
+                                    <option value="lowest_first">Lowest First</option>
+                                    <option value="highest_first">Highest First</option>
+                                </select>
+                                <div class="input-group-append">
+                                    <span class="input-group-text">Unit Price</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-2 draggable-card" draggable="true" id="card_expiration">
+                        <div class="card-body p-2">
+                            <div class="input-group">
+                                <div class="input-group-prepend priority-rank">
+                                    <span class="input-group-text rank-indicator">4</span>
+                                </div>
+                                <select class="form-control preference-select" name="expiration_preference_options" data-parameter="expiration">
+                                    <option value="" selected disabled>Use dropdown to choose...</option>
+                                    <option value="soonest_first">Soonest First</option>
+                                    <option value="farthest_first">Farthest First</option>
+                                </select>
+                                <div class="input-group-append">
+                                    <span class="input-group-text">Expiration Proximity</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- End Draggable Cards -->
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary mt-3">Apply Resolution</button>
         </form>
     </div>
 </div>
+
+<style>
+    .draggable-card {
+        cursor: move;
+        user-select: none; /* Prevent text selection while dragging */
+        margin-bottom: 0.25rem; /* Consistent spacing between cards */
+    }
+    
+    /* The last card doesn't need a bottom margin */
+    .draggable-card:last-child {
+        margin-bottom: 0;
+    }
+    
+    .dragging {
+        opacity: 0.5;
+        border: 2px dashed #007bff;
+    }
+    .drag-over {
+        border: 2px dashed #ccc; /* Highlight drop zone */
+    }
+    /* Ensure input-group styling works properly */
+    .input-group {
+        display: flex;
+        width: 100%;
+    }
+    
+    .input-group-prepend {
+        display: flex;
+    }
+    
+    .input-group-text {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin-bottom: 0;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        text-align: center;
+        white-space: nowrap;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem 0 0 0.25rem;
+    }
+    
+    .input-group select.form-control {
+        flex: 1 1 auto;
+        width: 1%;
+        min-width: 0;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+    
+    /* Set fixed width for parameter labels */
+    .input-group-append:not(.priority-rank) .input-group-text {
+        width: 400px;
+        text-align: center; /* Changed from 'right' to 'center' */
+        display: flex;
+        justify-content: center; /* Ensures horizontal centering in flexbox */
+        align-items: center; /* Ensures vertical centering */
+    }
+    
+    /* Style for priority rank indicators */
+    .priority-rank .input-group-text {
+        background-color: #adb5bd;
+        color: white;
+        font-weight: bold;
+        border-radius: 3px;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const resolutionStrategy = document.getElementById('resolution_strategy');
+        const customPolicyOptions = document.getElementById('custom_policy_options');
+        const priorityRankingArea = document.getElementById('priority_ranking_area');
+        const draggableCards = document.querySelectorAll('.draggable-card');
+        const preferenceSelects = document.querySelectorAll('.preference-select');
+
+        let draggedItem = null;
+
+        // --- Initial Setup ---
+        toggleCustomOptions();
+        updateHiddenInputs(); // Set initial values based on default order/prefs
+
+        // --- Event Listeners ---
+        resolutionStrategy.addEventListener('change', toggleCustomOptions);
+
+        draggableCards.forEach(card => {
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragend', handleDragEnd);
+        });
+
+        priorityRankingArea.addEventListener('dragover', handleDragOver);
+        priorityRankingArea.addEventListener('dragenter', handleDragEnter);
+        priorityRankingArea.addEventListener('dragleave', handleDragLeave);
+        priorityRankingArea.addEventListener('drop', handleDrop);
+
+        preferenceSelects.forEach(select => {
+            select.addEventListener('change', updateHiddenInputs);
+        });
+
+        // --- Functions ---
+        function toggleCustomOptions() {
+            if (resolutionStrategy.value === 'custom') {
+                customPolicyOptions.style.display = 'block';
+                // Show explanation tooltip on first display
+                if (!sessionStorage.getItem('customPolicyExplained')) {
+                    alert('Custom Policy Guide: Drag and drop parameters to rank them (top is highest priority). Select preferences within each card.');
+                    sessionStorage.setItem('customPolicyExplained', 'true');
+                }
+                updateHiddenInputs(); // Ensure inputs are updated when shown
+            } else {
+                customPolicyOptions.style.display = 'none';
+            }
+        }
+
+        function handleDragStart(e) {
+            draggedItem = this;
+            this.classList.add('dragging'); // Add class immediately
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.id); // Pass the id
+        }
+
+        function handleDragEnd() {
+            if (draggedItem) {
+                draggedItem.classList.remove('dragging');
+                draggedItem = null;
+            }
+            priorityRankingArea.classList.remove('drag-over');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault(); // Necessary to allow dropping
+            e.dataTransfer.dropEffect = 'move';
+            
+            // Don't manipulate DOM during dragOver - just visual feedback
+            priorityRankingArea.classList.add('drag-over');
+        }
+
+        function handleDragEnter(e) {
+            e.preventDefault(); // Prevent default behavior
+            // Optional: Add more specific visual feedback if needed
+        }
+
+        function handleDragLeave() {
+             priorityRankingArea.classList.remove('drag-over'); // Remove highlight when leaving
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            priorityRankingArea.classList.remove('drag-over');
+
+            const id = e.dataTransfer.getData('text/plain');
+            const draggable = document.getElementById(id);
+            
+            if (!draggable) return;
+            
+            const afterElement = getDragAfterElement(priorityRankingArea, e.clientY);
+            
+            // Perform the actual DOM manipulation on drop, not during dragover
+            if (afterElement == null) {
+                priorityRankingArea.appendChild(draggable);
+            } else {
+                priorityRankingArea.insertBefore(draggable, afterElement);
+            }
+            
+            draggable.classList.remove('dragging');
+            draggedItem = null;
+            
+            // Update priorities after reordering
+            updateHiddenInputs();
+        }
+
+        function getDragAfterElement(container, y) {
+            // Only consider cards that are not currently being dragged
+            const draggableElements = [...container.querySelectorAll('.draggable-card:not(.dragging)')];
+            
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                
+                // If mouse position is above middle of element and this offset is smaller than previous
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function updateHiddenInputs() {
+            const cardsInOrder = priorityRankingArea.querySelectorAll('.draggable-card');
+            cardsInOrder.forEach((card, index) => {
+                const priority = index + 1; // Priority 1-4 based on order
+                const parameterId = card.id.replace('card_', ''); // e.g., 'contract_source'
+                const preferenceSelect = card.querySelector('.preference-select');
+                const preferenceValue = preferenceSelect && preferenceSelect.value ? preferenceSelect.value : ''; // Get selected preference
+
+                // Update hidden inputs
+                document.getElementById(`${parameterId}_priority`).value = priority;
+                document.getElementById(`${parameterId}_preference`).value = preferenceValue;
+                
+                // Set position number visually
+                const positionIndicator = card.querySelector('.position-indicator') || 
+                    document.createElement('div');
+                    
+                if (!card.querySelector('.position-indicator')) {
+                    positionIndicator.className = 'position-indicator';
+                    positionIndicator.style.position = 'absolute';
+                    positionIndicator.style.top = '5px';
+                    positionIndicator.style.left = '5px';
+                    positionIndicator.style.backgroundColor = '#adb5bd'; // Lighter grey background
+                    positionIndicator.style.color = 'white';
+                    positionIndicator.style.borderRadius = '3px'; // Changed from 50% (circle) to 3px (slightly rounded square)
+                    positionIndicator.style.width = '24px'; // Same size as before
+                    positionIndicator.style.height = '24px';
+                    positionIndicator.style.textAlign = 'center';
+                    positionIndicator.style.lineHeight = '24px';
+                    positionIndicator.style.fontSize = '14px';
+                    positionIndicator.style.fontWeight = 'bold';
+                    
+                    // Add to card
+                    const cardBody = card.querySelector('.card-body');
+                    cardBody.style.position = 'relative';
+                    cardBody.appendChild(positionIndicator);
+                }
+                
+                positionIndicator.textContent = priority;
+            });
+        }
+    });
+</script>
