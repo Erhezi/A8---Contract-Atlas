@@ -154,6 +154,24 @@
         border-bottom: 1px solid #ecf0f1;
     }
     
+    /* Add width constraints for description columns in modal table */
+    .modal-table th:nth-child(8),
+    .modal-table td:nth-child(8),
+    .modal-table th:nth-child(9),
+    .modal-table td:nth-child(9) {
+        max-width: 375px; /* Set a max width for description columns */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Add tooltip behavior for description cells */
+    .modal-table td:nth-child(8),
+    .modal-table td:nth-child(9) {
+        position: relative;
+        cursor: text;
+    }
+    
     .modal-table th {
         background-color: #f8f9fa;
         font-weight: 600;
@@ -479,6 +497,17 @@
         border-bottom: 1px solid #ddd;
     }
     
+    /* Set equal width for manufacturer part number columns */
+    .items-table th:nth-child(1),
+    .items-table td:nth-child(1),
+    .items-table th:nth-child(2),
+    .items-table td:nth-child(2) {
+        width: 5%;  /* Set a fixed width for both columns */
+        min-width: 80px; /* Ensure a minimum width */
+        overflow: hidden;
+        text-overflow: ellipsis; /* Show ellipsis for overflow text */
+    }
+    
     .items-table th {
         background-color: #f5f5f5;
         position: sticky;
@@ -706,7 +735,7 @@
                     <p><strong>Owner:</strong> <span id="modal-contract-owner"></span></p>
                 </div>
                 <div class="table-responsive-container">
-                    <table id="items-table" class="modal-table">
+                    <table id="items-table-modal" class="modal-table">
                         <thead>
                             <tr>
                                 <th>CCX Mfg Part #</th>
@@ -1247,7 +1276,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('modal-contract-owner').textContent = contract.contract_owner || 'N/A';
                 
                 // Populate items table
-                const itemsTable = document.getElementById('items-table').querySelector('tbody');
+                const itemsTable = document.getElementById('items-table-modal').querySelector('tbody');
                 itemsTable.innerHTML = '';
                 
                 contract.items.forEach(item => {
@@ -1255,6 +1284,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Is exact match
                     const isExactMatch = item.same_mfg_part_num === 1;
+                    
+                    // Add title attribute to show full text on hover for descriptions
+                    const ccxDescription = item.description_ccx || 'N/A';
+                    const uploadDescription = item.Description || 'N/A';
                     
                     row.innerHTML = `
                         <td>${item.mfg_part_num_ccx || 'N/A'}</td>
@@ -1268,8 +1301,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td>${item.UOM || 'N/A'}</td>
                         <td>$${parseFloat(item.price_ccx).toFixed(2) || 'N/A'}</td>
                         <td>$${parseFloat(item.Contract_Price).toFixed(2) || 'N/A'}</td>
-                        <td>${item.description_ccx || 'N/A'}</td>
-                        <td>${item.Description || 'N/A'}</td>
+                        <td title="${ccxDescription}">${ccxDescription}</td>
+                        <td title="${uploadDescription}">${uploadDescription}</td>
                         <td>${item.contract_number_ccx || 'N/A'}</td>
                         <td>${item.manufacturer_name_ccx || 'N/A'}</td>
                     `;
@@ -1499,7 +1532,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.log("Loading medium confidence items...");
                         loadConfidenceItems('medium');
                     } else if (data.summary.low && data.summary.low.total > 0) {
-                        console.log("Loading low confidence items...");
+console.log("Loading low confidence items...");
                         loadConfidenceItems('low');
                     } else {
                         console.warn("No items found in any confidence level");
