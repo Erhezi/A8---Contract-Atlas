@@ -5,6 +5,7 @@ import numpy as np
 import os
 from datetime import datetime
 import re
+import unicodedata
 from flask import current_app
 from werkzeug.utils import secure_filename
 from scipy.spatial.distance import cosine
@@ -40,24 +41,58 @@ def reduce_mfg_part_num(mfg_part_num):
         return str(int(mfg_part_num))
     return mfg_part_num.upper()
 
-def clean_excel_df(df):
-    """clean dataframe from weird characters and empty strings, will go back later"""
-    return df.applymap(
-        lambda x: str(x)
-        .replace('\u200b', '')
-        .replace('\u200c', '')
-        .replace('\u200d', '')
-        .replace('\u00a0', ' ')
-        .replace('\ufeff', '')
-        .strip()
-        if isinstance(x, str) else x
-    ).replace(r'^\s*$', pd.NA, regex=True)
 
 def strip_columns(df):
     """Strip whitespace and other wired stuff from all string columns in the DataFrame"""
     for col in df.select_dtypes(include=['object']).columns:
         df[col] = df[col].str.strip()
     return df
+
+
+def clean_text_data(text):
+    """
+    Comprehensive text cleaning function that:
+    1. Strips whitespace
+    2. Removes invisible/control characters from Excel
+    3. Removes special characters like trademarks, emojis, and URL encoded characters
+    """
+    if pd.isna(text) or not isinstance(text, str):
+        return text
+    
+    # Strip whitespace
+    text = text.strip()
+    
+    # Remove invisible characters from Excel
+    text = (text
+        .replace('\u200b', '')  # Zero width space
+        .replace('\u200c', '')  # Zero width non-joiner
+        .replace('\u200d', '')  # Zero width joiner
+        .replace('\u00a0', ' ')  # Non-breaking space
+        .replace('\ufeff', '')   # Byte order mark
+    )
+    
+    # Remove URL encoded characters (like %09, %02)
+    text = re.sub(r'%[0-9A-Fa-f]{2}', '', text)
+    
+    # Remove control characters
+    text = ''.join(ch for ch in text if unicodedata.category(ch)[0] != 'C')
+    
+    # Remove or replace special characters (trademarks, registered symbols, emojis)
+    text = (text
+        .replace('™', '')
+        .replace('®', '')
+        .replace('©', '')
+    )
+    
+    # Try to normalize unicode characters (decompose and remove combining marks)
+    text = unicodedata.normalize('NFKD', text)
+    text = ''.join([c for c in text if not unicodedata.combining(c)])
+    
+    # Remove any other unusual unicode characters like emojis
+    text = ''.join(c for c in text if c.isascii() or c.isalpha() or c.isdigit() or c.isspace() or c in '-_.,;:()[]{}#@!?+=/\\')
+    
+    # Final strip to remove any whitespace created during cleaning
+    return text.strip()
 
 def prepare_dataframe(df, column_mapping):
     """Map columns and prepare dataframe for validation"""
@@ -70,8 +105,17 @@ def prepare_dataframe(df, column_mapping):
     
     # Create a copy of the dataframe with standard field names
     mapped_df = df.copy()
+    
+    # Apply comprehensive text cleaning to all string columns
+    str_columns = mapped_df.select_dtypes(include=['object']).columns
+    for col in str_columns:
+        mapped_df[col] = mapped_df[col].apply(clean_text_data)
+    
+    # Replace empty strings with NaN
+    mapped_df.replace(r'^\s*$', pd.NA, regex=True, inplace=True)
+    
+    # Strip whitespace from string columns (as a safety measure)
     mapped_df = strip_columns(mapped_df)
-    # mapped_df = clean_excel_df(mapped_df)
 
     # make upper case for Mfg Part Num, Vendor Part Num, UOM, Description, and Contract Number
     for col in ['Mfg Part Num', 'Vendor Part Num', 'UOM', 'Description', 'Contract Number']:

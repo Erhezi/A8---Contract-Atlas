@@ -55,23 +55,233 @@
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
 }
+
+/* Bootstrap Input Group Styles */
+.input-group {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  width: 100%;
+}
+
+.custom-file {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  width: 1%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.custom-file-input {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: calc(1.5em + 0.75rem + 2px);
+  margin: 0;
+  opacity: 0;
+}
+
+.custom-file-label {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: calc(1.5em + 0.75rem + 2px);
+  padding: 0.375rem 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #495057;
+  background-color: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-group-append {
+  display: flex;
+  margin-left: -1px;
+}
+
+.input-group > .input-group-append > .btn {
+  display: flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  margin-bottom: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Fix for height inconsistency */
+.custom-file,
+.custom-file-input,
+.custom-file-label,
+.input-group-append > .btn {
+  height: calc(1.5em + 0.75rem + 2px);
+}
+
+/* Additional fixes for alignment */
+.input-group {
+    align-items: stretch;
+}
+
+.custom-file-label {
+    display: flex;
+    align-items: center;
+    line-height: 1.2;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+}
+
+/* Ensure the label text is vertically centered with buttons */
+.custom-file-label::after {
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.input-group-append .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Ensure consistent heights */
+.input-group > .form-control,
+.input-group > .custom-file,
+.input-group > .custom-file .custom-file-input,
+.input-group > .custom-file .custom-file-label,
+.input-group > .input-group-append > .btn {
+    height: calc(1.5em + 0.75rem + 2px);
+    line-height: 1.5;
+}
+
+/* More targeted fixes for height inconsistency */
+#upload-form .input-group {
+    align-items: center;
+}
+
+#upload-form .custom-file {
+    height: 36px; /* Reduced from 38px */
+}
+
+#upload-form .custom-file-input {
+    height: 36px; /* Reduced from 38px */
+}
+
+#upload-form .custom-file-label {
+    height: 36px; /* Reduced from 38px */
+    padding: 0.3rem 0.75rem; /* Slightly reduced padding */
+    padding-right: 2.5rem; /* Add extra padding on the right side */
+    margin-right: 1px; /* Add a small margin to prevent overlap */
+    display: flex;
+    align-items: center;
+    line-height: 1.5;
+    margin-bottom: 0;
+}
+
+#upload-form .input-group-append .btn {
+    height: 36px; /* Reduced from 38px */
+    padding: 0.3rem 0.75rem; /* Slightly reduced padding */
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.5;
+}
+
+/* Override the global btn styles */
+#upload-form .btn {
+    margin-top: 0;
+    padding: 0.3rem 0.75rem; /* Slightly reduced padding */
+    box-sizing: border-box;
+}
+
+/* Remove any unwanted margins */
+#upload-form .input-group > * {
+    margin-bottom: 0;
+    vertical-align: middle;
+}
+
+/* Ensure consistent border styling */
+#upload-form .input-group * {
+    box-sizing: border-box;
+}
+
+/* Style updates for buttons */
+#upload-form .btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: transparent;
+    transition: all 0.3s ease;
+}
+
+/* Specific style for the Browse button */
+#upload-form #file-browsing-btn {
+    border: 1px solid #ced4da;  /* Changed to lighter grey */
+    color: #495057;  /* Changed to darker grey */
+    background-color: #f8f9fa;  /* Light grey background */
+}
+
+/* Remove hover effect for Browse button */
+#upload-form #file-browsing-btn:hover {
+    color: #495057;
+    background-color: #f8f9fa;
+    border-color: #ced4da;
+}
+
+#upload-form #file-upload-btn {
+    color: #fff;
+    background-color: #6c757d;  /* Changed to grey */
+    border-color: #6c757d;      /* Changed to grey */
+    transition: all 0.3s ease;
+}
+
+/* Remove hover effect for Upload button */
+#upload-form #file-upload-btn:hover {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Blue button style for when file is selected */
+#upload-form #file-upload-btn.file-selected {
+    background-color: #3498db;
+    border-color: #3498db;
+}
 </style>
 
 
 <div class="step-content">
     <h3>Step 1.1: Upload Contract Price File</h3>
     <p>Upload your contract price file to begin the pre-checking process. Accepted formats: .xlsx, .csv. Click to download the <a href="{{ url_for('common.download_template') }}" class="template-link">template</a> if needed.</p>
-    <p style="font-size: 0.85rem; margin-top: -10px">We only support single file single sheet per run. If you have multiple contracts from the same manufacturer or manufacturer groups, merge them by stacking them into one file and upload.</p>
+    <p style="font-size: 0.85rem; margin-top: -5px">We only support single file single sheet per run. If you have multiple contracts from the same manufacturer or manufacturer groups, merge them by stacking them into one file and upload.</p>
     
     <div id="upload-container">
         <form id="upload-form" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="file" style="margin-bottom: 5px; display: block">Select File</label>
-                <input type="file" id="file" name="file" class="form-control-file" accept=".xlsx,.csv" required>
+            <div class="input-group">
+                <div class="custom-file">
+                    <input type="file" class="custom-file-input" id="file" name="file" accept=".xlsx,.csv" placeholder="Choose File" >
+                    <label class="custom-file-label" for="file">Choose file</label>
+                </div>
+                <div class="input-group-append">
+                    <button class="btn btn-outline-secondary" type="button" id="file-browsing-btn">Browse</button>
+                    <button class="btn btn-outline-secondary" type="submit" id="file-upload-btn">Upload File</button>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary">Upload File</button>
         </form>
     </div>
+
     
     <div id="mapping-container" style="display:none; margin-top: 20px;">
         <h3 style="font-size: 1.2rem;">Step 1.2: Map File Columns</h3>
@@ -186,9 +396,9 @@
                         <span class="input-group-text">Duplicate Checking Mode</span>
                     </div>
                     <select class="form-control" name="duplicate_mode" id="duplicate_mode">
-                        <option value="default" {% if not session.get('duplicate_check_mode') or session.get('duplicate_check_mode') == 'default' %}selected{% endif %}>Default (Reduced Mfg Part Num)</option>
-                        <option value="explicit" {% if session.get('duplicate_check_mode') == 'explicit' %}selected{% endif %}>Explicit (Mfg Part Num + UOM)</option>
-                        <option value="distributor" {% if session.get('duplicate_check_mode') == 'distributor' %}selected{% endif %}>Distributor (ERP Vendor ID + Mfg Part Num + UOM)</option>
+                        <option value="default" selected>Default (Reduced Mfg Part Num)</option>
+                        <option value="explicit">Explicit (Mfg Part Num + UOM)</option>
+                        <option value="distributor">Distributor (ERP Vendor ID + Mfg Part Num + UOM)</option>
                     </select>
                 </div>
                 <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
@@ -246,6 +456,26 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Update file input label with selected filename
+        document.getElementById('file').addEventListener('change', function(e) {
+            const fileName = e.target.files[0] ? e.target.files[0].name : 'Choose file';
+            const fileLabel = document.querySelector('.custom-file-label');
+            fileLabel.textContent = fileName;
+            
+            // Change upload button color when file is selected
+            const uploadBtn = document.getElementById('file-upload-btn');
+            if (e.target.files[0]) {
+                uploadBtn.classList.add('file-selected');
+            } else {
+                uploadBtn.classList.remove('file-selected');
+            }
+        });
+        
+        // Make the Browse button functional
+        document.getElementById('file-browsing-btn').addEventListener('click', function() {
+            document.getElementById('file').click();
+        });
+    
         // File Upload Form
         document.getElementById('upload-form').addEventListener('submit', function(e) {
             e.preventDefault();
