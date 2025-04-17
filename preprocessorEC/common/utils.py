@@ -272,11 +272,14 @@ def validate_contract_vendor_relationship(error_df):
 def check_duplicates(error_df, duplicate_mode):
     """Check for potential duplicates based on specified mode"""
     if duplicate_mode == 'default':
-        # Use default keys: Contract Number + Reduced Mfg Part Num
-        duplicate_keys = ['Contract Number', 'Reduced Mfg Part Num']
+        # Use default keys: Reduced Mfg Part Num
+        duplicate_keys = ['Reduced Mfg Part Num']
+    elif duplicate_mode == 'distributor':
+        # Use distributor keys: ERP Vendor ID + Mfg Part Num + UOM
+        duplicate_keys = ['ERP Vendor ID', 'Mfg Part Num', 'UOM']
     else:
-        # Use explicit keys: Contract Number + Mfg Part Num + UOM
-        duplicate_keys = ['Contract Number', 'Mfg Part Num', 'UOM']
+        # Use explicit keys: Mfg Part Num + UOM
+        duplicate_keys = ['Mfg Part Num', 'UOM']
     
     # Group by duplicate keys and find items that appear more than once
     error_df['Dup Count'] = error_df.groupby(duplicate_keys)['File Row'].transform('count')
