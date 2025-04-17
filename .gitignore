@@ -2,6 +2,11 @@
 *
 */**
 
+# Explicit ignores for specific files
+zoo.py
+*/zoo.py
+**/zoo.py
+
 # Allow these specific directories and file types
 !preprocessorEC/
 !preprocessorEC/**/*.py # Keep allowing all py files within preprocessorEC
@@ -11,8 +16,8 @@
 !preprocessorEC/templates/**/*.html
 !preprocessorEC/templates/steps/
 !preprocessorEC/templates/steps/*.html
-!common/ # Keep allowing root-level common/ if exists
-!common/**/*.py # Track only .py files inside common/ recursively
+!preprocessorEC/common/ # Keep allowing root-level common/ if exists
+!preprocessorEC/common/**/*.py # Track only .py files inside common/ recursively
 !file_processing/ # Keep allowing root-level file_processing/ if exists
 !file_processing/*.py # Track everything inside file_processing/
 !duplicate_detection/ # Allow duplicate_detection/ directory
