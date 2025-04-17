@@ -4,11 +4,21 @@
 
 # Allow these specific directories and file types
 !preprocessorEC/
-!preprocessorEC/**/*.py
+!preprocessorEC/**/*.py # Keep allowing all py files within preprocessorEC
+!preprocessorEC/common/ # Explicitly allow this functional subfolder
+!preprocessorEC/file_processing/ # Explicitly allow this functional subfolder
 !preprocessorEC/templates/
 !preprocessorEC/templates/**/*.html
 !preprocessorEC/templates/steps/
 !preprocessorEC/templates/steps/*.html
+!common/ # Keep allowing root-level common/ if exists
+!common/**/*.py # Track only .py files inside common/ recursively
+!file_processing/ # Keep allowing root-level file_processing/ if exists
+!file_processing/*.py # Track everything inside file_processing/
+!duplicate_detection/ # Allow duplicate_detection/ directory
+!duplicate_detection/** # Track everything inside duplicate_detection/
+!*.py
+!*.html
 !.gitignore
 
 # Explicit ignores even if they match the patterns above
