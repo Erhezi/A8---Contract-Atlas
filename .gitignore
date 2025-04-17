@@ -7,7 +7,9 @@
 !preprocessorEC/common/
 !preprocessorEC/common/**/*.py
 !preprocessorEC/file_processing/
+!preprocessorEC/file_processing/**/*.py
 !preprocessorEC/duplicate_detection/
+!preprocessorEC/duplicate_detection/**/*.py
 !preprocessorEC/templates/
 !preprocessorEC/templates/**/*.html
 !preprocessorEC/templates/steps/
