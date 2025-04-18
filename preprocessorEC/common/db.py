@@ -52,6 +52,7 @@ def create_temp_table(table_name, df, conn):
             Contract_Number VARCHAR(100) NOT NULL,
             ERP_Vendor_ID VARCHAR(20) NOT NULL,
             Reduced_Mfg_Part_Num VARCHAR(255),
+            Contract_Source_Type VARCHAR(20) NOT NULL,
             File_Row INT,
             PRIMARY KEY (Mfg_Part_Num, Contract_Number, UOM)
         )
@@ -61,12 +62,14 @@ def create_temp_table(table_name, df, conn):
         # Define SQL table columns
         columns = ['Mfg_Part_Num', 'Vendor_Part_Num', 'Buyer_Part_Num', 'Description', 
                 'Contract_Price', 'UOM', 'QOE', 'Effective_Date', 'Expiration_Date', 
-                'Contract_Number', 'ERP_Vendor_ID', 'Reduced_Mfg_Part_Num', 'File_Row']
+                'Contract_Number', 'ERP_Vendor_ID', 'Reduced_Mfg_Part_Num', 'Contract_Source_Type',
+                'File_Row']
         
         # columns we want from our input DataFrame
         pre_checked_columns = ['Mfg Part Num', 'Vendor Part Num', 'Buyer Part Num', 'Description',
                                'Contract Price', 'UOM', 'QOE', 'Effective Date', 'Expiration Date',
-                               'Contract Number', 'ERP Vendor ID', 'Reduced Mfg Part Num', 'File Row']
+                               'Contract Number', 'ERP Vendor ID', 'Reduced Mfg Part Num', 'Contract Source Type',
+                               'File Row']
         df = df[pre_checked_columns].copy()
         
         # Map from DataFrame columns to SQL table columns
@@ -137,6 +140,7 @@ def find_duplicates_with_ccx(temp_table, conn):
             temp.Contract_Number,
             temp.ERP_Vendor_ID,
             temp.Reduced_Mfg_Part_Num,
+            temp.Contract_Source_Type,
             temp.File_Row,
             CASE WHEN ccx.MANUFACTURER_PART_NUMBER = temp.Mfg_Part_Num THEN 1 ELSE 0 END AS same_mfg_part_num
         FROM 
@@ -145,12 +149,12 @@ def find_duplicates_with_ccx(temp_table, conn):
                     CONTRACT_NUMBER, 
                     CONTRACT_DESCRIPTION, 
                     CONTRACT_OWNER, 
-                    SOURCE_CONTRACT_TYPE,
+                    IIF(SOURCE_CONTRACT_TYPE = 'GPO', 'GPO', 'Local') AS SOURCE_CONTRACT_TYPE,
                     CASE
                         WHEN MANUFACTURER_PART_NUMBER IS NULL OR LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)) = '' THEN NULL
                         ELSE
                             CASE
-                                WHEN ISNUMERIC(REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) = 1
+                                WHEN TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) IS NOT NULL
                                 THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) AS VARCHAR(255))
                                 ELSE
                                     REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')
