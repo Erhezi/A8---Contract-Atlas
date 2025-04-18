@@ -70,3 +70,12 @@ def get_contracts_with_true_duplicates():
             contracts_with_true_duplicates.add(item.get('contract_number_ccx', ''))
     
     return contracts_with_true_duplicates
+
+def store_deduplication_results(results):
+    """Store deduplication results in session"""
+    session['deduplication_results'] = results
+    session.modified = True
+    
+def get_deduped_results():
+    """Get deduplication results from session"""
+    return session.get('deduplication_results')

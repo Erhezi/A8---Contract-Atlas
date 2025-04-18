@@ -6,7 +6,8 @@ import pandas as pd
 from random import randint
 from ..common.db import get_db_connection, find_duplicates_with_ccx
 from ..common.model_loader import get_sentence_transformer_model
-from ..common.utils import process_item_comparisons, calculate_confidence_score
+from ..common.utils import process_item_comparisons, calculate_confidence_score, apply_deduplication_policy
+from ..common.session import get_comparison_results, store_deduplication_results, get_deduped_results
 
 # Create the blueprint
 duplicate_bp = Blueprint('duplicate_detection', __name__,
@@ -647,3 +648,148 @@ def update_false_positives():
     except Exception as e:
         print(f"Error in update_false_positives: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
+
+
+@duplicate_bp.route('/apply-resolution', methods=['POST'])
+@login_required
+def apply_resolution():
+    """Apply deduplication resolution policy to identified duplicates"""
+    try:
+        # Get policy selection from form
+        deduplication_policy = request.form.get('resolution_strategy', 'keep_latest')
+        
+        # Get custom sort options if policy is custom
+        custom_sort_fields = []
+        custom_sort_directions = []
+        
+        if deduplication_policy == 'custom':
+            # Extract priorities from form data
+            priorities = {}
+            preferences = {}
+            
+            for param in ['contract_source', 'unit_price', 'contract_status', 'expiration']:
+                priority = request.form.get(f'{param}_priority')
+                preference = request.form.get(f'{param}_preference')
+                
+                if priority and preference:
+                    priorities[param] = int(priority)
+                    preferences[param] = preference
+            
+            # Sort parameters by priority (1=highest)
+            sorted_params = sorted(priorities.keys(), key=lambda k: priorities[k])
+            
+            # Map parameters to field names and directions
+            param_to_field_map = {
+                'contract_source': 'Source Contract Type',
+                'unit_price': 'EA Price',
+                'contract_status': 'Dataset',  # Using Dataset as proxy for status
+                'expiration': 'Expiration Date'
+            }
+            
+            # Map preferences to sort directions
+            pref_to_direction_map = {
+                'gpo_first': 'asc',  # GPO comes before Local alphabetically
+                'local_first': 'desc',
+                'lowest_first': 'asc',
+                'highest_first': 'desc',
+                'new_first': 'desc',  # TP (uploaded) comes after CCX alphabetically
+                'existing_first': 'asc',
+                'soonest_first': 'asc',
+                'farthest_first': 'desc'
+            }
+            
+            # Build sort fields and directions
+            for param in sorted_params:
+                field = param_to_field_map.get(param)
+                direction = pref_to_direction_map.get(preferences[param], 'asc')
+                
+                if field:
+                    custom_sort_fields.append(field)
+                    custom_sort_directions.append(direction)
+        
+        comparison_results = get_comparison_results()
+        
+        if not comparison_results:
+            return jsonify({
+                'success': False,
+                'message': 'No comparison results found. Please complete Step 2 first.'
+            })
+        
+        # Process data with deduplication policy
+        stacked_df, results_summary = apply_deduplication_policy(
+            comparison_results, 
+            deduplication_policy,
+            custom_sort_fields,
+            custom_sort_directions
+        )
+        
+        # Store results in session
+        store_deduplication_results({
+            'stacked_data': stacked_df.to_dict('records') if not stacked_df.empty else [],
+            'summary': results_summary,
+            'policy': {
+                'type': deduplication_policy,
+                'custom_fields': custom_sort_fields,
+                'custom_directions': custom_sort_directions
+            }
+        })
+        
+        # Return successful response with data
+        return jsonify({
+            'success': True,
+            'message': 'Deduplication policy applied successfully',
+            'summary': results_summary
+        })
+        
+    except Exception as e:
+        print(f"Error applying resolution: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error applying resolution: {str(e)}'
+        })
+
+@duplicate_bp.route('/get-deduplication-results', methods=['GET'])
+@login_required
+def get_deduplication_results():
+    """Get the deduplication results for display""" 
+    deduplication_results = get_deduped_results()
+    if not deduplication_results:
+        return jsonify({
+            'success': False,
+            'message': 'No deduplication results found. Please apply a resolution policy first.'
+        })
+    
+    return jsonify({
+        'success': True,
+        'data': deduplication_results
+    })
+
+@duplicate_bp.route('/complete-step3', methods=['POST'])
+@login_required
+def complete_step3():
+    """Complete Step 3 and move to Step 4"""
+    
+    deduplication_results = get_deduped_results()
+    if not deduplication_results:
+        return jsonify({
+            'success': False,
+            'message': 'No deduplication results found. Please apply a resolution policy first.'
+        })
+    
+    # Mark step as completed
+    try:
+        current_app.mark_step_complete(3)
+        # Update current step in session
+        session['current_step_id'] = 4
+        session.modified = True
+        
+        return jsonify({
+            'success': True,
+            'message': 'Step 3 completed successfully',
+            'redirect': url_for('dashboard')
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error completing step: {str(e)}'
+        })

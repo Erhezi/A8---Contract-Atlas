@@ -80,6 +80,7 @@ def map_columns():
     # Get column mapping from POST data
     column_mapping = {}
     for field, column in request.form.items():
+        print(f"Field: {field}, Column: {column}")  # Debugging line
         if column:  # Only include fields that are mapped to a column
             column_mapping[field] = column
     
@@ -87,7 +88,7 @@ def map_columns():
     required_fields = ['Mfg Part Num', 'Vendor Part Num', 'Description', 
                        'Contract Price', 'UOM', 'QOE', 
                        'Effective Date', 'Expiration Date', 'Contract Number', 'ERP Vendor ID',
-                       'Contract Source Type']
+                       'Source Contract Type']
     
     missing_fields = [field for field in required_fields if field not in column_mapping and field != 'Buyer Part Num']
     

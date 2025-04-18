@@ -52,7 +52,7 @@ def create_temp_table(table_name, df, conn):
             Contract_Number VARCHAR(100) NOT NULL,
             ERP_Vendor_ID VARCHAR(20) NOT NULL,
             Reduced_Mfg_Part_Num VARCHAR(255),
-            Contract_Source_Type VARCHAR(20) NOT NULL,
+            Source_Contract_Type VARCHAR(20) NOT NULL,
             File_Row INT,
             PRIMARY KEY (Mfg_Part_Num, Contract_Number, UOM)
         )
@@ -62,13 +62,13 @@ def create_temp_table(table_name, df, conn):
         # Define SQL table columns
         columns = ['Mfg_Part_Num', 'Vendor_Part_Num', 'Buyer_Part_Num', 'Description', 
                 'Contract_Price', 'UOM', 'QOE', 'Effective_Date', 'Expiration_Date', 
-                'Contract_Number', 'ERP_Vendor_ID', 'Reduced_Mfg_Part_Num', 'Contract_Source_Type',
+                'Contract_Number', 'ERP_Vendor_ID', 'Reduced_Mfg_Part_Num', 'Source_Contract_Type',
                 'File_Row']
         
         # columns we want from our input DataFrame
         pre_checked_columns = ['Mfg Part Num', 'Vendor Part Num', 'Buyer Part Num', 'Description',
                                'Contract Price', 'UOM', 'QOE', 'Effective Date', 'Expiration Date',
-                               'Contract Number', 'ERP Vendor ID', 'Reduced Mfg Part Num', 'Contract Source Type',
+                               'Contract Number', 'ERP Vendor ID', 'Reduced Mfg Part Num', 'Source Contract Type',
                                'File Row']
         df = df[pre_checked_columns].copy()
         
@@ -140,7 +140,7 @@ def find_duplicates_with_ccx(temp_table, conn):
             temp.Contract_Number,
             temp.ERP_Vendor_ID,
             temp.Reduced_Mfg_Part_Num,
-            temp.Contract_Source_Type,
+            temp.Source_Contract_Type,
             temp.File_Row,
             CASE WHEN ccx.MANUFACTURER_PART_NUMBER = temp.Mfg_Part_Num THEN 1 ELSE 0 END AS same_mfg_part_num
         FROM 

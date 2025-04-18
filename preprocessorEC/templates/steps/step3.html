@@ -1,8 +1,95 @@
 <!-- Duplication Resolution Content -->
+<style>
+    .draggable-card {
+        cursor: move;
+        user-select: none; /* Prevent text selection while dragging */
+        margin-bottom: 0.25rem; /* Consistent spacing between cards */
+    }
+    
+    /* The last card doesn't need a bottom margin */
+    .draggable-card:last-child {
+        margin-bottom: 0;
+    }
+    
+    .dragging {
+        opacity: 0.5;
+        border: 2px dashed #007bff;
+    }
+    .drag-over {
+        border: 2px dashed #ccc; /* Highlight drop zone */
+    }
+    /* Ensure input-group styling works properly */
+    .input-group {
+        display: flex;
+        width: 100%;
+    }
+    
+    .input-group-prepend {
+        display: flex;
+    }
+    
+    .input-group-text {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin-bottom: 0;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        text-align: center;
+        white-space: nowrap;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem 0 0 0.25rem;
+    }
+    
+    .input-group select.form-control {
+        flex: 1 1 auto;
+        width: 1%;
+        min-width: 0;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+    
+    /* Set fixed width for parameter labels */
+    .input-group-append:not(.priority-rank) .input-group-text {
+        width: 400px;
+        text-align: center; /* Changed from 'right' to 'center' */
+        display: flex;
+        justify-content: center; /* Ensures horizontal centering in flexbox */
+        align-items: center; /* Ensures vertical centering */
+    }
+    
+    /* Style for priority rank indicators */
+    .priority-rank .input-group-text {
+        background-color: #adb5bd;
+        color: white;
+        font-weight: bold;
+        border-radius: 3px;
+    }
+    
+    /* Added styles for results table */
+    .table-hover tr.rank-1 {
+        background-color: #dff0d8 !important;
+    }
+    
+    .table-hover tr.rank-1:hover {
+        background-color: #c1e2b3 !important;
+    }
+    
+    /* Group divider style */
+    tr.group-divider td {
+        height: 8px;
+        padding: 0 !important;
+        background-color: #f8f9fa;
+    }
+</style>
+
+
 <div class="step-content">
     <p>Resolve the identified duplications.</p>
     <div class="resolution-controls">
-        <form method="POST" action="{{ url_for('common.process_step', step_id=3) }}">
+        <form id="resolution-form">
             <!-- Resolution UI would go here -->
             <div class="input-group mb-3">
                 <div class="input-group-prepend">
@@ -108,80 +195,85 @@
                 </div>
             </div>
             
-            <button type="submit" class="btn btn-primary mt-3">Apply Resolution</button>
+            <button type="submit" class="btn btn-primary mt-3" id="apply-resolution-btn">Apply Resolution</button>
         </form>
+    </div>
+    
+    <!-- Results Section - Initially Hidden -->
+    <div id="deduplication-results" class="mt-4" style="display: none;">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Deduplication Results</h4>
+            </div>
+            <div class="card-body">
+                <!-- Summary Stats -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Total Items</h5>
+                                <h3 id="stats-total-items">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Unique Items</h5>
+                                <h3 id="stats-unique-items">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Kept from CCX</h5>
+                                <h3 id="stats-kept-ccx">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Kept from Upload</h5>
+                                <h3 id="stats-kept-uploaded">0</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Results Table -->
+                <h5>Sample Results (Top 10 Groups)</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Group</th>
+                                <th>Rank</th>
+                                <th>Source</th>
+                                <th>Mfg Part Num</th>
+                                <th>Description (Truncated)</th>
+                                <th>UOM</th>
+                                <th>QOE</th>
+                                <th>EA Price</th>
+                                <th>Expiration Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-table-body">
+                            <!-- Results will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Complete Step Button -->
+                <div class="text-center mt-4">
+                    <button class="btn btn-success btn-lg" id="complete-step-btn">Step 3 Completed</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<style>
-    .draggable-card {
-        cursor: move;
-        user-select: none; /* Prevent text selection while dragging */
-        margin-bottom: 0.25rem; /* Consistent spacing between cards */
-    }
-    
-    /* The last card doesn't need a bottom margin */
-    .draggable-card:last-child {
-        margin-bottom: 0;
-    }
-    
-    .dragging {
-        opacity: 0.5;
-        border: 2px dashed #007bff;
-    }
-    .drag-over {
-        border: 2px dashed #ccc; /* Highlight drop zone */
-    }
-    /* Ensure input-group styling works properly */
-    .input-group {
-        display: flex;
-        width: 100%;
-    }
-    
-    .input-group-prepend {
-        display: flex;
-    }
-    
-    .input-group-text {
-        display: flex;
-        align-items: center;
-        padding: 0.375rem 0.75rem;
-        margin-bottom: 0;
-        font-weight: 400;
-        line-height: 1.5;
-        color: #495057;
-        text-align: center;
-        white-space: nowrap;
-        background-color: #e9ecef;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem 0 0 0.25rem;
-    }
-    
-    .input-group select.form-control {
-        flex: 1 1 auto;
-        width: 1%;
-        min-width: 0;
-        border-top-left-radius: 0;
-        border-bottom-left-radius: 0;
-    }
-    
-    /* Set fixed width for parameter labels */
-    .input-group-append:not(.priority-rank) .input-group-text {
-        width: 400px;
-        text-align: center; /* Changed from 'right' to 'center' */
-        display: flex;
-        justify-content: center; /* Ensures horizontal centering in flexbox */
-        align-items: center; /* Ensures vertical centering */
-    }
-    
-    /* Style for priority rank indicators */
-    .priority-rank .input-group-text {
-        background-color: #adb5bd;
-        color: white;
-        font-weight: bold;
-        border-radius: 3px;
-    }
-</style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -190,6 +282,9 @@
         const priorityRankingArea = document.getElementById('priority_ranking_area');
         const draggableCards = document.querySelectorAll('.draggable-card');
         const preferenceSelects = document.querySelectorAll('.preference-select');
+        const resolutionForm = document.getElementById('resolution-form');
+        const deduplicationResults = document.getElementById('deduplication-results');
+        const completeStepBtn = document.getElementById('complete-step-btn');
 
         let draggedItem = null;
 
@@ -213,6 +308,17 @@
         preferenceSelects.forEach(select => {
             select.addEventListener('change', updateHiddenInputs);
         });
+        
+        // Form submission handler
+        resolutionForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            applyResolution();
+        });
+        
+        // Complete step button handler
+        completeStepBtn.addEventListener('click', function() {
+            completeStep();
+        });
 
         // --- Functions ---
         function toggleCustomOptions() {
@@ -228,6 +334,9 @@
                 customPolicyOptions.style.display = 'none';
             }
         }
+
+        // Draggable functions remain unchanged...
+        // handleDragStart, handleDragEnd, handleDragOver, handleDragEnter, handleDragLeave, handleDrop, getDragAfterElement, updateHiddenInputs
 
         function handleDragStart(e) {
             draggedItem = this;
@@ -315,33 +424,266 @@
                 document.getElementById(`${parameterId}_priority`).value = priority;
                 document.getElementById(`${parameterId}_preference`).value = preferenceValue;
                 
-                // Set position number visually
-                const positionIndicator = card.querySelector('.position-indicator') || 
-                    document.createElement('div');
-                    
-                if (!card.querySelector('.position-indicator')) {
-                    positionIndicator.className = 'position-indicator';
-                    positionIndicator.style.position = 'absolute';
-                    positionIndicator.style.top = '5px';
-                    positionIndicator.style.left = '5px';
-                    positionIndicator.style.backgroundColor = '#adb5bd'; // Lighter grey background
-                    positionIndicator.style.color = 'white';
-                    positionIndicator.style.borderRadius = '3px'; // Changed from 50% (circle) to 3px (slightly rounded square)
-                    positionIndicator.style.width = '24px'; // Same size as before
-                    positionIndicator.style.height = '24px';
-                    positionIndicator.style.textAlign = 'center';
-                    positionIndicator.style.lineHeight = '24px';
-                    positionIndicator.style.fontSize = '14px';
-                    positionIndicator.style.fontWeight = 'bold';
-                    
-                    // Add to card
-                    const cardBody = card.querySelector('.card-body');
-                    cardBody.style.position = 'relative';
-                    cardBody.appendChild(positionIndicator);
+                // Update rank indicator
+                const rankIndicator = card.querySelector('.rank-indicator');
+                if (rankIndicator) {
+                    rankIndicator.textContent = priority;
                 }
-                
-                positionIndicator.textContent = priority;
             });
+        }
+        
+        // New functions for deduplication
+        function applyResolution() {
+            // Show loading indicator
+            showSpinner('Applying deduplication policy...');
+            
+            // Get form data
+            const formData = new FormData(resolutionForm);
+            
+            // Send AJAX request
+            fetch('/duplicate-detection/apply-resolution', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideSpinner();
+                
+                if (data.success) {
+                    // Show success message
+                    showAlert('success', data.message);
+                    
+                    // Show results section
+                    deduplicationResults.style.display = 'block';
+                    
+                    // Update statistics
+                    document.getElementById('stats-total-items').textContent = data.summary.total_items;
+                    document.getElementById('stats-unique-items').textContent = data.summary.unique_duplicates;
+                    document.getElementById('stats-kept-ccx').textContent = data.summary.kept_ccx;
+                    document.getElementById('stats-kept-uploaded').textContent = data.summary.kept_uploaded;
+                    
+                    // Fetch and display results
+                    fetchDeduplicationResults();
+                    
+                    // Scroll to results
+                    deduplicationResults.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showAlert('danger', data.message);
+                }
+            })
+            .catch(error => {
+                hideSpinner();
+                showAlert('danger', 'An error occurred: ' + error.message);
+            });
+        }
+        
+        function fetchDeduplicationResults() {
+            fetch('/duplicate-detection/get-deduplication-results')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    populateResultsTable(data.data);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching deduplication results:', error);
+            });
+        }
+        
+        function populateResultsTable(data) {
+            const tableBody = document.getElementById('results-table-body');
+            tableBody.innerHTML = '';
+            
+            if (!data.stacked_data || data.stacked_data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="9" class="text-center">No results found</td></tr>';
+                return;
+            }
+            
+            // Group data by File Row
+            const groupedData = {};
+            data.stacked_data.forEach(item => {
+                const groupId = item['File Row'];
+                if (!groupedData[groupId]) {
+                    groupedData[groupId] = [];
+                }
+                groupedData[groupId].push(item);
+            });
+            
+            // Get group IDs and sort
+            const groupIds = Object.keys(groupedData);
+            
+            // Limit to first 10 groups
+            const displayGroups = groupIds.slice(0, 10);
+            
+            // Add rows for each group
+            displayGroups.forEach((groupId, groupIndex) => {
+                // Add group items
+                groupedData[groupId].forEach((item, itemIndex) => {
+                    // Sort by rank within group
+                    groupedData[groupId].sort((a, b) => a['Rank'] - b['Rank']);
+                    
+                    const row = document.createElement('tr');
+                    
+                    // Add 'rank-1' class to highlight kept records
+                    if (item['Rank'] === 1) {
+                        row.classList.add('rank-1');
+                    }
+                    
+                    // Only show group ID in first row of the group
+                    if (itemIndex === 0) {
+                        // Add rowspan only if more than one item
+                        const groupCell = document.createElement('td');
+                        groupCell.textContent = groupId;
+                        if (groupedData[groupId].length > 1) {
+                            groupCell.rowSpan = groupedData[groupId].length;
+                        }
+                        row.appendChild(groupCell);
+                    }
+                    
+                    // Add other cells
+                    const cells = [
+                        ['Rank', item['Rank']],
+                        ['Dataset', item['Dataset']],
+                        ['Mfg Part Num', item['Mfg Part Num']],
+                        ['Description', item['Description'] ? item['Description'].substring(0, 30) + '...' : ''],
+                        ['UOM', item['UOM']],
+                        ['QOE', item['QOE']],
+                        ['EA Price', item['EA Price']],
+                        ['Expiration Date', item['Expiration Date']]
+                    ];
+                    
+                    cells.forEach(([_, value]) => {
+                        const cell = document.createElement('td');
+                        cell.textContent = value || '';
+                        row.appendChild(cell);
+                    });
+                    
+                    tableBody.appendChild(row);
+                });
+                
+                // Add separator between groups (except after the last group)
+                if (groupIndex < displayGroups.length - 1) {
+                    const divider = document.createElement('tr');
+                    divider.classList.add('group-divider');
+                    divider.innerHTML = '<td colspan="9"></td>';
+                    tableBody.appendChild(divider);
+                }
+            });
+        }
+        
+        function completeStep() {
+            showSpinner('Completing step 3...');
+            
+            fetch('/duplicate-detection/complete-step3', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideSpinner();
+                
+                if (data.success) {
+                    showAlert('success', data.message);
+                    
+                    // Redirect to next step
+                    setTimeout(() => {
+                        window.location.href = data.redirect || '/';
+                    }, 1000);
+                } else {
+                    showAlert('danger', data.message);
+                }
+            })
+            .catch(error => {
+                hideSpinner();
+                showAlert('danger', 'Error completing step: ' + error.message);
+            });
+        }
+        
+        // Utility functions
+        function showSpinner(message) {
+            const existingSpinner = document.getElementById('loading-spinner');
+            if (existingSpinner) {
+                existingSpinner.remove();
+            }
+            
+            const spinner = document.createElement('div');
+            spinner.id = 'loading-spinner';
+            spinner.className = 'loading-overlay';
+            spinner.style.position = 'fixed';
+            spinner.style.top = '0';
+            spinner.style.left = '0';
+            spinner.style.width = '100%';
+            spinner.style.height = '100%';
+            spinner.style.backgroundColor = 'rgba(0,0,0,0.4)';
+            spinner.style.zIndex = '1000';
+            spinner.style.display = 'flex';
+            spinner.style.justifyContent = 'center';
+            spinner.style.alignItems = 'center';
+            
+            const content = document.createElement('div');
+            content.className = 'spinner-content';
+            content.style.backgroundColor = 'white';
+            content.style.padding = '20px';
+            content.style.borderRadius = '5px';
+            content.style.textAlign = 'center';
+            
+            const spinnerElement = document.createElement('div');
+            spinnerElement.className = 'spinner-border text-primary';
+            spinnerElement.setAttribute('role', 'status');
+            spinnerElement.innerHTML = '<span class="sr-only">Loading...</span>';
+            
+            const messageElement = document.createElement('div');
+            messageElement.style.marginTop = '10px';
+            messageElement.textContent = message || 'Loading...';
+            
+            content.appendChild(spinnerElement);
+            content.appendChild(messageElement);
+            spinner.appendChild(content);
+            
+            document.body.appendChild(spinner);
+        }
+        
+        function hideSpinner() {
+            const spinner = document.getElementById('loading-spinner');
+            if (spinner) {
+                spinner.remove();
+            }
+        }
+        
+        function showAlert(type, message, timeout = 5000) {
+            // Remove existing alerts
+            const existingAlerts = document.querySelectorAll('.alert-floating');
+            existingAlerts.forEach(alert => alert.remove());
+            
+            // Create new alert
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible alert-floating`;
+            alertDiv.style.position = 'fixed';
+            alertDiv.style.top = '10px';
+            alertDiv.style.right = '10px';
+            alertDiv.style.zIndex = '1050';
+            alertDiv.style.maxWidth = '400px';
+            
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            // Auto dismiss
+            if (timeout > 0) {
+                setTimeout(() => {
+                    alertDiv.remove();
+                }, timeout);
+            }
+            
+            // Manual dismiss
+            const closeBtn = alertDiv.querySelector('.close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => alertDiv.remove());
+            }
         }
     });
 </script>

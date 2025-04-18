@@ -100,7 +100,7 @@ def prepare_dataframe(df, column_mapping):
     required_fields = [
         'Mfg Part Num', 'Vendor Part Num', 'Description', 
         'Contract Price', 'UOM', 'QOE', 'Effective Date', 'Expiration Date', 
-        'Contract Number', 'ERP Vendor ID', 'Contract Source Type'
+        'Contract Number', 'ERP Vendor ID', 'Source Contract Type'
     ]
     
     # Create a copy of the dataframe with standard field names
@@ -151,30 +151,30 @@ def prepare_dataframe(df, column_mapping):
     error_df['Error-Invalid UOM'] = ''
     error_df['Error-EA QOE NOT 1'] = ''
     error_df['Error-Multiple Vendors'] = '' 
-    error_df['Error-Invalid Contract Source Type'] = ''
+    error_df['Error-Invalid Source Contract Type'] = ''
     error_df['Warning-Potential Duplicates'] = ''
     error_df['Has Error'] = False
     
     return error_df, result_df, missing_fields, required_fields
 
-# Add a new validation function for Contract Source Type
-def validate_contract_source_type(error_df):
-    """Validate that Contract Source Type is either 'GPO' or 'Local' (case-insensitive)"""
+# Add a new validation function for Source Contract Type
+def validate_source_contract_type(error_df):
+    """Validate that Source Contract Type is either 'GPO' or 'Local' (case-insensitive)"""
     # First standardize values (convert to title case)
-    error_df['Contract Source Type'] = error_df['Contract Source Type'].str.strip()
+    error_df['Source Contract Type'] = error_df['Source Contract Type'].str.strip()
     
     # Create mask for invalid values
     valid_values = ['gpo', 'local']
-    invalid_mask = ~error_df['Contract Source Type'].str.lower().isin(valid_values)
+    invalid_mask = ~error_df['Source Contract Type'].str.lower().isin(valid_values)
     
     # Mark errors
-    error_df.loc[invalid_mask, 'Error-Invalid Contract Source Type'] = 'Contract Source Type must be GPO or Local'
+    error_df.loc[invalid_mask, 'Error-Invalid Source Contract Type'] = 'Source Contract Type must be GPO or Local'
     error_df.loc[invalid_mask, 'Has Error'] = True
     
     # Standardize valid values
     standardize_map = {'gpo': 'GPO', 'local': 'Local'}
     valid_mask = ~invalid_mask
-    error_df.loc[valid_mask, 'Contract Source Type'] = error_df.loc[valid_mask, 'Contract Source Type'].str.lower().map(standardize_map)
+    error_df.loc[valid_mask, 'Source Contract Type'] = error_df.loc[valid_mask, 'Source Contract Type'].str.lower().map(standardize_map)
     
     return error_df
 
@@ -374,7 +374,7 @@ def validate_file(df, column_mapping, duplicate_mode='default'):
     
     # Run validation steps
     error_df = validate_required_fields(error_df, required_fields)
-    error_df = validate_contract_source_type(error_df)  # Add new validation step
+    error_df = validate_source_contract_type(error_df)  # Add new validation step
     error_df = validate_dates(error_df)
     error_df = validate_prices(error_df)
     error_df = validate_qoe(error_df)
@@ -778,3 +778,156 @@ def process_item_comparisons(contract_items, skip_scoring=False, model=None):
     }
     
     return result
+
+def apply_deduplication_policy(comparison_results, policy, custom_fields=None, sort_directions=None):
+    """
+    Apply deduplication policy to comparison results
+    
+    Args:
+        comparison_results: Dict with high, medium, low confidence matches
+        policy: String indicating dedup policy (custom, newest, prefer_ccx, etc)
+        custom_fields: List of field names for custom sorting
+        sort_directions: List of sort directions (asc/desc) for custom fields
+    
+    Returns:
+        DataFrame with stacked and sorted data
+        Summary dictionary with statistics
+    """
+    
+    # Extract non-false-positive items from all confidence levels
+    all_items = []
+    for confidence in ['high', 'medium', 'low']:
+        items = comparison_results.get(confidence, [])
+        true_duplicates = [item for item in items if not item.get('false_positive', False)]
+        all_items.extend(true_duplicates)
+    
+    if not all_items:
+        return pd.DataFrame(), {'total_items': 0, 'unique_duplicates': 0}
+    
+    # Create CCX dataframe
+    ccx_data = []
+    for item in all_items:
+        ccx_row = {
+            'Source Contract Type': item.get('source_contract_type_ccx', ''),
+            'Contract Number': item.get('contract_number_ccx', ''),
+            'Reduced Mfg Part Num': item.get('reduced_mfg_part_num_ccx', ''),
+            'Mfg Part Num': item.get('mfg_part_num_ccx', ''),
+            'Vendor Part Num': item.get('vendor_part_num_ccx', ''),
+            'Buyer Part Num': item.get('buyer_part_num_ccx', ''),
+            'Description': item.get('description_ccx', ''),
+            'UOM': item.get('uom_ccx', ''),
+            'QOE': item.get('qoe_ccx', ''),
+            'Contract Price': item.get('price_ccx', ''),
+            'EA Price': item.get('ccx_ea_price', ''),
+            'Effective Date': item.get('effective_date_ccx', ''),
+            'Expiration Date': item.get('expiration_date_ccx', ''),
+            'Dataset': 'CCX',
+            'File Row': item.get('File_Row', ''),  # Group identifier
+        }
+        ccx_data.append(ccx_row)
+    
+    # Create upload dataframe
+    upload_data = []
+    for item in all_items:
+        upload_row = {
+            'Source Contract Type': item.get('Source_Contract_Type', ''),
+            'Contract Number': item.get('Contract_Number', ''),
+            'Reduced Mfg Part Num': item.get('Reduced_Mfg_Part_Num', ''),
+            'Mfg Part Num': item.get('Mfg_Part_Num', ''),
+            'Vendor Part Num': item.get('Vendor_Part_Num', ''),
+            'Buyer Part Num': item.get('Buyer_Part_Num', ''),
+            'Description': item.get('Description', ''),
+            'UOM': item.get('UOM', ''),
+            'QOE': item.get('QOE', ''),
+            'Contract Price': item.get('Contract_Price', ''),
+            'EA Price': item.get('upload_ea_price', ''),
+            'Effective Date': item.get('Effective_Date', ''),
+            'Expiration Date': item.get('Expiration_Date', ''),
+            'Dataset': 'TP',
+            'File Row': item.get('File_Row', ''),  # Group identifier
+        }
+        upload_data.append(upload_row)
+    
+    # Stack dataframes
+    ccx_df = pd.DataFrame(ccx_data) if ccx_data else pd.DataFrame()
+    upload_df = pd.DataFrame(upload_data) if upload_data else pd.DataFrame()
+    
+    if ccx_df.empty and upload_df.empty:
+        return pd.DataFrame(), {'total_items': 0, 'unique_duplicates': 0}
+    
+    stacked_df = pd.concat([ccx_df, upload_df], ignore_index=True)
+    
+    # temporarily write out the stacked_df for debugging, store the file to temp_files folder
+    temp_file_path = os.path.join(current_app.root_path, 'temp_files', 'stacked_df_debug.xlsx')
+    stacked_df.to_excel(temp_file_path, index=False)
+    print(stacked_df.columns) # Debug log
+    
+    
+    # Apply sorting based on policy
+    sorted_df = stacked_df.copy()
+    
+    if policy == 'custom' and custom_fields:
+        # Convert directions to boolean (True for ascending, False for descending)
+        ascending = [direction.lower() != 'desc' for direction in sort_directions]
+        try:
+            sorted_df = stacked_df.sort_values(
+                by=custom_fields,
+                ascending=ascending
+            )
+        except Exception as e:
+            print(f"Error sorting with custom fields: {e}")
+    
+    elif policy == 'keep_latest':
+        # Sort by expiration date (newest first)
+        sorted_df = stacked_df.sort_values(
+            by=['Expiration Date', 'Effective Date'],
+            ascending=[False, False]
+        )
+    
+    elif policy == 'oldest':
+        # Sort by effective date (oldest first)
+        sorted_df = stacked_df.sort_values(
+            by=['Effective Date', 'Expiration Date'],
+            ascending=[True, True]
+        )
+    
+    elif policy == 'keep_lowest_price':
+        # Convert to numeric and sort by price
+        sorted_df['EA Price'] = pd.to_numeric(sorted_df['EA Price'], errors='coerce')
+        sorted_df = stacked_df.sort_values(
+            by=['EA Price'],
+            ascending=[True]
+        )
+    
+    elif policy == 'highest_price':
+        # Convert to numeric and sort by price
+        sorted_df['EA Price'] = pd.to_numeric(sorted_df['EA Price'], errors='coerce')
+        sorted_df = stacked_df.sort_values(
+            by=['EA Price'],
+            ascending=[False]
+        )
+    
+    elif policy == 'prefer_ccx':
+        # CCX records first
+        sorted_df = stacked_df.sort_values(
+            by=['Dataset'],
+            ascending=[True]  # 'CCX' comes before 'TP' alphabetically
+        )
+    
+    elif policy == 'manual':
+        # Manual mode - don't sort, just rank
+        pass
+    
+    # Assign rank to each record within its File Row group
+    sorted_df['Rank'] = sorted_df.groupby('File Row').cumcount() + 1
+    
+    # Generate summary statistics
+    results_summary = {
+        'total_items': len(sorted_df),
+        'unique_duplicates': sorted_df['File Row'].nunique(),
+        'kept_ccx': len(sorted_df[(sorted_df['Rank'] == 1) & (sorted_df['Dataset'] == 'CCX')]),
+        'kept_uploaded': len(sorted_df[(sorted_df['Rank'] == 1) & (sorted_df['Dataset'] == 'TP')]),
+        'duplicates_removed': len(sorted_df) - sorted_df['File Row'].nunique()
+    }
+    
+    return sorted_df, results_summary
