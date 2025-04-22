@@ -561,9 +561,6 @@ def calculate_description_similarity(ccx_desc, upload_desc, model=None):
     
     # Import necessary libraries (only imported when needed)
     try:
-        import re
-        import numpy as np
-        from scipy.spatial.distance import cosine
         from .model_loader import get_sentence_transformer_model
 
         # Use the passed model or get from app config/cache if not provided
@@ -670,7 +667,7 @@ def calculate_confidence_score(item, model=None):
     
     # Exact match checks
     uom_score = 1.0 if item['uom_ccx'] == item['UOM'] else 0.0
-    qoe_score = 1.0 if str(item['qoe_ccx']) == str(item['QOE']) else 0.0
+    qoe_score = 1.0 if str(item['qoe_ccx']).strip() == str(item['QOE']).strip() else 0.0
     
     # Price comparison
     price_score, price_diff_pct = calculate_ea_price_match_score(
@@ -804,9 +801,9 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     if not all_items:
         return pd.DataFrame(), {'total_items': 0, 'unique_duplicates': 0}
     
+    ccx_data, upload_data = [], []
+    for i, item in enumerate(all_items):
     # Create CCX dataframe
-    ccx_data = []
-    for item in all_items:
         ccx_row = {
             'Source Contract Type': item.get('source_contract_type_ccx', ''),
             'Contract Number': item.get('contract_number_ccx', ''),
@@ -823,12 +820,11 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             'Expiration Date': item.get('expiration_date_ccx', ''),
             'Dataset': 'CCX',
             'File Row': item.get('File_Row', ''),  # Group identifier
+            'Pair ID': i # Unique identifier for the pair
         }
         ccx_data.append(ccx_row)
     
     # Create upload dataframe
-    upload_data = []
-    for item in all_items:
         upload_row = {
             'Source Contract Type': item.get('Source_Contract_Type', ''),
             'Contract Number': item.get('Contract_Number', ''),
@@ -845,6 +841,7 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             'Expiration Date': item.get('Expiration_Date', ''),
             'Dataset': 'TP',
             'File Row': item.get('File_Row', ''),  # Group identifier
+            'Pair ID': i # Unique identifier for the pair
         }
         upload_data.append(upload_row)
     
@@ -855,7 +852,22 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     if ccx_df.empty and upload_df.empty:
         return pd.DataFrame(), {'total_items': 0, 'unique_duplicates': 0}
     
+    # stack the two dataframes
     stacked_df = pd.concat([ccx_df, upload_df], ignore_index=True)
+    # make sure the staked_df column show date as YYYY-MM-DD
+    stacked_df['Effective Date'] = pd.to_datetime(stacked_df['Effective Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+    stacked_df['Expiration Date'] = pd.to_datetime(stacked_df['Expiration Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+    # make Contract Price and EA Price in stacked_df show as numeric
+    stacked_df['Contract Price'] = pd.to_numeric(stacked_df['Contract Price'], errors='coerce')
+    stacked_df['EA Price'] = pd.to_numeric(stacked_df['EA Price'], errors='coerce')
+    # make QOE in stacked_df as integer
+    stacked_df['QOE'] = pd.to_numeric(stacked_df['QOE'], errors='coerce').astype('Int64')
+
+    # dedup the stacked_df so the TP copy only appear once
+    # this requires that if the input file (upload TP file) contains multiple contract and if the contract numbers
+    # were unknown, they will need assign a unique place holder number to each of the contracts
+    stacked_df = stacked_df.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number'], keep='first')
+
     
     # temporarily write out the stacked_df for debugging, store the file to temp_files folder
     temp_file_path = os.path.join(current_app.root_path, 'temp_files', 'stacked_df_debug.xlsx')

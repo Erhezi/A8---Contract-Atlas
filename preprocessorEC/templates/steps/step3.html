@@ -619,25 +619,16 @@
             spinner.style.justifyContent = 'center';
             spinner.style.alignItems = 'center';
             
-            const content = document.createElement('div');
-            content.className = 'spinner-content';
-            content.style.backgroundColor = 'white';
-            content.style.padding = '20px';
-            content.style.borderRadius = '5px';
-            content.style.textAlign = 'center';
-            
+            // Create a simpler spinner without text
             const spinnerElement = document.createElement('div');
             spinnerElement.className = 'spinner-border text-primary';
+            spinnerElement.style.width = '3rem';
+            spinnerElement.style.height = '3rem';
+            spinnerElement.style.borderWidth = '0.25rem';
             spinnerElement.setAttribute('role', 'status');
-            spinnerElement.innerHTML = '<span class="sr-only">Loading...</span>';
             
-            const messageElement = document.createElement('div');
-            messageElement.style.marginTop = '10px';
-            messageElement.textContent = message || 'Loading...';
-            
-            content.appendChild(spinnerElement);
-            content.appendChild(messageElement);
-            spinner.appendChild(content);
+            // Add spinner directly to the overlay
+            spinner.appendChild(spinnerElement);
             
             document.body.appendChild(spinner);
         }
@@ -651,39 +642,8 @@
         
         function showAlert(type, message, timeout = 5000) {
             // Remove existing alerts
-            const existingAlerts = document.querySelectorAll('.alert-floating');
-            existingAlerts.forEach(alert => alert.remove());
-            
-            // Create new alert
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible alert-floating`;
-            alertDiv.style.position = 'fixed';
-            alertDiv.style.top = '10px';
-            alertDiv.style.right = '10px';
-            alertDiv.style.zIndex = '1050';
-            alertDiv.style.maxWidth = '400px';
-            
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            `;
-            
-            document.body.appendChild(alertDiv);
-            
-            // Auto dismiss
-            if (timeout > 0) {
-                setTimeout(() => {
-                    alertDiv.remove();
-                }, timeout);
-            }
-            
-            // Manual dismiss
-            const closeBtn = alertDiv.querySelector('.close');
-            if (closeBtn) {
-                closeBtn.addEventListener('click', () => alertDiv.remove());
-            }
+            // Use the global alert function from layout.html
+            window.showGlobalAlert(type, message, timeout);
         }
     });
 </script>

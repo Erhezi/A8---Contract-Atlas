@@ -142,6 +142,47 @@
             background-color: #d1ecf1;
             border-color: #bee5eb;
         }
+
+        /* Alert container */
+        #alert-container {
+            position: relative;  /* Change from fixed to relative */
+            width: 100%;         /* Take full width of parent */
+            margin-bottom: 20px; /* Add some space below alerts */
+            z-index: 1050;
+        }
+
+        /* Update alert styling */
+        #alert-container .alert {
+            width: 100%;         /* Full width */
+            margin: 0 0 15px 0;  /* Remove auto margins */
+            padding: 12px 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Alert close button */
+        #alert-container .alert .close {
+            position: relative;
+            top: -2px;
+            right: -10px;
+            color: inherit;
+            opacity: 0.7;
+        }
+        
+        #alert-container .alert .close:hover {
+            opacity: 1;
+        }
+        
+        /* Fade animation */
+        #alert-container .alert.fade {
+            opacity: 0;
+            transition: opacity 0.15s linear;
+        }
+        
+        #alert-container .alert.fade.show {
+            opacity: 1;
+        }
         
         /* Form styles */
         .form-control {
@@ -227,6 +268,8 @@
         }
     </style>
     {% block extra_styles %}{% endblock %}
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
     <div class="header">
@@ -263,13 +306,20 @@
         </div>
         
         <div class="content">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+            <div id="alert-container">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
             
             {% block content %}{% endblock %}
         </div>
@@ -285,6 +335,51 @@
             <div id="stepInfoContent"></div>
         </div>
     </div>
+    <!-- global alert -->
+    <script>
+        // Global alert function for use across all pages
+        function showGlobalAlert(type, message, timeout = 5000) {
+            // Get the alert container
+            const alertContainer = document.getElementById('alert-container');
+            
+            // Create alert element
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.setAttribute('role', 'alert');
+            
+            // Set alert content with properly styled close button
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            `;
+            
+            // Add to container
+            alertContainer.appendChild(alertDiv);
+            
+            // Auto dismiss after timeout
+            if (timeout > 0) {
+                setTimeout(() => {
+                    alertDiv.classList.remove('show');
+                    setTimeout(() => {
+                        alertDiv.remove();
+                    }, 150);
+                }, timeout);
+            }
+            
+            // Add click handler for dismiss button
+            const closeBtn = alertDiv.querySelector('.close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    alertDiv.classList.remove('show');
+                    setTimeout(() => {
+                        alertDiv.remove();
+                    }, 150);
+                });
+            }
+        }
+    </script>
 </body>
 </html>
 
