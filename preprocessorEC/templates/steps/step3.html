@@ -83,6 +83,72 @@
         padding: 0 !important;
         background-color: #f8f9fa;
     }
+    
+    /* Smaller font size for results table */
+    .table-sm {
+        font-size: 0.75rem; /* Reduced from 0.85rem */
+    }
+
+    /* Make headers slightly smaller too */
+    .table-sm thead th {
+        font-size: 0.8rem;
+        white-space: nowrap; /* Prevent header text from wrapping */
+    }
+
+    /* Description column styling with hover tooltip */
+    .table-sm td.description-cell {
+        max-width: 250px;
+        white-space: nowrap; 
+        overflow: hidden;
+        text-overflow: ellipsis;
+        position: relative;
+        cursor: text;
+    }
+
+    /* Tooltip behavior when hovering */
+    .table-sm td.description-cell:hover::after {
+        content: attr(title);
+        position: absolute;
+        top: 100%;
+        z-index: 1000;
+        background-color: #f8f9fa;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        white-space: normal; /* Allow wrapping in tooltip */
+        width: auto;
+        min-width: 200px;
+        max-width: 400px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* Center content in the new Keep column (13th column) */
+    .table-sm th:nth-child(13),
+    .table-sm td:nth-child(13) {
+        text-align: center;
+        vertical-align: middle;
+    }
+    
+    /* Enhanced policy selector styling */
+    .policy-option {
+        display: flex;
+        align-items: center;
+    }
+    
+    .policy-option .policy-icon {
+        margin-right: 8px;
+    }
+    
+    .policy-description {
+        margin-top: 5px;
+        display: none;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .active-description {
+        display: block;
+    }
 </style>
 
 
@@ -102,6 +168,23 @@
                     <option value="manual">Manual (Resolve Item by Item)</option>
                 </select>
             </div>
+            
+            <!-- Enhanced policy descriptions -->
+            <div id="policy-descriptions" class="mb-3">
+                <div id="keep_latest_desc" class="policy-description active-description">
+                    <strong>Keep Latest:</strong> Retains the most recent entries from your current upload file, automatically replacing older duplicates.
+                </div>
+                <div id="keep_lowest_price_desc" class="policy-description">
+                    <strong>Keep Lowest Price:</strong> Keeps the item with the lowest price when duplicates are found, regardless of which file it's from.
+                </div>
+                <div id="custom_desc" class="policy-description">
+                    <strong>Custom:</strong> Create your own prioritization rules based on contract source, status, price, and expiration date.
+                </div>
+                <div id="manual_desc" class="policy-description">
+                    <strong>Manual:</strong> Review and select which items to keep on a case-by-case basis using the checkboxes in the results table.
+                </div>
+            </div>
+            
             <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
                 <small>Select how you want to handle duplicate items. "Keep Latest" is defaulted and will retain the most recent entries (meaning we will keep the upload file you currently working on).</small>
             </div>
@@ -243,20 +326,24 @@
                 </div>
                 
                 <!-- Results Table -->
-                <h5>Sample Results (Top 10 Groups)</h5>
-                <div class="table-responsive">
+                <h5>All Duplicate Results</h5>
+                <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
                     <table class="table table-sm table-bordered table-hover">
-                        <thead class="thead-light">
+                        <thead class="thead-light sticky-top">
                             <tr>
-                                <th>Group</th>
-                                <th>Rank</th>
-                                <th>Source</th>
+                                <th>G.</th>
+                                <th>R.</th>
+                                <th>Set</th>
+                                <th>Contract Number</th>
                                 <th>Mfg Part Num</th>
-                                <th>Description (Truncated)</th>
                                 <th>UOM</th>
                                 <th>QOE</th>
+                                <th>Price</th>
                                 <th>EA Price</th>
-                                <th>Expiration Date</th>
+                                <th>Effec. Date</th>
+                                <th>Expir. Date</th>
+                                <th>Description</th>
+                                <th>Keep</th>
                             </tr>
                         </thead>
                         <tbody id="results-table-body">
@@ -495,7 +582,8 @@
             tableBody.innerHTML = '';
             
             if (!data.stacked_data || data.stacked_data.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="9" class="text-center">No results found</td></tr>';
+                // Update colspan for empty table message
+                tableBody.innerHTML = '<tr><td colspan="13" class="text-center">No results found</td></tr>';
                 return;
             }
             
@@ -512,8 +600,17 @@
             // Get group IDs and sort
             const groupIds = Object.keys(groupedData);
             
-            // Limit to first 10 groups
-            const displayGroups = groupIds.slice(0, 10);
+            // Show all groups, not just top 10
+            const displayGroups = groupIds;
+            
+            // Function to format price as currency
+            function formatCurrency(value) {
+                if (value === null || value === undefined || value === '') {
+                    return 'N/A';
+                }
+                // Parse as float and format with $ and 2 decimal places
+                return '$' + parseFloat(value).toFixed(2);
+            }
             
             // Add rows for each group
             displayGroups.forEach((groupId, groupIndex) => {
@@ -540,23 +637,71 @@
                         row.appendChild(groupCell);
                     }
                     
-                    // Add other cells
+                    // Process description to ensure consistent truncation
+                    const description = item['Description'] || '';
+                    const truncatedDescription = description.length > 40 ? 
+                        description.substring(0, 40) + '...' : description;
+                    
+                    // Format prices with $ and 2 decimal places
+                    const formattedContractPrice = formatCurrency(item['Contract Price']);
+                    const formattedEAPrice = formatCurrency(item['EA Price']);
+                    
+                    // Add other cells - Match exact order with table headers
                     const cells = [
                         ['Rank', item['Rank']],
                         ['Dataset', item['Dataset']],
+                        ['Contract Number', item['Contract Number']],
                         ['Mfg Part Num', item['Mfg Part Num']],
-                        ['Description', item['Description'] ? item['Description'].substring(0, 30) + '...' : ''],
                         ['UOM', item['UOM']],
                         ['QOE', item['QOE']],
-                        ['EA Price', item['EA Price']],
-                        ['Expiration Date', item['Expiration Date']]
+                        ['Contract Price', formattedContractPrice],
+                        ['EA Price', formattedEAPrice],
+                        ['Effective Date', item['Effective Date']],
+                        ['Expiration Date', item['Expiration Date']],
+                        ['Description', truncatedDescription]
                     ];
                     
-                    cells.forEach(([_, value]) => {
+                    cells.forEach(([field, value]) => {
                         const cell = document.createElement('td');
                         cell.textContent = value || '';
+                        
+                        // Add title attribute to Description column for hover tooltip
+                        // Always use the FULL description for the tooltip
+                        if (field === 'Description') {
+                            cell.setAttribute('title', description);
+                            cell.classList.add('description-cell'); // Optional: Add class for specific styling
+                        }
+                        
                         row.appendChild(cell);
                     });
+
+                    // --- Add Keep Checkbox Cell ---
+                    const keepCell = document.createElement('td');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.classList.add('keep-checkbox');
+                    // Add data attributes to identify the item for potential manual handling later
+                    checkbox.dataset.fileRow = item['File Row'];
+                    checkbox.dataset.pairId = item['Pair ID']; // Make sure 'Pair ID' exists in your data
+
+                    const currentPolicy = resolutionStrategy.value;
+
+                    // Check Rank 1 if policy is not manual
+                    if (currentPolicy !== 'manual' && item['Rank'] === 1) {
+                        checkbox.checked = true;
+                    }
+
+                    // Disable checkbox if policy is not manual
+                    if (currentPolicy !== 'manual') {
+                        checkbox.disabled = true;
+                    } else {
+                        // Add event listener for manual mode if needed later
+                        // checkbox.addEventListener('change', handleManualCheckboxChange);
+                    }
+
+                    keepCell.appendChild(checkbox);
+                    row.appendChild(keepCell);
+                    // --- End Keep Checkbox Cell ---
                     
                     tableBody.appendChild(row);
                 });
@@ -565,7 +710,8 @@
                 if (groupIndex < displayGroups.length - 1) {
                     const divider = document.createElement('tr');
                     divider.classList.add('group-divider');
-                    divider.innerHTML = '<td colspan="9"></td>';
+                    // Update colspan for divider
+                    divider.innerHTML = '<td colspan="13"></td>';
                     tableBody.appendChild(divider);
                 }
             });
@@ -645,5 +791,25 @@
             // Use the global alert function from layout.html
             window.showGlobalAlert(type, message, timeout);
         }
+    });
+</script>
+
+<!-- Add this script tag right after the HTML above -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Policy description toggler
+        const policySelect = document.getElementById('resolution_strategy');
+        const policyDescriptions = document.querySelectorAll('.policy-description');
+        
+        policySelect.addEventListener('change', function() {
+            // Hide all descriptions
+            policyDescriptions.forEach(desc => desc.classList.remove('active-description'));
+            
+            // Show the selected one
+            const selectedDesc = document.getElementById(`${this.value}_desc`);
+            if (selectedDesc) {
+                selectedDesc.classList.add('active-description');
+            }
+        });
     });
 </script>

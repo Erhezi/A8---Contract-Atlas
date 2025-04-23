@@ -162,16 +162,35 @@
         }
         
         /* Alert close button */
+        #alert-container .alert {
+        position: relative; /* Ensure relative positioning for absolute child */
+        }
+    
         #alert-container .alert .close {
-            position: relative;
-            top: -2px;
-            right: -10px;
+            position: absolute;
+            top: 50%;
+            right: 12px; /* Align with the right edge with some padding */
+            transform: translateY(-50%); /* Center vertically */
             color: inherit;
             opacity: 0.7;
+            background-color: transparent; /* Transparent background */
+            border: none; /* No border */
+            padding: 0;
+            margin: 0;
+            font-size: 1.2rem;
+            line-height: 1;
+            font-weight: normal;
+            text-shadow: none;
         }
         
         #alert-container .alert .close:hover {
             opacity: 1;
+            background-color: transparent; /* Keep transparent on hover */
+        }
+        
+        /* Add more right padding to alerts to ensure text doesn't overlap with the close button */
+        #alert-container .alert {
+            padding-right: 35px;
         }
         
         /* Fade animation */
@@ -338,7 +357,7 @@
     <!-- global alert -->
     <script>
         // Global alert function for use across all pages
-        function showGlobalAlert(type, message, timeout = 5000) {
+        function showGlobalAlert(type, message, timeout = 10000) {
             // Get the alert container
             const alertContainer = document.getElementById('alert-container');
             
