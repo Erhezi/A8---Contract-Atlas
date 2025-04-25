@@ -2,8 +2,8 @@
 <style>
     .draggable-card {
         cursor: move;
-        user-select: none; /* Prevent text selection while dragging */
-        margin-bottom: 0.25rem; /* Consistent spacing between cards */
+        user-select: none;
+        margin-bottom: 0.25rem;
     }
     
     /* The last card doesn't need a bottom margin */
@@ -16,9 +16,9 @@
         border: 2px dashed #007bff;
     }
     .drag-over {
-        border: 2px dashed #ccc; /* Highlight drop zone */
+        border: 2px dashed #ccc; 
     }
-    /* Ensure input-group styling works properly */
+
     .input-group {
         display: flex;
         width: 100%;
@@ -51,13 +51,13 @@
         border-bottom-left-radius: 0;
     }
     
-    /* Set fixed width for parameter labels */
+
     .input-group-append:not(.priority-rank) .input-group-text {
         width: 400px;
-        text-align: center; /* Changed from 'right' to 'center' */
+        text-align: center; 
         display: flex;
-        justify-content: center; /* Ensures horizontal centering in flexbox */
-        align-items: center; /* Ensures vertical centering */
+        justify-content: center; 
+        align-items: center; 
     }
     
     /* Style for priority rank indicators */
@@ -86,13 +86,13 @@
     
     /* Smaller font size for results table */
     .table-sm {
-        font-size: 0.75rem; /* Reduced from 0.85rem */
+        font-size: 0.75rem;
     }
 
     /* Make headers slightly smaller too */
     .table-sm thead th {
         font-size: 0.8rem;
-        white-space: nowrap; /* Prevent header text from wrapping */
+        white-space: nowrap; 
     }
 
     /* Description column styling with hover tooltip */
@@ -115,20 +115,25 @@
         padding: 8px;
         border: 1px solid #ddd;
         border-radius: 4px;
-        white-space: normal; /* Allow wrapping in tooltip */
+        white-space: normal; 
         width: auto;
         min-width: 200px;
         max-width: 400px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
-
-    /* Center content in the new Keep column (13th column) */
-    .table-sm th:nth-child(13),
-    .table-sm td:nth-child(13) {
+    
+    /* Center content in keep*/
+    .table-sm .keep-cell {
         text-align: center;
         vertical-align: middle;
     }
-    
+
+    /* Group cell styling */
+    .group-cell {
+        font-weight: bold;
+        background-color: #e9ecef;
+    }
+
     /* Enhanced policy selector styling */
     .policy-option {
         display: flex;
@@ -333,6 +338,7 @@
                             <tr>
                                 <th>G.</th>
                                 <th>R.</th>
+                                <th class="keep-cell">Keep</th>
                                 <th>Set</th>
                                 <th>Contract Number</th>
                                 <th>Mfg Part Num</th>
@@ -343,7 +349,6 @@
                                 <th>Effec. Date</th>
                                 <th>Expir. Date</th>
                                 <th>Description</th>
-                                <th>Keep</th>
                             </tr>
                         </thead>
                         <tbody id="results-table-body">
@@ -622,7 +627,7 @@
                     const row = document.createElement('tr');
                     
                     // Add 'rank-1' class to highlight kept records
-                    if (item['Rank'] === 1) {
+                    if (item['Rank'] === 1 && resolutionStrategy.value !== 'manual') {
                         row.classList.add('rank-1');
                     }
                     
@@ -631,52 +636,21 @@
                         // Add rowspan only if more than one item
                         const groupCell = document.createElement('td');
                         groupCell.textContent = groupId;
+                        groupCell.classList.add('group-cell');
                         if (groupedData[groupId].length > 1) {
                             groupCell.rowSpan = groupedData[groupId].length;
                         }
                         row.appendChild(groupCell);
                     }
                     
-                    // Process description to ensure consistent truncation
-                    const description = item['Description'] || '';
-                    const truncatedDescription = description.length > 40 ? 
-                        description.substring(0, 40) + '...' : description;
+                    // Add Rank cell
+                    const rankCell = document.createElement('td');
+                    rankCell.textContent = item['Rank'] || '';
+                    row.appendChild(rankCell);
                     
-                    // Format prices with $ and 2 decimal places
-                    const formattedContractPrice = formatCurrency(item['Contract Price']);
-                    const formattedEAPrice = formatCurrency(item['EA Price']);
-                    
-                    // Add other cells - Match exact order with table headers
-                    const cells = [
-                        ['Rank', item['Rank']],
-                        ['Dataset', item['Dataset']],
-                        ['Contract Number', item['Contract Number']],
-                        ['Mfg Part Num', item['Mfg Part Num']],
-                        ['UOM', item['UOM']],
-                        ['QOE', item['QOE']],
-                        ['Contract Price', formattedContractPrice],
-                        ['EA Price', formattedEAPrice],
-                        ['Effective Date', item['Effective Date']],
-                        ['Expiration Date', item['Expiration Date']],
-                        ['Description', truncatedDescription]
-                    ];
-                    
-                    cells.forEach(([field, value]) => {
-                        const cell = document.createElement('td');
-                        cell.textContent = value || '';
-                        
-                        // Add title attribute to Description column for hover tooltip
-                        // Always use the FULL description for the tooltip
-                        if (field === 'Description') {
-                            cell.setAttribute('title', description);
-                            cell.classList.add('description-cell'); // Optional: Add class for specific styling
-                        }
-                        
-                        row.appendChild(cell);
-                    });
-
-                    // --- Add Keep Checkbox Cell ---
+                    // --- Add Keep Checkbox Cell (now third column) ---
                     const keepCell = document.createElement('td');
+                    keepCell.classList.add('keep-cell');
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.classList.add('keep-checkbox');
@@ -695,13 +669,56 @@
                     if (currentPolicy !== 'manual') {
                         checkbox.disabled = true;
                     } else {
-                        // Add event listener for manual mode if needed later
-                        // checkbox.addEventListener('change', handleManualCheckboxChange);
+                        // Add event listener for manual mode
+                        checkbox.addEventListener('change', function() {
+                            const row = this.closest('tr');
+                            if (this.checked) {
+                                row.classList.add('rank-1'); // Add class to highlight selected row
+                            } else {
+                                row.classList.remove('rank-1'); // Remove class if unchecked
+                            }
+                        });
                     }
-
+ 
                     keepCell.appendChild(checkbox);
                     row.appendChild(keepCell);
                     // --- End Keep Checkbox Cell ---
+                    
+                    // Process description to ensure consistent truncation
+                    const description = item['Description'] || '';
+                    const truncatedDescription = description.length > 40 ? 
+                        description.substring(0, 40) + '...' : description;
+                    
+                    // Format prices with $ and 2 decimal places
+                    const formattedContractPrice = formatCurrency(item['Contract Price']);
+                    const formattedEAPrice = formatCurrency(item['EA Price']);
+                    
+                    // Add remaining cells in the new order
+                    const cells = [
+                        ['Dataset', item['Dataset']],
+                        ['Contract Number', item['Contract Number']],
+                        ['Mfg Part Num', item['Mfg Part Num']],
+                        ['UOM', item['UOM']],
+                        ['QOE', item['QOE']],
+                        ['Contract Price', formattedContractPrice],
+                        ['EA Price', formattedEAPrice],
+                        ['Effective Date', item['Effective Date']],
+                        ['Expiration Date', item['Expiration Date']],
+                        ['Description', truncatedDescription]
+                    ];
+                    
+                    cells.forEach(([field, value]) => {
+                        const cell = document.createElement('td');
+                        cell.textContent = value || '';
+                        
+                        // Add title attribute to Description column for hover tooltip
+                        if (field === 'Description') {
+                            cell.setAttribute('title', description);
+                            cell.classList.add('description-cell');
+                        }
+                        
+                        row.appendChild(cell);
+                    });
                     
                     tableBody.appendChild(row);
                 });
@@ -710,7 +727,7 @@
                 if (groupIndex < displayGroups.length - 1) {
                     const divider = document.createElement('tr');
                     divider.classList.add('group-divider');
-                    // Update colspan for divider
+                    // Update colspan for divider (still 13 columns total)
                     divider.innerHTML = '<td colspan="13"></td>';
                     tableBody.appendChild(divider);
                 }

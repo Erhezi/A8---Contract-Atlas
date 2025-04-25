@@ -890,10 +890,10 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             print(f"Error sorting with custom fields: {e}")
     
     elif policy == 'keep_latest':
-        # Sort by expiration date (newest first)
+        # Sort by Dataset (TP first) and then by dates (newest first)
         sorted_df = stacked_df.sort_values(
-            by=['Expiration Date', 'Effective Date'],
-            ascending=[False, False]
+            by=['Dataset', 'Expiration Date', 'Effective Date'],
+            ascending=[False, False, False]  # 'TP' comes after 'CCX' alphabetically, so we use False to put TP first
         )
     
     elif policy == 'oldest':
