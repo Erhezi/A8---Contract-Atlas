@@ -899,24 +899,24 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     elif policy == 'oldest':
         # Sort by effective date (oldest first)
         sorted_df = stacked_df.sort_values(
-            by=['Effective Date', 'Expiration Date'],
-            ascending=[True, True]
+            by=['Dataset', 'Expiration Date', 'Effective Date'],
+            ascending=[True, True, True]
         )
     
     elif policy == 'keep_lowest_price':
         # Convert to numeric and sort by price
         sorted_df['EA Price'] = pd.to_numeric(sorted_df['EA Price'], errors='coerce')
         sorted_df = stacked_df.sort_values(
-            by=['EA Price'],
-            ascending=[True]
+            by=['EA Price', 'Dataset'],
+            ascending=[True, False]  # 'TP' comes after 'CCX' alphabetically, so we use False to put TP first
         )
     
     elif policy == 'highest_price':
         # Convert to numeric and sort by price
         sorted_df['EA Price'] = pd.to_numeric(sorted_df['EA Price'], errors='coerce')
         sorted_df = stacked_df.sort_values(
-            by=['EA Price'],
-            ascending=[False]
+            by=['EA Price', 'Dataset'],
+            ascending=[False,  False]
         )
     
     elif policy == 'prefer_ccx':
@@ -927,7 +927,12 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
         )
     
     elif policy == 'manual':
-        # Manual mode - don't sort, just rank
+        # Manual mode - default sort to display TP at first, then lowest price, then farther expiration
+        sorted_df = stacked_df.sort_values(
+            by=['Dataset', 'EA Price', 'Expiration Date', 'Effective Date'],
+            ascending=[False, True, False, False]  # 'TP' comes after 'CCX' alphabetically, so we use False to put TP first
+        )
+
         pass
     
     # Assign rank to each record within its File Row group

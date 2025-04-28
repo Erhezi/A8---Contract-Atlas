@@ -399,6 +399,127 @@
             }
         }
     </script>
+
+    <script>
+        // Create a custom modal alert container (add once to the document)
+        const modalAlertContainer = document.createElement('div');
+        modalAlertContainer.className = 'modal-alert-overlay';
+        modalAlertContainer.innerHTML = `
+            <div class="modal-alert-content">
+                <div class="modal-alert-header">
+                    <h4 class="modal-alert-title">Message</h4>
+                </div>
+                <div class="modal-alert-body">
+                    <p id="modal-alert-message"></p>
+                </div>
+                <div class="modal-alert-footer">
+                    <button type="button" class="btn btn-primary modal-alert-ok">OK</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalAlertContainer);
+
+        // Add styles for the modal alert
+        const modalAlertStyles = document.createElement('style');
+        modalAlertStyles.textContent = `
+            .modal-alert-overlay {
+                display: none;
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 2000;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .modal-alert-content {
+                background-color: #fff;
+                border-radius: 8px;
+                width: 400px;
+                max-width: 90%;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+                animation: modalFadeIn 0.3s;
+            }
+            
+            .modal-alert-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 15px 20px;
+                border-bottom: 1px solid #e9ecef;
+            }
+            
+            .modal-alert-title {
+                margin: 0;
+                font-size: 1.2rem;
+                color: #343a40;
+            }
+            
+            .modal-alert-body {
+                padding: 20px;
+                max-height: 60vh;
+                overflow-y: auto;
+            }
+            
+            .modal-alert-footer {
+                padding: 15px 20px;
+                border-top: 1px solid #e9ecef;
+                display: flex;
+                justify-content: center;
+            }
+            
+            @keyframes modalFadeIn {
+                from { opacity: 0; transform: translateY(-20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(modalAlertStyles);
+
+        // Store the original alert function
+        window.originalAlert = window.alert;
+        
+        // Override the default alert with our custom modal alert
+        window.alert = function(message) {
+            const modalOverlay = document.querySelector('.modal-alert-overlay');
+            const messageElement = document.getElementById('modal-alert-message');
+            
+            // Set the message content
+            messageElement.innerHTML = message;
+            
+            // Display the modal
+            modalOverlay.style.display = 'flex';
+            
+            // Setup close handler
+            const okButton = document.querySelector('.modal-alert-ok');
+            const closeModal = () => {
+                modalOverlay.style.display = 'none';
+            };
+            
+            // Remove existing event listeners to prevent duplicates
+            const newOkButton = okButton.cloneNode(true);
+            okButton.parentNode.replaceChild(newOkButton, okButton);
+            newOkButton.addEventListener('click', closeModal);
+            
+            // Close on click outside
+            modalOverlay.onclick = function(event) {
+                if (event.target === modalOverlay) {
+                    closeModal();
+                }
+            };
+            
+            // Add keyboard support for escape key
+            const escHandler = function(e) {
+                if (e.key === 'Escape') {
+                    closeModal();
+                    document.removeEventListener('keydown', escHandler);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+        };
+    </script>
 </body>
 </html>
 

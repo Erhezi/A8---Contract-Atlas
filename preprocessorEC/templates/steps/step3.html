@@ -50,7 +50,20 @@
         border-top-left-radius: 0;
         border-bottom-left-radius: 0;
     }
-    
+
+    .priority-ranking-area {
+        background-color: #e6f2ff; /* Pale blue background */
+        border: 1px solid #cce0ff;
+        border-radius: 8px;
+        padding: 15px;
+        min-height: 200px;
+        margin-top: 10px;
+    }
+
+    .priority-ranking-area.drag-over {
+        background-color: #d9ebff; /* Slightly darker blue when dragging over */
+        border: 2px dashed #99c2ff;
+    }
 
     .input-group-append:not(.priority-rank) .input-group-text {
         width: 400px;
@@ -145,7 +158,7 @@
     }
     
     .policy-description {
-        margin-top: 5px;
+        margin-top: 10px;
         display: none;
         font-size: 0.85rem;
         color: #6c757d;
@@ -153,6 +166,94 @@
     
     .active-description {
         display: block;
+    }
+
+    /* Enhanced Summary Cards Styling - Updated to match Step 2 */
+    .summary-stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        width: 100%;
+        margin-right: 0;
+        margin-left: 0;
+        margin-top: 0;
+        margin-bottom: 15px;
+    }
+
+    .summary-stats-column {
+        padding: 0;
+    }
+
+    .summary-stat-card {
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 0;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        border-left: 5px solid #3498db;
+        height: 100%;
+    }
+
+    .summary-stat-card .card-body {
+        padding: 10px 15px 10px;
+    }
+
+    .summary-stat-card .card-title {
+        display: flex;
+        align-items: center;
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        margin-bottom: 8px;
+        margin-top: 2px;
+        font-weight: normal;
+    }
+
+    .summary-stat-card .stat-value {
+        font-size: 1.7rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-top: 0px;
+    }
+
+    .total-items-card {
+        border-left-color: #3498db; /* Blue */
+    }
+
+    .unique-items-card {
+        border-left-color: #2ecc71; /* Green */
+    }
+
+    .kept-ccx-card {
+        border-left-color: #f39c12; /* Orange */
+    }
+
+    .kept-uploaded-card {
+        border-left-color: #9b59b6; /* Purple */
+    }
+
+    .different-value {
+        color: red;
+        font-weight: bold;
+    }
+
+    .moderate-price-difference {
+        color: orange;
+        font-weight: bold;
+    }
+
+    .significant-price-difference {
+        color: red;
+        font-weight: bold;
+    }
+
+    /* When on smaller screens, stack the cards */
+    @media (max-width: 767px) {
+        .summary-stats-row {
+            grid-template-columns: 1fr;
+        }
+        
+        .summary-stats-column {
+            margin-bottom: 15px;
+        }
     }
 </style>
 
@@ -177,28 +278,28 @@
             <!-- Enhanced policy descriptions -->
             <div id="policy-descriptions" class="mb-3">
                 <div id="keep_latest_desc" class="policy-description active-description">
-                    <strong>Keep Latest:</strong> Retains the most recent entries from your current upload file, automatically replacing older duplicates.
+                    <strong>Keep Latest:</strong> Retains the most recent entries from your current upload file, all other items identified from step 2 will be marked as duplicates to be deactivated.
                 </div>
                 <div id="keep_lowest_price_desc" class="policy-description">
-                    <strong>Keep Lowest Price:</strong> Keeps the item with the lowest price when duplicates are found, regardless of which file it's from.
+                    <strong>Keep Lowest Price:</strong> Keeps the item with the lowest price when duplicates are found, regardless of which file it's from (if upload file and CCX existing file run into a tie, it will pick up the upload file).
                 </div>
                 <div id="custom_desc" class="policy-description">
                     <strong>Custom:</strong> Create your own prioritization rules based on contract source, status, price, and expiration date.
                 </div>
                 <div id="manual_desc" class="policy-description">
-                    <strong>Manual:</strong> Review and select which items to keep on a case-by-case basis using the checkboxes in the results table.
+                    <strong>Manual:</strong> Set initial priorities using the drag-and-drop interface, then review and adjust individual selections using checkboxes in the results table.
                 </div>
             </div>
             
             <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
-                <small>Select how you want to handle duplicate items. "Keep Latest" is defaulted and will retain the most recent entries (meaning we will keep the upload file you currently working on).</small>
+                <small>Select the deduplication policy and hit "Apply Resolution" to view resolution results.</small>
             </div>
             
             <!-- Custom deduplication policy options -->
             <div id="custom_policy_options" class="mt-4" style="display: none;">
                 <h4>Custom Deduplication Policy</h4>
-                <p class="text-muted">Drag and drop the parameters below to set their priority order (Top = Highest Priority). Select your preference within each card.</p>
-                
+                <p class="text-muted">Drag and drop the parameters below to set their priority order (Top = Highest Priority). Select/Change your preference within each card using the dropdown list.</p>
+
                 <!-- Hidden fields to store the final priorities and preferences -->
                 <input type="hidden" name="contract_source_priority" id="contract_source_priority">
                 <input type="hidden" name="contract_source_preference" id="contract_source_preference">
@@ -209,7 +310,7 @@
                 <input type="hidden" name="expiration_priority" id="expiration_priority">
                 <input type="hidden" name="expiration_preference" id="expiration_preference">
 
-                <div id="priority_ranking_area" class="border p-3 rounded" style="min-height: 200px;">
+                <div id="priority_ranking_area" class="border p-3 rounded priority-ranking-area" style="min-height: 200px;">
                     <!-- Draggable Cards -->
                     <div class="card mb-2 draggable-card" draggable="true" id="card_contract_source">
                         <div class="card-body p-2">
@@ -219,7 +320,7 @@
                                 </div>
                                 <select class="form-control preference-select" name="contract_source_preference_options" data-parameter="contract_source">
                                     <option value="" selected disabled>Use dropdown to choose...</option>
-                                    <option value="gpo_first">GPO First</option>
+                                    <option value="gpo_first" selected>GPO First</option>
                                     <option value="local_first">Local First</option>
                                 </select>
                                 <div class="input-group-append">
@@ -236,11 +337,11 @@
                                 </div>
                                 <select class="form-control preference-select" name="contract_status_preference_options" data-parameter="contract_status">
                                     <option value="" selected disabled>Use dropdown to choose...</option>
-                                    <option value="new_first">New First</option>
+                                    <option value="new_first" selected>New First</option>
                                     <option value="existing_first">Existing First</option>
                                 </select>
                                 <div class="input-group-append">
-                                    <span class="input-group-text">Contract Status</span>
+                                    <span class="input-group-text">Contract Status (Source Set)</span>
                                 </div>
                             </div>
                         </div>
@@ -253,11 +354,11 @@
                                 </div>
                                 <select class="form-control preference-select" name="unit_price_preference_options" data-parameter="unit_price">
                                     <option value="" selected disabled>Use dropdown to choose...</option>
-                                    <option value="lowest_first">Lowest First</option>
+                                    <option value="lowest_first" selected>Lowest First</option>
                                     <option value="highest_first">Highest First</option>
                                 </select>
                                 <div class="input-group-append">
-                                    <span class="input-group-text">Unit Price</span>
+                                    <span class="input-group-text">EA Price</span>
                                 </div>
                             </div>
                         </div>
@@ -271,7 +372,7 @@
                                 <select class="form-control preference-select" name="expiration_preference_options" data-parameter="expiration">
                                     <option value="" selected disabled>Use dropdown to choose...</option>
                                     <option value="soonest_first">Soonest First</option>
-                                    <option value="farthest_first">Farthest First</option>
+                                    <option value="farthest_first" selected>Farthest First</option>
                                 </select>
                                 <div class="input-group-append">
                                     <span class="input-group-text">Expiration Proximity</span>
@@ -295,43 +396,43 @@
             </div>
             <div class="card-body">
                 <!-- Summary Stats -->
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="card bg-light">
+                <div class="summary-stats-row mb-4">
+                    <div class="summary-stats-column">
+                        <div class="summary-stat-card total-items-card">
                             <div class="card-body text-center">
                                 <h5 class="card-title">Total Items</h5>
-                                <h3 id="stats-total-items">0</h3>
+                                <div class="stat-value" id="stats-total-items">0</div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card bg-light">
+                    <div class="summary-stats-column">
+                        <div class="summary-stat-card unique-items-card">
                             <div class="card-body text-center">
                                 <h5 class="card-title">Unique Items</h5>
-                                <h3 id="stats-unique-items">0</h3>
+                                <div class="stat-value" id="stats-unique-items">0</div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card bg-light">
+                    <div class="summary-stats-column">
+                        <div class="summary-stat-card kept-ccx-card">
                             <div class="card-body text-center">
                                 <h5 class="card-title">Kept from CCX</h5>
-                                <h3 id="stats-kept-ccx">0</h3>
+                                <div class="stat-value" id="stats-kept-ccx">0</div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card bg-light">
+                    <div class="summary-stats-column">
+                        <div class="summary-stat-card kept-uploaded-card">
                             <div class="card-body text-center">
                                 <h5 class="card-title">Kept from Upload</h5>
-                                <h3 id="stats-kept-uploaded">0</h3>
+                                <div class="stat-value" id="stats-kept-uploaded">0</div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Results Table -->
-                <h5>All Duplicate Results</h5>
+                <h5>Duplication Resolution Details</h5>
                 <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
                     <table class="table table-sm table-bordered table-hover">
                         <thead class="thead-light sticky-top">
@@ -358,8 +459,12 @@
                 </div>
                 
                 <!-- Complete Step Button -->
-                <div class="text-center mt-4">
-                    <button class="btn btn-success btn-lg" id="complete-step-btn">Step 3 Completed</button>
+                <div class="action-buttons" style="margin-top: 20px; text-align: right;">
+                    <form method="POST" action="{{ url_for('common.process_step', step_id=3) }}">
+                        <input type="hidden" name="resolution_strategy" id="completion_resolution_strategy">
+                        <input type="hidden" name="step_completed" value="true">
+                        <button type="submit" class="btn btn-success">Complete Step 3</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -414,16 +519,52 @@
 
         // --- Functions ---
         function toggleCustomOptions() {
-            if (resolutionStrategy.value === 'custom') {
+            // Show custom policy options for both 'custom' and 'manual' modes
+            if (resolutionStrategy.value === 'custom' || resolutionStrategy.value === 'manual') {
                 customPolicyOptions.style.display = 'block';
-                // Show explanation tooltip on first display
-                if (!sessionStorage.getItem('customPolicyExplained')) {
-                    alert('Custom Policy Guide: Drag and drop parameters to rank them (top is highest priority). Select preferences within each card.');
-                    sessionStorage.setItem('customPolicyExplained', 'true');
+                
+                // Update the header text based on selected mode
+                const policyHeader = customPolicyOptions.querySelector('h4');
+                if (policyHeader) {
+                    if (resolutionStrategy.value === 'custom') {
+                        policyHeader.textContent = 'Custom Deduplication Policy';
+                    } else {
+                        policyHeader.textContent = 'Manual Deduplication: Initial Priority Settings';
+                    }
                 }
+                
+                // Update the description text based on selected mode
+                const policyDesc = customPolicyOptions.querySelector('p.text-muted');
+                if (policyDesc) {
+                    if (resolutionStrategy.value === 'custom') {
+                        policyDesc.textContent = 'Drag and drop the parameters below to set their priority order (Top = Highest Priority). Select/Change your preference within each card.';
+                    } else {
+                        policyDesc.textContent = 'Set initial priorities as a first pass. After applying, you can manually adjust individual selections using checkboxes in the results table.';
+                    }
+                }
+                
+                // Show explanation tooltip on first display for each mode
+                const storageKey = resolutionStrategy.value === 'custom' ? 'customPolicyExplained' : 'manualPolicyExplained';
+                if (!sessionStorage.getItem(storageKey)) {
+                    if (resolutionStrategy.value === 'custom') {
+                        alert('Custom Policy Guide: Drag and drop parameters to rank them (top is highest priority). Select preferences within each card.');
+                    } else {
+                        alert('Manual Mode Guide: First set general priorities with drag and drop, then after applying you can override individual selections with checkboxes.');
+                    }
+                    sessionStorage.setItem(storageKey, 'true');
+                }
+                
                 updateHiddenInputs(); // Ensure inputs are updated when shown
             } else {
                 customPolicyOptions.style.display = 'none';
+            }
+            
+            // Update policy description visibility
+            const policyDescriptions = document.querySelectorAll('.policy-description');
+            policyDescriptions.forEach(desc => desc.classList.remove('active-description'));
+            const selectedDesc = document.getElementById(`${resolutionStrategy.value}_desc`);
+            if (selectedDesc) {
+                selectedDesc.classList.add('active-description');
             }
         }
 
@@ -574,12 +715,46 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
+                    // for manual mode, initialize kept stats to 0
+                    if (resolutionStrategy.value === 'manual') {
+                        if(data.data.summary) {
+                            data.data.summary.kept_ccx = 0;
+                            data.data.summary.kept_uploaded = 0;
+
+                            document.getElementById('stats-kept-ccx').textContent = '0';
+                            document.getElementById('stats-kept-uploaded').textContent = '0';
+                        }
+                    }
                     populateResultsTable(data.data);
                 }
             })
             .catch(error => {
                 console.error('Error fetching deduplication results:', error);
             });
+        }
+
+        function updateManualModeStats() {
+            if (resolutionStrategy.value !== 'manual') return;
+            
+            let keptCCX = 0;
+            let keptTP = 0;
+            
+            // Count checked items by dataset
+            document.querySelectorAll('.keep-checkbox:checked').forEach(checkbox => {
+                // Get the dataset from the table cell (4th column contains Dataset)
+                const row = checkbox.closest('tr');
+                const dataset = row.cells[3].textContent.trim();
+                
+                if (dataset === 'CCX') {
+                    keptCCX++;
+                } else if (dataset === 'TP') {
+                    keptTP++;
+                }
+            });
+            
+            // Update the stats display
+            document.getElementById('stats-kept-ccx').textContent = keptCCX;
+            document.getElementById('stats-kept-uploaded').textContent = keptTP;
         }
         
         function populateResultsTable(data) {
@@ -617,31 +792,40 @@
                 return '$' + parseFloat(value).toFixed(2);
             }
             
+            // get CURRENT POLICY
+            const currentPolicy = document.getElementById('resolution_strategy').value;
+
             // Add rows for each group
             displayGroups.forEach((groupId, groupIndex) => {
+                // Sort by group ID (File Row)// Sort by rank within group
+                groupedData[groupId].sort((a, b) => a['Rank'] - b['Rank']);
+
+                // Store reference value
+                const rank1Item = groupedData[groupId].find(i => i['Rank'] === 1);
+                const rank1QOE = rank1Item ? rank1Item['QOE'] : null;
+                const rank1UOM = rank1Item ? rank1Item['UOM'] : null;
+                const rank1EAPrice = rank1Item ? rank1Item['EA Price'] : null;
+
                 // Add group items
                 groupedData[groupId].forEach((item, itemIndex) => {
-                    // Sort by rank within group
-                    groupedData[groupId].sort((a, b) => a['Rank'] - b['Rank']);
-                    
                     const row = document.createElement('tr');
                     
                     // Add 'rank-1' class to highlight kept records
-                    if (item['Rank'] === 1 && resolutionStrategy.value !== 'manual') {
+                    if (item['Rank'] === 1) {
                         row.classList.add('rank-1');
                     }
                     
-                    // Only show group ID in first row of the group
-                    if (itemIndex === 0) {
-                        // Add rowspan only if more than one item
-                        const groupCell = document.createElement('td');
-                        groupCell.textContent = groupId;
-                        groupCell.classList.add('group-cell');
-                        if (groupedData[groupId].length > 1) {
-                            groupCell.rowSpan = groupedData[groupId].length;
-                        }
-                        row.appendChild(groupCell);
+
+                    // Add Group cell for EVERY row
+                    const groupCell = document.createElement('td');
+                    groupCell.textContent = groupId;
+                    groupCell.classList.add('group-cell');
+
+                    // Only make the text visible for the first row in each group
+                    if (itemIndex > 0) {
+                        groupCell.style.color = 'transparent'; // Hide text but keep cell structure
                     }
+                    row.appendChild(groupCell);
                     
                     // Add Rank cell
                     const rankCell = document.createElement('td');
@@ -658,10 +842,9 @@
                     checkbox.dataset.fileRow = item['File Row'];
                     checkbox.dataset.pairId = item['Pair ID']; // Make sure 'Pair ID' exists in your data
 
-                    const currentPolicy = resolutionStrategy.value;
-
+                    
                     // Check Rank 1 if policy is not manual
-                    if (currentPolicy !== 'manual' && item['Rank'] === 1) {
+                    if (item['Rank'] === 1) {
                         checkbox.checked = true;
                     }
 
@@ -672,10 +855,32 @@
                         // Add event listener for manual mode
                         checkbox.addEventListener('change', function() {
                             const row = this.closest('tr');
+                            const groupID = this.dataset.fileRow;
+                            const dataset = item['Dataset'] || ''; // Get dataset name for the row
+
                             if (this.checked) {
+                                // uncheck all other checkboxes in the same group
+                                document.querySelectorAll('.keep-checkbox').forEach(cb => {
+                                    if (cb !== this && cb.dataset.fileRow === groupID) {
+                                        cb.checked = false;
+                                        const otherRow = cb.closest('tr');
+                                        if (otherRow) {
+                                            otherRow.classList.remove('rank-1'); // Remove class from other rows in the group
+                                        }
+                                    }
+                                });
+                                
                                 row.classList.add('rank-1'); // Add class to highlight selected row
+                                if (currentPolicy === 'manual') {
+                                    // count selected checkboxes by dataset
+                                    updateManualModeStats();
+                                }
                             } else {
                                 row.classList.remove('rank-1'); // Remove class if unchecked
+                                if (currentPolicy === 'manual') {
+                                    // count selected checkboxes by dataset
+                                    updateManualModeStats();
+                                }
                             }
                         });
                     }
@@ -715,6 +920,27 @@
                         if (field === 'Description') {
                             cell.setAttribute('title', description);
                             cell.classList.add('description-cell');
+                        }
+
+                        // highlight the cell if it is different from rank-1 int he same group
+                        if (item['Rank'] !== 1 && rank1Item) {
+                            if (field === 'QOE' && item['QOE'] !== rank1QOE && rank1QOE !== null) {
+                                cell.classList.add('different-value');
+                            } else if (field === 'UOM' && item['UOM'] !== rank1UOM && rank1UOM !== null) {
+                                cell.classList.add('different-value');
+                            } else if (field === 'EA Price' && rank1EAPrice !== null && item['EA Price'] !== null) {
+                                // For EA Price, apply different highlighting based on price ratio
+                                if (item['EA Price'] !== rank1EAPrice) {
+                                    const priceRatio = parseFloat(item['EA Price']) / parseFloat(rank1EAPrice);
+                                    
+                                    // Check if price is significantly different (>2x or <0.5x)
+                                    if (priceRatio >= 2 || priceRatio < 0.5) {
+                                        cell.classList.add('significant-price-difference');
+                                    } else {
+                                        cell.classList.add('moderate-price-difference');
+                                    }
+                                }
+                            }
                         }
                         
                         row.appendChild(cell);
@@ -811,12 +1037,13 @@
     });
 </script>
 
-<!-- Add this script tag right after the HTML above -->
+<!-- Control the change of mode explaination -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Policy description toggler
         const policySelect = document.getElementById('resolution_strategy');
         const policyDescriptions = document.querySelectorAll('.policy-description');
+        document.getElementById('completion_resolution_strategy').value = document.getElementById('resolution_strategy').value;
         
         policySelect.addEventListener('change', function() {
             // Hide all descriptions
@@ -827,6 +1054,9 @@
             if (selectedDesc) {
                 selectedDesc.classList.add('active-description');
             }
+
+            // add to the completion resolution strategy
+            document.getElementById('completion_resolution_strategy').value = this.value;
         });
     });
 </script>

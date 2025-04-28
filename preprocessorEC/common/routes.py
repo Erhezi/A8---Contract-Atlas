@@ -185,7 +185,7 @@ def process_step(step_id):
     error_msg = None
     
     try:
-        from ..common.session import update_true_duplicates_count, get_contracts_with_true_duplicates
+        from ..common.session import update_true_duplicates_count, get_contracts_with_true_duplicates, get_deduped_results
         
         if step_id == 1:
             # Step 1: File validation
@@ -259,15 +259,19 @@ def process_step(step_id):
             if not comparison_results or 'summary' not in comparison_results:
                 raise ValueError("Invalid comparison results. Please rerun the item comparison.")
 
-            resolution_strategy = request.form.get('resolution_strategy')
-            if not resolution_strategy:
-                raise ValueError("No resolution strategy selected")
-                
-            # Process resolution (dummy implementation)
-            import time
-            time.sleep(1)  # Simulate processing time
-            success = True
-            
+            deduplication_results = get_deduped_results()
+            if not deduplication_results:
+                flash("No deduplication results available. Please apply a deduplication policy before completing this step.", "warning")
+                return redirect(url_for('common.step_view', step_id=step_id))
+
+            if deduplication_results:
+                resolution_strategy = deduplication_results.get('policy', {}).get('type', 'unkonown')
+                print(deduplication_results.keys()) #debugging
+                success = True
+                flash(f"Deduplication results processed successfully using [{resolution_strategy}] policy!", "success")
+            else:
+                flash("No deduplication results found. Please check the deduplication process.", "warning")
+
         elif step_id == 4:
             # Item master matching logic
             matching_method = request.form.get('matching_method')

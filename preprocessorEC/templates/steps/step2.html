@@ -254,6 +254,7 @@
         border: 1px solid #ddd;
         border-radius: 8px;
         background-color: #f9f9f9;
+        display: none; /* Initially hidden */
     }
 
     .contract-legend {
@@ -676,6 +677,12 @@
         <button id="start-analysis-btn" class="btn btn-primary">Start Duplication Analysis</button>
     </div>
 
+    <div id="contract-cards-container" class="contract-cards">
+        <div class="loading-placeholder">
+            Click "Start Duplication Analysis" to begin finding potential duplicates.
+        </div>
+    </div>
+
     <div class="contracts-status-section">
         <!-- Status legend -->
         <div class="contract-legend">
@@ -703,12 +710,6 @@
             <div id="included-contracts-tags" class="tags-container">
                 <!-- Tags will be populated by JavaScript -->
             </div>
-        </div>
-    </div>
-
-    <div id="contract-cards-container" class="contract-cards">
-        <div class="loading-placeholder">
-            Click "Start Duplication Analysis" to begin finding potential duplicates.
         </div>
     </div>
 
@@ -945,6 +946,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Show review actions
                 document.querySelector('.review-actions').style.display = 'block';
+                document.querySelector('.contracts-status-section').style.display = 'block';
             } else {
                 alert('Error: ' + data.message);
             }
