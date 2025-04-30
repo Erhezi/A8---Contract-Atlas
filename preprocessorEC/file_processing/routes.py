@@ -9,6 +9,14 @@ import time
 import re
 from ..common.db import get_db_connection, create_temp_table
 from ..common.utils import validate_file, save_error_file
+# Import user-specific session helpers
+from ..common.session import (
+    store_file_info, get_file_info, # Assuming these exist or will be added
+    store_column_mapping, get_column_mapping,
+    store_validated_data, get_validated_data,
+    store_error_file_path, get_error_file_path, clear_error_file_path, # Added clear
+    store_session_data, get_session_data # Keep generic ones if needed elsewhere
+)
 
 # Create the blueprint
 file_bp = Blueprint('file_processing', __name__, 
@@ -19,6 +27,7 @@ file_bp = Blueprint('file_processing', __name__,
 @login_required
 def upload_file():
     """Upload a file and return column headers"""
+    user_id = current_user.id # Get user_id
     if 'file' not in request.files:
         return jsonify({'success': False, 'message': 'No file part'})
     
@@ -50,13 +59,14 @@ def upload_file():
                 
             headers = df.columns.tolist()
             
-            # Store file info in session
-            session['file_info'] = {
+            # Store file info in session using helper
+            file_info_dict = {
                 'name': filename,
                 'saved_name': saved_name,
                 'path': file_path,
                 'type': file_ext
             }
+            store_file_info(user_id, file_info_dict) # Use helper
             
             return jsonify({
                 'success': True,
@@ -74,7 +84,9 @@ def upload_file():
 @login_required
 def map_columns():
     """Save column mapping to session"""
-    if 'file_info' not in session:
+    user_id = current_user.id # Get user_id
+    file_info = get_file_info(user_id) # Use helper
+    if not file_info:
         return jsonify({'success': False, 'message': 'No file uploaded. Please upload a file first.'})
     
     # Get column mapping from POST data
@@ -98,8 +110,8 @@ def map_columns():
             'message': f'Missing required field mapping: {", ".join(missing_fields)}'
         })
     
-    # Store mapping in session
-    session['column_mapping'] = column_mapping
+    # Store mapping in session using helper
+    store_column_mapping(user_id, column_mapping) # Use helper
     
     return jsonify({
         'success': True,
@@ -110,18 +122,26 @@ def map_columns():
 @login_required
 def validate_file_route():
     """Validate the uploaded file columns against required fields"""
-    if 'file_info' not in session:
+    user_id = current_user.id # Get user_id
+    file_info = get_file_info(user_id) # Use helper
+    if not file_info:
         return jsonify({'success': False, 'message': 'No file uploaded. Please upload a file first.'})
     
-    file_info = session['file_info']
-    column_mapping = {}
-    
-    # Get column mapping from POST data
-    for field, column in request.form.items():
-        if column:  # Only include fields that are mapped to a column
-            column_mapping[field] = column
-    
+    column_mapping = get_column_mapping(user_id) # Use helper
+    if not column_mapping:
+         # If mapping not in session (e.g., direct navigation), try getting from form
+        form_mapping = {}
+        for field, column in request.form.items():
+            if column and field not in ['duplicate_mode']: # Exclude non-mapping fields
+                form_mapping[field] = column
+        if form_mapping:
+            column_mapping = form_mapping
+            store_column_mapping(user_id, column_mapping) # Store it now
+        else:
+            return jsonify({'success': False, 'message': 'Column mapping not found. Please map columns first.'})
+
     # Load the file
+    # Use file_info obtained from session helper
     file_path = os.path.join(current_app.static_folder, 'uploads', file_info['saved_name'])
     
     try:
@@ -131,9 +151,9 @@ def validate_file_route():
         else:
             df = pd.read_excel(file_path, dtype=str)
 
-        # Get duplicate checking mode from session or form
-        duplicate_mode = request.form.get('duplicate_mode', session.get('duplicate_check_mode', 'default'))
-        session['duplicate_check_mode'] = duplicate_mode
+        # Get duplicate checking mode from form or session (using generic helper for this example)
+        duplicate_mode = request.form.get('duplicate_mode', get_session_data(f'duplicate_check_mode_{user_id}', 'default'))
+        store_session_data(f'duplicate_check_mode_{user_id}', duplicate_mode) # Store user-specifically
         
         # Validate the file
         valid_df, error_df, has_errors = validate_file(df, column_mapping, duplicate_mode)
@@ -150,8 +170,8 @@ def validate_file_route():
             duplicate_rows = int(len(error_df[(error_df['Warning-Potential Duplicates'] != '')]))  # Convert to Python int
             
             # Save the full result dataframe for user download
-            error_file = save_error_file(error_df, current_user.id, file_info['name'])
-            session['error_file'] = error_file
+            error_file_path = save_error_file(error_df, user_id, file_info['name'])
+            store_error_file_path(user_id, error_file_path) # Use helper
             
             # Convert error dataframe to HTML table for display
             # First, get only the rows with errors
@@ -181,9 +201,9 @@ def validate_file_route():
                 
         # No errors, store validated dataframe in session
         # Since we can't store the dataframe directly in session, convert to dict
-        session.pop('error_file', None)  # Clear any previous error file
+        clear_error_file_path(user_id) # Use helper to clear any previous error file path
         total_rows = len(valid_df)
-        session['validated_data'] = valid_df.to_dict()
+        store_validated_data(user_id, valid_df.to_dict('records')) # Use helper, store as records (list of dicts)
         
         return jsonify({
             'success': True,
@@ -202,24 +222,19 @@ def validate_file_route():
 @login_required
 def download_error_file():
     """Download the error file"""
+    user_id = current_user.id # Get user_id
     try:
-        # Get the filename from the session
-        if 'error_file' not in session:
-            # Try alternative session key
-            if 'error_file_path' in session:
-                file_path = session['error_file_path']
-            else:
-                flash('No error file available for download', 'danger')
-                return redirect(url_for('common.dashboard'))
-        else:
-            file_path = session['error_file']
-        
-        print(f"Attempting to download file: {file_path}")
-        
+        # Get the filename from the session using helper
+        file_path = get_error_file_path(user_id) # Use helper
+        if not file_path:
+            flash('No error file available for download', 'danger')
+            return redirect(url_for('common.dashboard')) # Assuming common.dashboard exists
+
+        print(f"Attempting to download file for user {user_id}: {file_path}")
+
         # Skip strict user verification if we're in development
         if not current_app.config.get('DEVELOPMENT', False):
             # Verify the file belongs to the current user - make this check more lenient
-            user_id = str(current_user.id) if not isinstance(current_user.id, str) else current_user.id
             expected_user_dir = f'user_{user_id}'
             
             if expected_user_dir not in file_path and 'user_admin' not in file_path:
@@ -242,10 +257,11 @@ def download_error_file():
         timestamp = int(time.time())
         original_filename = "unknown_file"
         
-        # Try to get the original filename from session
-        if 'file_info' in session and 'name' in session['file_info']:
+        # Try to get the original filename from session using helper
+        file_info = get_file_info(user_id) # Use helper
+        if file_info and 'name' in file_info:
             # Get original filename without extension
-            original_filename = session['file_info']['name']
+            original_filename = file_info['name']
             if '.' in original_filename:
                 original_filename = original_filename.rsplit('.', 1)[0]
         

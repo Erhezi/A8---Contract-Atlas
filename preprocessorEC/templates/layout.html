@@ -310,7 +310,7 @@
             <div class="milestone-progress">
                 {% for step in workflow_steps %}
                     {% set is_active = step.id == current_step.id if current_step else False %}
-                    {% set is_completed = loop.index <= current_step_index if current_step_index is defined else False %}
+                    {% set is_completed = step.id in completed_steps %}
                     <div class="milestone-item {% if is_active %}active{% endif %} {% if is_completed %}completed{% endif %}">
                         <div data-step-id="{{ step.id }}" onclick="showStepInfo(parseInt(this.getAttribute('data-step-id')), event)" class="milestone-item-content" style="cursor: pointer; display: flex; align-items: center; width: 100%;">
                             <div class="milestone-number">
@@ -584,7 +584,7 @@
                     <ul>
                         <li><strong>Supported formats:</strong> .xlsx, .csv</li>
                         <li><strong>File columns:</strong> The system will ask you to map your columns to the required fields.</li>
-                        <li><strong>Validation:</strong> Your file will be checked for required fields, data formats, and potential duplicates.</li>
+                        <li><strong>Validation:</strong> Your uploaded file will be checked for required fields, data formats, and potential duplicates within the file.</li>
                     </ul>
                     <p>After successful validation, you'll proceed to the next step for database matching.</p>
                 `;
@@ -602,27 +602,27 @@
                 `;
                 break;
             case 3:
-                title.textContent = "Step 3: Enrichment";
+                title.textContent = "Step 3: Resolve Data Duplication";
                 content.innerHTML = `
-                    <p>This step enriches your contract data with additional information from our databases.</p>
+                    <p>This step guide you through the strategies to resolve data duplication.</p>
                     <ul>
-                        <li><strong>Data enrichment:</strong> Additional product details, market data</li>
-                        <li><strong>Classification:</strong> Automatic categorization of products</li>
-                        <li><strong>Standardization:</strong> Units of measure, descriptions, etc.</li>
+                        <li><strong>aa:</strong> aa</li>
+                        <li><strong>bb:</strong> bb</li>
+                        <li><strong>cc:</strong> cc</li>
                     </ul>
-                    <p>This improves the quality and completeness of your contract data.</p>
+                    <p>This helps you to gain systemic deduplication insight of your contract data.</p>
                 `;
                 break;
             case 4:
-                title.textContent = "Step 4: Final Review & Submit";
+                title.textContent = "Step 4: Item Master Matching";
                 content.innerHTML = `
-                    <p>The final step where you review all processed data before submission to the contract database.</p>
+                    <p>The step to check your data against ERP's contract lines and item master.</p>
                     <ul>
-                        <li><strong>Complete review:</strong> Check all processed and enriched contract data</li>
-                        <li><strong>Summary report:</strong> View changes and additions to be made</li>
-                        <li><strong>Submission:</strong> Finalize and submit contracts to the system</li>
+                        <li><strong>Contract Line Match:</strong> xxxxxx</li>
+                        <li><strong>Item Master Match:</strong> xxxx</li>
+                        <li><strong>UOM/QOE validation</strong> xxxxx</li>
                     </ul>
-                    <p>Once submitted, your contract data will be available in the main contract system.</p>
+                    <p>xxxxx.</p>
                 `;
                 break;
             default:

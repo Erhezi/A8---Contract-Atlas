@@ -54,14 +54,16 @@ def create_app(config_name=None, test_config=None):
 
     # Import and register blueprints
     from .auth import auth_blueprint
-    from .common import common_bp
-    from .file_processing import file_bp
-    from .duplicate_detection import duplicate_bp
+    from .common.routes import common_bp
+    from .file_processing.routes import file_bp
+    from .duplicate_detection.routes import duplicate_bp
+    from .item_matching.routes import item_matching_bp
     
     app.register_blueprint(auth_blueprint)
     app.register_blueprint(common_bp)
     app.register_blueprint(file_bp, url_prefix='/file-processing')
     app.register_blueprint(duplicate_bp, url_prefix='/duplicate-detection')
+    app.register_blueprint(item_matching_bp, url_prefix='/item-matching')
 
     # Initialize model management
     # Initialize app config with model status

@@ -15,6 +15,15 @@ _USERS = {
         'name': 'Administrator',
         'password_hash': generate_password_hash('admin'),  # Password: admin -- in real we need to hash it
         'role': 'admin'
+    },
+    # add another user for testing purpose
+    'testuser': {
+        'id': 'testuser',
+        'username': 'testuser',
+        'email': 'dli2@montefiore.org',
+        'name': 'Test User',
+        'password_hash': generate_password_hash('testuser'),  # Password: testuser -- in real we need to hash it
+        'role': 'user'
     }
 }
 

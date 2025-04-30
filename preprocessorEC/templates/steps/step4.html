@@ -1,18 +1,507 @@
-<!-- Item Master Matching Content -->
+<!-- Step 4: Matching to Infor -->
+<style>
+    /* Styles adapted from step2.html for item-level comparison */
+    .step-content {
+        margin-bottom: 20px;
+    }
+    .items-table-container {
+        margin-top: 20px;
+        overflow-x: auto;
+        overflow-y: auto; /* Add vertical scrolling */
+        max-width: 100%;
+        max-height: 700px; /* Limit table height */
+        border: 1px solid #eee;
+        display: none; /* Hidden initially */
+    }
+    
+    .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem; 
+    }
+
+    .items-table th, 
+    .items-table td {
+        padding: 6px; 
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+        white-space: nowrap; /* Prevent wrapping initially */
+    }
+
+    /* Allow description columns to wrap */
+    .items-table th.description-col,
+    .items-table td.description-col {
+        white-space: normal;
+        min-width: 150px; /* Ensure a minimum width */
+        max-width: 300px; /* Limit max width */
+    }
+    
+    .items-table th {
+        background-color: #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        cursor: pointer;
+    }
+    
+    .items-table th:hover {
+        background-color: #e9e9e9;
+    }
+    
+    .items-table tbody tr:hover {
+        background-color: #f0f7ff;
+    }
+    
+    .items-table .sort-indicator {
+        margin-left: 5px;
+        opacity: 0.5;
+        display: inline-block; /* Ensure indicator is displayed */
+        width: 10px; /* Give it some space */
+    }
+    
+    .items-table th.sort-asc .sort-indicator::after {
+        content: "▲";
+    }
+    
+    .items-table th.sort-desc .sort-indicator::after {
+        content: "▼";
+    }
+
+    .match-indicator {
+        display: inline-block;
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .match-indicator.match {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .match-indicator.partial-match {
+        background-color: #fff3cd; /* Light yellow for partial */
+        color: #856404;
+    }
+
+    .no-matches {
+        text-align: center;
+        padding: 40px;
+        color: #7f8c8d;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        margin: 20px 0;
+        display: none; /* Hidden initially */
+    }
+
+    .table-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+        gap: 15px;
+        display: none; /* Hidden initially */
+    }
+
+    .search-wrapper {
+        display: flex;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+        height: 38px;
+    }
+    
+    .search-input {
+        padding: 8px 12px;
+        border: none;
+        width: 300px;
+    }
+
+    .clear-search-btn {
+        background: #f5f5f5;
+        border: none;
+        border-left: 1px solid #ddd;
+        padding: 0 12px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: #666;
+        transition: all 0.2s;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        min-width: 60px;
+    }
+    
+    .clear-search-btn:hover {
+        background: #e0e0e0;
+        color: #333;
+    }
+
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255,255,255,0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        display: none; /* Hidden initially */
+    }
+    
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .result-summary {
+        background-color: #eef2f7;
+        border: 1px solid #d6e0ea;
+        border-radius: 5px;
+        padding: 15px;
+        margin-top: 20px;
+        margin-bottom: 15px;
+        display: none; /* Hidden initially */
+    }
+
+    .action-buttons {
+        margin-top: 20px;
+        text-align: right;
+        display: none; /* Hidden initially */
+    }
+
+    /* Placeholder for subsequent steps */
+    .substep-placeholder {
+        padding: 20px;
+        background-color: #f8f9fa;
+        border: 1px dashed #ced4da;
+        border-radius: 5px;
+        margin-top: 30px;
+        text-align: center;
+        color: #6c757d;
+    }
+</style>
+
 <div class="step-content">
-    <p>Match items to the master database.</p>
-    <div class="matching-table">
-        <!-- Matching interface would go here -->
-        <form method="POST" action="{{ url_for('common.process_step', step_id=4) }}">
-            <div class="form-group">
-                <label>Matching Method</label>
-                <select class="form-control" name="matching_method">
-                    <option value="exact">Exact Match</option>
-                    <option value="fuzzy">Fuzzy Match</option>
-                    <option value="manual">Manual Match</option>
-                </select>
+    <!-- Step 4.1: Match to Infor Contract Lines -->
+    <div id="step-4-1-content">
+        <h3>Step 4.1: Match to Infor Contract Lines</h3>
+        <p>Match uploaded items against the Infor Contract Lines database to identify potential existing items.</p>
+        
+        <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4">
+            <button id="start-infor-cl-matching-btn" class="btn btn-primary">
+                Start Matching to Infor Contract Lines
+            </button>
+        </div>
+
+        <!-- Results Summary -->
+        <div id="result-summary-4-1" class="result-summary">
+            Found <strong id="match-count-4-1">0</strong> potential matches in Infor Contract Lines.
+        </div>
+
+        <!-- Table Controls (Filter) -->
+        <div id="table-controls-4-1" class="table-controls">
+            <div class="search-wrapper">
+                <input type="text" id="item-search-4-1" class="search-input" placeholder="Filter results...">
+                <button type="button" id="clear-search-btn-4-1" class="clear-search-btn" title="Clear search">Clear</button>
             </div>
-            <button type="submit" class="btn btn-primary">Complete Matching</button>
-        </form>
+            <div id="visible-item-count-4-1"></div>
+        </div>
+        
+        <!-- Item Comparison Table -->
+        <div id="items-table-container-4-1" class="items-table-container">
+            <table id="items-table-4-1" class="items-table">
+                <thead>
+                    <tr>
+                        <!-- Define columns based on data from match_to_infor_contract_lines -->
+                        <th data-sort="Mfg_Part_Num">Upload MFN<span class="sort-indicator"></span></th>
+                        <th data-sort="mfg_part_num_infor">Infor MFN<span class="sort-indicator"></span></th>
+                        <th data-sort="same_mfg_part_num">MFN Match<span class="sort-indicator"></span></th>
+                        <th data-sort="UOM">Upload UOM<span class="sort-indicator"></span></th>
+                        <th data-sort="uom_infor">Infor UOM<span class="sort-indicator"></span></th>
+                        <th data-sort="Contract_Price">Upload Price<span class="sort-indicator"></span></th>
+                        <th data-sort="price_infor">Infor Price<span class="sort-indicator"></span></th>
+                        <th data-sort="Description" class="description-col">Upload Desc<span class="sort-indicator"></span></th>
+                        <th data-sort="description_infor" class="description-col">Infor Desc<span class="sort-indicator"></span></th>
+                        <th data-sort="contract_number_infor">Infor Contract #<span class="sort-indicator"></span></th>
+                        <th data-sort="item_number_infor">Infor Item #<span class="sort-indicator"></span></th>
+                        <th data-sort="manufacturer_name_infor">Infor Mfr Name<span class="sort-indicator"></span></th>
+                        <th data-sort="vendor_name_infor">Infor Vendor Name<span class="sort-indicator"></span></th>
+                        <th data-sort="File_Row">File Row<span class="sort-indicator"></span></th>
+                    </tr>
+                </thead>
+                <tbody id="items-tbody-4-1">
+                    <!-- Items will be populated here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- No Matches Message -->
+        <div id="no-matches-message-4-1" class="no-matches">
+            <h4>No matching items found in Infor Contract Lines</h4>
+            <p>Your uploaded items do not appear to have matches based on Manufacturer Part Number in the Infor Contract Lines database.</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div id="action-buttons-4-1" class="action-buttons">
+            <form id="complete-step-4-1-form" method="POST" action="{{ url_for('common.process_step', step_id=4) }}" style="display: inline;">
+                <input type="hidden" name="substep_completed" value="4.1">
+                <button type="submit" class="btn btn-success">Complete Step 4.1</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Placeholder for Step 4.2 -->
+    <div id="step-4-2-placeholder" class="substep-placeholder" style="display: none;">
+        Step 4.2: Match to Item Master will appear here after completing Step 4.1.
+    </div>
+
+    <!-- Placeholder for Step 4.3 -->
+    <div id="step-4-3-placeholder" class="substep-placeholder" style="display: none;">
+        Step 4.3: UOM/QOE Validation will appear here after completing Step 4.2.
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Elements for Step 4.1
+    const startInforCLMatchingBtn = document.getElementById('start-infor-cl-matching-btn');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const itemsTableContainer = document.getElementById('items-table-container-4-1');
+    const itemsTable = document.getElementById('items-table-4-1');
+    const itemsTbody = document.getElementById('items-tbody-4-1');
+    const itemSearchInput = document.getElementById('item-search-4-1');
+    const clearSearchBtn = document.getElementById('clear-search-btn-4-1');
+    const tableControls = document.getElementById('table-controls-4-1');
+    const resultSummary = document.getElementById('result-summary-4-1');
+    const matchCountSpan = document.getElementById('match-count-4-1');
+    const noMatchesMessage = document.getElementById('no-matches-message-4-1');
+    const actionButtons = document.getElementById('action-buttons-4-1');
+    const visibleItemCountSpan = document.getElementById('visible-item-count-4-1');
+
+    // Placeholders for subsequent steps
+    const step42Placeholder = document.getElementById('step-4-2-placeholder');
+    const step43Placeholder = document.getElementById('step-4-3-placeholder');
+
+    let currentItems = []; // To store all matched items from the backend
+    let sortField = null;
+    let sortDirection = 'asc';
+
+    // --- Event Listeners ---
+
+    startInforCLMatchingBtn.addEventListener('click', function() {
+        loadingOverlay.style.display = 'flex';
+        // Hide previous results if any
+        itemsTableContainer.style.display = 'none';
+        tableControls.style.display = 'none';
+        resultSummary.style.display = 'none';
+        noMatchesMessage.style.display = 'none';
+        actionButtons.style.display = 'none';
+
+        fetch('/item-matching/match-infor-contract-lines', { // Use the correct endpoint
+            method: 'POST'
+            // No body needed if it uses session data
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingOverlay.style.display = 'none';
+            if (data.success) {
+                // The backend returns a list of contracts, each with items.
+                // We need to flatten this into a single list of item matches.
+                currentItems = flattenContractItems(data.contracts);
+                matchCountSpan.textContent = currentItems.length;
+                resultSummary.style.display = 'block';
+
+                if (currentItems.length > 0) {
+                    // Reset sort state
+                    sortField = null;
+                    sortDirection = 'asc';
+                    document.querySelectorAll('#items-table-4-1 th').forEach(header => {
+                        header.classList.remove('sort-asc', 'sort-desc');
+                    });
+                    // Render table
+                    renderItemsTable(currentItems);
+                    itemsTableContainer.style.display = 'block';
+                    tableControls.style.display = 'flex'; // Show filter controls
+                    noMatchesMessage.style.display = 'none';
+                } else {
+                    itemsTableContainer.style.display = 'none';
+                    tableControls.style.display = 'none';
+                    noMatchesMessage.style.display = 'block';
+                }
+                actionButtons.style.display = 'block'; // Show complete button regardless of matches
+                // Show placeholder for next step
+                step42Placeholder.style.display = 'block';
+
+            } else {
+                showError("Error matching to Infor Contract Lines: " + data.message);
+            }
+        })
+        .catch(error => {
+            loadingOverlay.style.display = 'none';
+            showError("Error during fetch: " + error.toString());
+        });
+    });
+
+    // Table header click for sorting
+    document.querySelectorAll('#items-table-4-1 th[data-sort]').forEach(th => {
+        th.addEventListener('click', function() {
+            const field = this.dataset.sort;
+            
+            if (field === sortField) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'asc';
+            }
+            
+            // Update sort indicators
+            document.querySelectorAll('#items-table-4-1 th').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+            });
+            this.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // Re-render the table with new sort
+            renderItemsTable(currentItems);
+            // Re-apply filter after sorting
+            filterItemTable();
+        });
+    });
+
+    // Filter input handler
+    itemSearchInput.addEventListener('input', filterItemTable);
+
+    // Clear search button handler
+    clearSearchBtn.addEventListener('click', function() {
+        itemSearchInput.value = '';
+        filterItemTable();
+    });
+
+    // --- Helper Functions ---
+
+    // Flatten the contract structure into a list of items
+    function flattenContractItems(contracts) {
+        let allItems = [];
+        contracts.forEach(contract => {
+            allItems = allItems.concat(contract.items);
+        });
+        return allItems;
+    }
+
+    // Function to render the items table
+    function renderItemsTable(items) {
+        itemsTbody.innerHTML = ''; // Clear existing rows
+        
+        // Sort items if sort field is set
+        let itemsToRender = [...items]; // Create a copy to sort
+        if (sortField) {
+            itemsToRender.sort((a, b) => {
+                let valA = a[sortField];
+                let valB = b[sortField];
+
+                // Handle potential null/undefined values and different types
+                valA = valA === null || valA === undefined ? '' : valA;
+                valB = valB === null || valB === undefined ? '' : valB;
+
+                // Basic numeric comparison if possible
+                const numA = parseFloat(valA);
+                const numB = parseFloat(valB);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return sortDirection === 'asc' ? numA - numB : numB - numA;
+                }
+
+                // String comparison (case-insensitive)
+                valA = String(valA).toLowerCase();
+                valB = String(valB).toLowerCase();
+                
+                if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        // Add rows to table
+        itemsToRender.forEach(item => {
+            const row = document.createElement('tr');
+            
+            const isExactMatch = item.same_mfg_part_num === 1;
+            const matchClass = isExactMatch ? 'match' : 'partial-match';
+            const matchText = isExactMatch ? 'Exact' : 'Reduced';
+
+            // Format prices
+            const uploadPrice = item.Contract_Price !== null ? '$' + parseFloat(item.Contract_Price).toFixed(2) : 'N/A';
+            const inforPrice = item.price_infor !== null ? '$' + parseFloat(item.price_infor).toFixed(2) : 'N/A';
+
+            // Add title attribute for potentially long descriptions
+            const uploadDesc = item.Description || 'N/A';
+            const inforDesc = item.description_infor || 'N/A';
+
+            row.innerHTML = `
+                <td>${item.Mfg_Part_Num || 'N/A'}</td>
+                <td>${item.mfg_part_num_infor || 'N/A'}</td>
+                <td><span class="match-indicator ${matchClass}">${matchText}</span></td>
+                <td>${item.UOM || 'N/A'}</td>
+                <td>${item.uom_infor || 'N/A'}</td>
+                <td>${uploadPrice}</td>
+                <td>${inforPrice}</td>
+                <td class="description-col" title="${uploadDesc}">${uploadDesc}</td>
+                <td class="description-col" title="${inforDesc}">${inforDesc}</td>
+                <td>${item.contract_number_infor || 'N/A'}</td>
+                <td>${item.item_number_infor || ''}</td>
+                <td>${item.manufacturer_name_infor || 'N/A'}</td>
+                <td>${item.vendor_name_infor || 'N/A'}</td>
+                <td>${item.File_Row || 'N/A'}</td>
+            `;
+            itemsTbody.appendChild(row);
+        });
+        updateVisibleItemCount(); // Update count after rendering
+    }
+
+    // Function to filter the table based on search input
+    function filterItemTable() {
+        const searchTerm = itemSearchInput.value.toLowerCase();
+        const tableRows = itemsTbody.querySelectorAll('tr');
+        
+        tableRows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(searchTerm) ? '' : 'none';
+        });
+        updateVisibleItemCount(); // Update count after filtering
+    }
+
+    // Function to update the visible item count display
+    function updateVisibleItemCount() {
+        const totalRows = currentItems.length;
+        const hiddenRows = itemsTbody.querySelectorAll('tr[style*="display: none"]').length;
+        const visibleCount = totalRows - hiddenRows;
+        visibleItemCountSpan.textContent = `Showing ${visibleCount} of ${totalRows} items`;
+    }
+
+    // Function to show errors (replace with your actual error handling)
+    function showError(message) {
+        console.error(message);
+        alert(message); // Simple alert for now
+    }
+
+});
+</script>

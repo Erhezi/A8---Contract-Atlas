@@ -948,3 +948,25 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     }
     
     return sorted_df, results_summary
+
+
+def three_way_contract_line_matching(comparison_results, infor_cl_match_results):
+    """
+    Perform three-way contract line matching between CCX, TP, and Infor CL.
+    
+    Args:
+        comparison_results: Dict with high, medium, low confidence matches
+        infor_cl_match_results: DataFrame with Infor CL match results
+    
+    Returns:
+        DataFrame with three-way matched results
+    """
+    
+    # Extract non-false-positive items from all confidence levels
+    all_items = []
+    for confidence in ['high', 'medium', 'low']:
+        items = comparison_results.get(confidence, [])
+        true_duplicates = [item for item in items if not item.get('false_positive', False)]
+        all_items.extend(true_duplicates)
+    
+    return 0
