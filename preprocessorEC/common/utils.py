@@ -535,9 +535,9 @@ def calculate_ea_price_match_score(ccx_price, upload_price, ccx_qoe, upload_qoe)
         # Score based on percentage difference
         if price_diff_percent < 10:
             return (1.0, price_diff_percent_with_direction)
-        elif price_diff_percent < 25:
+        elif price_diff_percent < 20:
             return (0.95, price_diff_percent_with_direction)
-        elif price_diff_percent < 50:
+        elif price_diff_percent < 45:
             return (0.75, price_diff_percent_with_direction)
         else:
             return (0.0, price_diff_percent_with_direction)
@@ -687,13 +687,22 @@ def calculate_confidence_score(item, model=None):
         upload_ea_price = None
     
     # Weighted score calculation - this is already fine-tuned, don't touch my weights
-    weighted_score = min((
-        (mfn_score * 0.40) +  # MFN match (40%)
-        (uom_score * 0.10) +  # UOM match (10%)
-        (qoe_score * 0.05) +  # QOE match (5%)
-        (price_score * 0.15) + # EA price match (15%)
-        (desc_score * 0.30)   # Description similarity (30%)
-    ), 1)
+    if desc_score > 0.4:
+        weighted_score = min((
+            (mfn_score * 0.40) +  # MFN match (40%)
+            (uom_score * 0.10) +  # UOM match (10%)
+            (qoe_score * 0.05) +  # QOE match (5%)
+            (price_score * 0.15) + # EA price match (15%)
+            (desc_score * 0.30)   # Description similarity (30%)
+        ), 1)
+    else:
+        weighted_score = min((
+            (mfn_score * 0.20) +  # MFN match (20%)
+            (uom_score * 0.10) +  # UOM match (10%)
+            (qoe_score * 0.05) +  # QOE match (5%)
+            (price_score * 0.15) + # EA price match (15%)
+            (desc_score * 0.50)   # Description similarity (50%)
+        ), 1)
     # print(item['mfg_part_num_ccx'], item['Mfg_Part_Num'], mfn_score, mfn_complexity, uom_score, qoe_score, price_score, price_diff_pct, desc_score, weighted_score)  # Debug log
     
     # Add scores to result
@@ -950,23 +959,49 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     return sorted_df, results_summary
 
 
-def three_way_contract_line_matching(comparison_results, infor_cl_match_results):
+def three_way_contract_line_matching(stacked_data, infor_cl_match_results):
     """
     Perform three-way contract line matching between CCX, TP, and Infor CL.
     
     Args:
-        comparison_results: Dict with high, medium, low confidence matches
-        infor_cl_match_results: DataFrame with Infor CL match results
+        stacked_data: the stacked data from previous step
+        infor_cl_match_results: List of dictionaries containing Infor CL match results
     
     Returns:
         DataFrame with three-way matched results
     """
     
-    # Extract non-false-positive items from all confidence levels
-    all_items = []
-    for confidence in ['high', 'medium', 'low']:
-        items = comparison_results.get(confidence, [])
-        true_duplicates = [item for item in items if not item.get('false_positive', False)]
-        all_items.extend(true_duplicates)
+    # get the stacked data and extract CCX portion
+    stacked_df = pd.DataFrame(stacked_data)
+    ccx_df = stacked_df[stacked_df['Dataset'] == 'CCX']
+    print(ccx_df.head())  # Debug log
+    # get the infor_cl_match_results and make the data looks similar to stacked_data
+    flatten_infor_cl_match_results = []
+    for group in infor_cl_match_results:
+        infor_contract_number = group.get('Contract Number', '')
+        infor_manufacturer_name = group.get('Manufacturer Name', '')
+        items = group.get('items', [])
+        for item in items:
+            infor_row = {
+                'Source Contract Type': 'Not Applicable',
+                'Contract Number': infor_contract_number,
+                'Reduced Mfg Part Num': item.get('reduced_mfg_part_num_infor', ''),
+                'Mfg Part Num': item.get('mfg_part_num_infor', ''),
+                'Vendor Part Num': item.get('Vendor Part Num', ''),
+                'Buyer Part Num': item.get('Buyer Part Num', ''),
+                'Description': item.get('Description', ''),
+                'UOM': item.get('UOM', ''),
+                'QOE': item.get('QOE', ''),
+                'Contract Price': item.get('Contract Price', ''),
+                'EA Price': item.get('EA Price', ''),
+                'Effective Date': item.get('Effective Date', ''),
+                'Expiration Date': item.get('Expiration Date', ''),
+                'Dataset': 'Infor CL',
+                'File Row': '',  # Placeholder for File Row
+            }
+            flatten_infor_cl_match_results.append(infor_row)
+
+
+
     
     return 0

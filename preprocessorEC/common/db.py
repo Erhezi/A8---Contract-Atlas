@@ -125,6 +125,7 @@ def find_duplicates_with_ccx(temp_table, conn):
             try_convert(MONEY, ccx.PRICE) AS price_ccx,
             try_convert(DATE, ccx.ITEM_PRICE_START_DATE) AS effective_date_ccx,
             try_convert(DATE, ccx.ITEM_PRICE_END_DATE) AS expiration_date_ccx,
+            ccx.VENDOR_PART_NUMBER AS vendor_part_num_ccx,
             ccx.VENDOR_ERP_NUMBER AS erp_vendor_id_ccx,
             ccx.VENDOR_NAME AS vendor_name_ccx,
             ccx.PART_DESCRIPTION AS description_ccx,
@@ -168,6 +169,7 @@ def find_duplicates_with_ccx(temp_table, conn):
                     PRICE, 
                     ITEM_PRICE_START_DATE, 
                     ITEM_PRICE_END_DATE,
+                    VENDOR_PART_NUMBER,
                     VENDOR_ERP_NUMBER, 
                     VENDOR_NAME, 
                     PART_DESCRIPTION
@@ -264,6 +266,7 @@ def match_to_infor_contract_lines(temp_table, conn):
                 try_convert(MONEY, infor.BaseCost) AS price_infor,
                 try_convert(DATE, infor.EffectiveDate) AS effective_date_infor,
                 try_convert(DATE, infor.ExpirationDate) AS expiration_date_infor,
+                infor.VendorItem AS vendor_part_num_infor,
                 infor.Vendor AS erp_vendor_id_infor,
                 infor.VendorName AS vendor_name_infor,
                 infor.ItemDescription AS description_infor,

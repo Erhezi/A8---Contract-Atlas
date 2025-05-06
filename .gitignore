@@ -10,6 +10,8 @@
 !preprocessorEC/file_processing/**/*.py
 !preprocessorEC/duplicate_detection/
 !preprocessorEC/duplicate_detection/**/*.py
+!preprocessorEC/item_matching/
+!preprocessorEC/item_matching/**/*.py
 !preprocessorEC/templates/
 !preprocessorEC/templates/**/*.html
 !preprocessorEC/templates/steps/
