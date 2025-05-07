@@ -679,7 +679,7 @@ def apply_resolution():
         custom_sort_fields = []
         custom_sort_directions = []
 
-        if deduplication_policy == 'custom':
+        if deduplication_policy == 'custom' or deduplication_policy == 'manual':
             # Extract priorities from form data
             priorities = {}
             preferences = {}
@@ -781,6 +781,171 @@ def get_deduplication_results():
         'success': True,
         'data': deduplication_results
     })
+
+@duplicate_bp.route('/update-keep-status', methods=['POST'])
+@login_required
+def update_keep_status():
+    """Update the Keep status for items based on checkbox selections"""
+    try:
+        user_id = current_user.id
+
+        # Get deduplication results which contain the policy
+        dedup_results = get_deduped_results(user_id)
+        if not dedup_results or 'stacked_data' not in dedup_results:
+            return jsonify({
+                'success': False,
+                'message': 'No deduplication results found.'
+            })
+        
+        # Get the policy from stored results rather than from request
+        policy = dedup_results.get('policy', {}).get('type', 'keep_latest')
+        print(f"Using policy from session: {policy}")
+        
+        # Get keep selections from request
+        keep_selections = request.json.get('keep_selections', [])
+        print(f"Received {len(keep_selections)} keep selections with policy: {policy}")
+
+
+        if not keep_selections:
+            return jsonify({
+                'success': False,
+                'message': 'No keep selections provided.'
+            })
+            
+        # Get the current deduplication results
+        dedup_results = get_deduped_results(user_id)
+        if not dedup_results or 'stacked_data' not in dedup_results:
+            return jsonify({
+                'success': False,
+                'message': 'No deduplication results found.'
+            })
+        
+        # Group items by File Row for better handling
+        stacked_data = dedup_results['stacked_data']
+        grouped_items = {}
+        for item in stacked_data:
+            file_row = int(item['File Row'])
+            if file_row not in grouped_items:
+                grouped_items[file_row] = []
+            grouped_items[file_row].append(item)
+        
+        updated_stacked_data = []
+        keep_count = 0
+        
+        if policy == 'manual':
+            # For manual mode, use the exact keep selections from checkboxes
+            
+            # Create a lookup map for quick access to selections
+            # Key: (file_row, pair_id, dataset)
+            keep_lookup = {}
+            for sel in keep_selections:
+                file_row = int(sel['file_row'])
+                pair_id = str(sel['pair_id'])
+                dataset = sel.get('dataset', '')  # Get dataset if available
+                keep = sel['keep']
+                
+                # Store using triple key for uniqueness
+                key = (file_row, pair_id, dataset)
+                keep_lookup[key] = keep
+            
+            # Process each group
+            for file_row, items in grouped_items.items():
+                # Count checked items in this group
+                checked_count = 0
+                
+                # First pass - update Keep status based on checkbox selections
+                for item in items:
+                    pair_id = str(item['Pair ID'])
+                    dataset = item.get('Dataset', '')
+                    key = (file_row, pair_id, dataset)
+                    
+                    # Only set Keep based on manual selection (don't default to Rank)
+                    if key in keep_lookup:
+                        item['Keep'] = keep_lookup[key]
+                        if keep_lookup[key]:
+                            checked_count += 1
+                            keep_count += 1
+                    else:
+                        # If not found in selections, default to False
+                        item['Keep'] = False
+                
+                # Second pass - enforce consistent Rank values
+                for item in items:
+                    # Set Rank based on Keep status
+                    item['Rank'] = 1 if item['Keep'] else 2
+                
+                # In manual mode, ensure exactly one item is kept per group
+                if checked_count == 0 and items:
+                    # If no items were selected, default to keeping first item
+                    items[0]['Keep'] = True
+                    items[0]['Rank'] = 1
+                    keep_count += 1
+                    print(f"No selection for file_row {file_row}, defaulting to keep first item")
+                elif checked_count > 1:
+                    # If multiple items were selected, keep only the first selected one
+                    found_first = False
+                    for item in items:
+                        if item['Keep'] and not found_first:
+                            found_first = True
+                        elif item['Keep'] and found_first:
+                            item['Keep'] = False
+                            item['Rank'] = 2
+                            keep_count -= 1
+                    print(f"Multiple selections for file_row {file_row}, keeping only first selected")
+                
+                updated_stacked_data.extend(items)
+        else:
+            # For non-manual modes, always derive Keep from Rank=1
+            for file_row, items in grouped_items.items():
+                for item in items:
+                    if item.get('Rank') == 1:
+                        item['Keep'] = True
+                        keep_count += 1
+                    else:
+                        item['Keep'] = False
+                
+                updated_stacked_data.extend(items)
+        
+        print(f"Updated {keep_count} items with Keep=True")
+            
+        # Update summary statistics
+        summary = dedup_results['summary'].copy()
+        kept_ccx = len([item for item in updated_stacked_data 
+                        if item.get('Keep') and item.get('Dataset') == 'CCX'])
+        kept_uploaded = len([item for item in updated_stacked_data 
+                           if item.get('Keep') and item.get('Dataset') == 'TP'])
+        
+        summary['kept_ccx'] = kept_ccx
+        summary['kept_uploaded'] = kept_uploaded
+        
+        # Store the updated results
+        store_deduplication_results(user_id, {
+            'stacked_data': updated_stacked_data,
+            'summary': summary,
+            'policy': dedup_results['policy']
+        })
+
+        # # Debug: print the updated summary
+        # dedup_results = get_deduped_results(user_id)
+        # if dedup_results and 'stacked_data' in dedup_results:
+        #     kept_count = len([item for item in dedup_results['stacked_data'] if item.get('Keep')])
+        #     print(f"After saving: {kept_count} items have Keep=True")
+
+        # print([item for item in dedup_results['stacked_data'] if item.get('File Row') == 1])
+        
+        return jsonify({
+            'success': True,
+            'message': 'Keep status updated successfully.',
+            'summary': summary
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating keep status: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Error updating keep status: {str(e)}'
+        })
+    
 
 @duplicate_bp.route('/complete-step3', methods=['POST'])
 @login_required

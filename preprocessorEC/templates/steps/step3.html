@@ -432,7 +432,7 @@
                 </div>
                 
                 <!-- Results Table -->
-                <h5>Duplication Resolution Details</h5>
+                <h5 class="mb-0">Duplication Resolution Details</h5>
                 <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
                     <table class="table table-sm table-bordered table-hover">
                         <thead class="thead-light sticky-top">
@@ -457,9 +457,14 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="save-selections-container" style="display: none; text-align: right;">
+                    <button type="button" class="btn btn-primary" id="save-selections-btn">
+                        Save Selections
+                    </button>
+                </div>
                 
                 <!-- Complete Step Button -->
-                <div class="action-buttons" style="margin-top: 20px; text-align: right;">
+                <div class="action-buttons" style="margin-top: 10px; text-align: right;">
                     <form method="POST" action="{{ url_for('common.process_step', step_id=3) }}">
                         <input type="hidden" name="resolution_strategy" id="completion_resolution_strategy">
                         <input type="hidden" name="step_completed" value="true">
@@ -482,6 +487,21 @@
         const resolutionForm = document.getElementById('resolution-form');
         const deduplicationResults = document.getElementById('deduplication-results');
         const completeStepBtn = document.getElementById('complete-step-btn');
+        const saveSelectionsBtn = document.getElementById('save-selections-btn');
+        if (saveSelectionsBtn) {
+            saveSelectionsBtn.addEventListener('click', saveKeepSelections);
+        }
+        const completeStepForm = document.querySelector('form[action*="process_step"]');
+        if (completeStepForm) {
+            completeStepForm.addEventListener('submit', function(e) {
+               e.preventDefault();
+               saveKeepSelections();
+
+               setTimeout(() => {
+                   this.submit();
+               }, 1000); // Delay to allow for save completion
+            });
+        }
 
         let draggedItem = null;
 
@@ -559,6 +579,12 @@
                 customPolicyOptions.style.display = 'none';
             }
             
+            // Show/hide Save Selections button based on policy
+            const saveSelectionsContainer = document.getElementById('save-selections-container');
+            if (saveSelectionsContainer) {
+                saveSelectionsContainer.style.display = resolutionStrategy.value === 'manual' ? 'block' : 'none';
+            }
+
             // Update policy description visibility
             const policyDescriptions = document.querySelectorAll('.policy-description');
             policyDescriptions.forEach(desc => desc.classList.remove('active-description'));
@@ -695,7 +721,12 @@
                     document.getElementById('stats-kept-ccx').textContent = data.summary.kept_ccx;
                     document.getElementById('stats-kept-uploaded').textContent = data.summary.kept_uploaded;
                     
-                    // Fetch and display results
+                    // Show/hide Save Selections button based on policy
+                    const saveSelectionsContainer = document.getElementById('save-selections-container');
+                    if (saveSelectionsContainer) {
+                        saveSelectionsContainer.style.display = resolutionStrategy.value === 'manual' ? 'block' : 'none';
+                    }
+                                // Fetch and display results
                     fetchDeduplicationResults();
                     
                     // Scroll to results
@@ -726,6 +757,9 @@
                         }
                     }
                     populateResultsTable(data.data);
+                    if (resolutionStrategy.value === 'manual') {
+                        updateManualModeStats();
+                    }
                 }
             })
             .catch(error => {
@@ -957,6 +991,79 @@
                     divider.innerHTML = '<td colspan="13"></td>';
                     tableBody.appendChild(divider);
                 }
+            });
+        }
+
+        function saveKeepSelections() {
+            showSpinner('Saving selections...');
+            
+            const currentPolicy = document.getElementById('resolution_strategy').value;
+            console.log('Sending policy:', currentPolicy);
+            
+            // Collect all checkbox states
+            const keepSelections = [];
+            document.querySelectorAll('.keep-checkbox').forEach(checkbox => {
+                const fileRow = checkbox.dataset.fileRow;
+                const pairId = checkbox.dataset.pairId;
+                
+                if (fileRow && pairId) {
+                    // Find the row to get the dataset value
+                    const row = checkbox.closest('tr');
+                    const datasetCell = row.querySelector('td:nth-child(4)'); // 4th column has Dataset
+                    const dataset = datasetCell ? datasetCell.textContent.trim() : '';
+                    
+                    // Determine keep status based on mode
+                    let keepStatus = checkbox.checked;
+                    
+                    if (currentPolicy !== 'manual') {
+                        // For non-manual modes, use rank to determine keep status
+                        const rankCell = row.querySelector('td:nth-child(2)'); // 2nd column has Rank
+                        keepStatus = (rankCell && rankCell.textContent.trim() === '1');
+                    }
+                    
+                    // Only push ONCE to the array
+                    keepSelections.push({
+                        file_row: parseInt(fileRow),
+                        pair_id: pairId,
+                        dataset: dataset,
+                        keep: keepStatus // Fixed property name
+                    });
+                }
+            });
+            
+            console.log('Keep selections to send:', keepSelections); // Debug log
+            console.log('Current policy:', currentPolicy); // Debug policy
+            
+            // Send to server
+            fetch('/duplicate-detection/update-keep-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    keep_selections: keepSelections,
+                    policy: currentPolicy // Include the current policy in the request
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideSpinner();
+                
+                if (data.success) {                    
+                    // Update summary stats with the new values
+                    document.getElementById('stats-kept-ccx').textContent = data.summary.kept_ccx;
+                    document.getElementById('stats-kept-uploaded').textContent = data.summary.kept_uploaded;
+                    // show modal
+                    alert('Selections saved successfully!');
+
+                } else {
+                    showAlert('danger', data.message);
+                }
+            })
+            .catch(error => {
+                hideSpinner();
+                showAlert('danger', 'Error saving selections: ' + error.message);
+                console.error('Error saving keep status:', error);
             });
         }
         

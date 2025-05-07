@@ -2,10 +2,10 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask import stream_with_context
 from flask_login import login_required, current_user
 # Import specific session helpers
-from ..common.session import get_temp_table_name, store_infor_cl_matches
+from ..common.session import get_temp_table_name, store_infor_cl_matches, get_deduped_results
 from ..common.db import match_to_infor_contract_lines, get_db_connection
 # Removed unused imports for this specific function
-# from ..common.utils import calculate_confidence_score, process_item_comparisons
+from ..common.utils import three_way_contract_line_matching
 # from ..common.model_loader import get_sentence_transformer_model
 # import threading
 # import pandas as pd
@@ -64,6 +64,13 @@ def match_infor_cl():
 
         # Store results in session for subsequent steps using specific helper
         store_infor_cl_matches(user_id, contract_list) # Use specific helper
+
+        # get the stacked_data from deduplication_results_admin (possible to get empty dataset)
+        stacked_data = get_deduped_results(user_id).get('stacked_data', None)
+        # if stacked_data is None, meaning after review we end up having no duplicates in step2, this is fine, we will simply proceed
+
+        # run three way matching
+        three_way_contract_line_matching(stacked_data, contract_list)
 
         current_app.logger.info(f"Successfully matched Infor CL for user {user_id}. Found {len(contract_list)} contracts/groups.")
         return jsonify({

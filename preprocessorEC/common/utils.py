@@ -878,16 +878,15 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     stacked_df = stacked_df.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number'], keep='first')
 
     
-    # temporarily write out the stacked_df for debugging, store the file to temp_files folder
-    temp_file_path = os.path.join(current_app.root_path, 'temp_files', 'stacked_df_debug.xlsx')
-    stacked_df.to_excel(temp_file_path, index=False)
-    print(stacked_df.columns) # Debug log
-    
+    # # temporarily write out the stacked_df for debugging, store the file to temp_files folder
+    # temp_file_path = os.path.join(current_app.root_path, 'temp_files', 'stacked_df_debug.xlsx')
+    # stacked_df.to_excel(temp_file_path, index=False)
+    # print(stacked_df.columns) # Debug log
     
     # Apply sorting based on policy
     sorted_df = stacked_df.copy()
     
-    if policy == 'custom' and custom_fields:
+    if (policy == 'custom' or policy == 'manual') and custom_fields:
         # Convert directions to boolean (True for ascending, False for descending)
         ascending = [direction.lower() != 'desc' for direction in sort_directions]
         try:
@@ -905,13 +904,6 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             ascending=[False, False, False]  # 'TP' comes after 'CCX' alphabetically, so we use False to put TP first
         )
     
-    elif policy == 'oldest':
-        # Sort by effective date (oldest first)
-        sorted_df = stacked_df.sort_values(
-            by=['Dataset', 'Expiration Date', 'Effective Date'],
-            ascending=[True, True, True]
-        )
-    
     elif policy == 'keep_lowest_price':
         # Convert to numeric and sort by price
         sorted_df['EA Price'] = pd.to_numeric(sorted_df['EA Price'], errors='coerce')
@@ -919,34 +911,17 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             by=['EA Price', 'Dataset'],
             ascending=[True, False]  # 'TP' comes after 'CCX' alphabetically, so we use False to put TP first
         )
-    
-    elif policy == 'highest_price':
-        # Convert to numeric and sort by price
-        sorted_df['EA Price'] = pd.to_numeric(sorted_df['EA Price'], errors='coerce')
-        sorted_df = stacked_df.sort_values(
-            by=['EA Price', 'Dataset'],
-            ascending=[False,  False]
-        )
-    
-    elif policy == 'prefer_ccx':
-        # CCX records first
-        sorted_df = stacked_df.sort_values(
-            by=['Dataset'],
-            ascending=[True]  # 'CCX' comes before 'TP' alphabetically
-        )
-    
-    elif policy == 'manual':
-        # Manual mode - default sort to display TP at first, then lowest price, then farther expiration
-        sorted_df = stacked_df.sort_values(
-            by=['Dataset', 'EA Price', 'Expiration Date', 'Effective Date'],
-            ascending=[False, True, False, False]  # 'TP' comes after 'CCX' alphabetically, so we use False to put TP first
-        )
 
         pass
     
     # Assign rank to each record within its File Row group
     sorted_df['Rank'] = sorted_df.groupby('File Row').cumcount() + 1
     
+    if 'Rank' in sorted_df.columns and not sorted_df.empty:
+        sorted_df['Keep'] = sorted_df['Rank'] == 1
+    else:
+        sorted_df['Keep'] = False
+
     # Generate summary statistics
     results_summary = {
         'total_items': len(sorted_df),
@@ -976,32 +951,56 @@ def three_way_contract_line_matching(stacked_data, infor_cl_match_results):
     ccx_df = stacked_df[stacked_df['Dataset'] == 'CCX']
     print(ccx_df.head())  # Debug log
     # get the infor_cl_match_results and make the data looks similar to stacked_data
-    flatten_infor_cl_match_results = []
+    infor_cl_data, upload_cl_data = [], []
+    p_cnt = 0
     for group in infor_cl_match_results:
-        infor_contract_number = group.get('Contract Number', '')
-        infor_manufacturer_name = group.get('Manufacturer Name', '')
         items = group.get('items', [])
         for item in items:
             infor_row = {
                 'Source Contract Type': 'Not Applicable',
-                'Contract Number': infor_contract_number,
+                'Contract Number': item.get('contract_number_infor', ''),
                 'Reduced Mfg Part Num': item.get('reduced_mfg_part_num_infor', ''),
                 'Mfg Part Num': item.get('mfg_part_num_infor', ''),
-                'Vendor Part Num': item.get('Vendor Part Num', ''),
-                'Buyer Part Num': item.get('Buyer Part Num', ''),
+                'Vendor Part Num': item.get('vendor_part_num_infor', ''),
+                'Buyer Part Num': item.get('item_number_infor', ''),
+                'Description': item.get('description_infor', ''),
+                'UOM': item.get('uom_infor', ''),
+                'QOE': item.get('qoe_infor', ''),
+                'Contract Price': item.get('price_infor', ''),
+                'EA Price': '', # need calculation, it will be the price_infor / qoe_infor, will deal with it later
+                'Effective Date': item.get('effective_date_infor', ''),
+                'Expiration Date': item.get('expiration_date_infor', ''),
+                'Dataset': 'Infor',
+                'File Row': item.get('File_Row', ''),
+                'Pair ID': p_cnt # Unique identifier for the pair
+            }
+            tp_row = {
+                'Source Contract Type': item.get('Source_Contract_Type', ''),
+                'Contract Number': item.get('Contract_Number', ''),
+                'Reduced Mfg Part Num': item.get('Reduced_Mfg_Part_Num', ''),
+                'Mfg Part Num': item.get('Mfg_Part_Num', ''),
+                'Vendor Part Num': item.get('Vendor_Part_Num', ''),
+                'Buyer Part Num': item.get('Buyer_Part_Num', ''),
                 'Description': item.get('Description', ''),
                 'UOM': item.get('UOM', ''),
                 'QOE': item.get('QOE', ''),
-                'Contract Price': item.get('Contract Price', ''),
-                'EA Price': item.get('EA Price', ''),
-                'Effective Date': item.get('Effective Date', ''),
-                'Expiration Date': item.get('Expiration Date', ''),
-                'Dataset': 'Infor CL',
-                'File Row': '',  # Placeholder for File Row
+                'Contract Price': item.get('Contract_Price', ''),
+                'EA Price': '', # need calculation, will deal with it later
+                'Effective Date': item.get('Effective_Date', ''),
+                'Expiration Date': item.get('Expiration_Date', ''),
+                'Dataset': 'TP',
+                'File Row': item.get('File_Row', ''),
+                'Pair ID': p_cnt # Unique identifier for the pair
             }
-            flatten_infor_cl_match_results.append(infor_row)
+            infor_cl_data.append(infor_row)
+            upload_cl_data.append(tp_row)
+            p_cnt += 1
+        
+    infor_df = pd.DataFrame(infor_cl_data) if infor_cl_data else pd.DataFrame()
+    upload_df = pd.DataFrame(upload_cl_data) if upload_cl_data else pd.DataFrame()
 
-
+    print(infor_df.head())  # Debug log
+    print(upload_df.head())  # Debug log
 
     
     return 0
