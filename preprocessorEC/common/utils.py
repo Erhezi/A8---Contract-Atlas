@@ -829,7 +829,7 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             'Expiration Date': item.get('expiration_date_ccx', ''),
             'Dataset': 'CCX',
             'File Row': item.get('File_Row', ''),  # Group identifier
-            'Pair ID': i # Unique identifier for the pair
+            'Pair ID': 'tc' + str(i) # Unique identifier for the pair
         }
         ccx_data.append(ccx_row)
     
@@ -850,7 +850,7 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             'Expiration Date': item.get('Expiration_Date', ''),
             'Dataset': 'TP',
             'File Row': item.get('File_Row', ''),  # Group identifier
-            'Pair ID': i # Unique identifier for the pair
+            'Pair ID': 'tc' + str(i) # Unique identifier for the pair
         }
         upload_data.append(upload_row)
     
@@ -934,22 +934,54 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     return sorted_df, results_summary
 
 
-def three_way_contract_line_matching(stacked_data, infor_cl_match_results):
+def three_way_contract_line_matching(comparison_results, infor_cl_match_results):
     """
     Perform three-way contract line matching between CCX, TP, and Infor CL.
     
     Args:
-        stacked_data: the stacked data from previous step
+        comparison_results: ccx and upload data with false positive label
         infor_cl_match_results: List of dictionaries containing Infor CL match results
     
     Returns:
         DataFrame with three-way matched results
     """
     
-    # get the stacked data and extract CCX portion
-    stacked_df = pd.DataFrame(stacked_data)
-    ccx_df = stacked_df[stacked_df['Dataset'] == 'CCX']
-    print(ccx_df.head())  # Debug log
+    # parse comparison results 
+    all_items = []
+    for confidence in ['high', 'medium', 'low']:
+        items = comparison_results.get(confidence, [])
+        for item in items:
+            all_items.append(item)
+    
+    ccx_data = []
+    if not all_items:
+        print("No duplicates found in CCX with current upload data")
+    else:
+        for i, item in enumerate(all_items):
+        # Create CCX dataframe
+            ccx_row = {
+                'Source Contract Type': item.get('source_contract_type_ccx', ''),
+                'Contract Number': item.get('contract_number_ccx', ''),
+                'Reduced Mfg Part Num': item.get('reduced_mfg_part_num_ccx', ''),
+                'Mfg Part Num': item.get('mfg_part_num_ccx', ''),
+                'Vendor Part Num': item.get('vendor_part_num_ccx', ''),
+                'Buyer Part Num': item.get('buyer_part_num_ccx', ''),
+                'Description': item.get('description_ccx', ''),
+                'UOM': item.get('uom_ccx', ''),
+                'QOE': item.get('qoe_ccx', ''),
+                'Contract Price': item.get('price_ccx', ''),
+                'EA Price': item.get('ccx_ea_price', ''),
+                'Effective Date': item.get('effective_date_ccx', ''),
+                'Expiration Date': item.get('expiration_date_ccx', ''),
+                'Dataset': 'CCX',
+                'File Row': item.get('File_Row', ''),  # Group identifier
+                'Pair ID': 'tc' + str(i), # Unique identifier for the pair
+                'False Positive': item.get('false_positive', False)
+            }
+            ccx_data.append(ccx_row)
+    
+    ccx_df = pd.DataFrame(ccx_data) if ccx_data else pd.DataFrame()
+        
     # get the infor_cl_match_results and make the data looks similar to stacked_data
     infor_cl_data, upload_cl_data = [], []
     p_cnt = 0
@@ -972,7 +1004,8 @@ def three_way_contract_line_matching(stacked_data, infor_cl_match_results):
                 'Expiration Date': item.get('expiration_date_infor', ''),
                 'Dataset': 'Infor',
                 'File Row': item.get('File_Row', ''),
-                'Pair ID': p_cnt # Unique identifier for the pair
+                'Pair ID': 'ti' + str(p_cnt), # Unique identifier for the pair
+                'Item Master ID': item.get('item_number_infor', ''),
             }
             tp_row = {
                 'Source Contract Type': item.get('Source_Contract_Type', ''),
@@ -990,7 +1023,7 @@ def three_way_contract_line_matching(stacked_data, infor_cl_match_results):
                 'Expiration Date': item.get('Expiration_Date', ''),
                 'Dataset': 'TP',
                 'File Row': item.get('File_Row', ''),
-                'Pair ID': p_cnt # Unique identifier for the pair
+                'Pair ID': 'ti' + str(p_cnt) # Unique identifier for the pair
             }
             infor_cl_data.append(infor_row)
             upload_cl_data.append(tp_row)
@@ -999,8 +1032,34 @@ def three_way_contract_line_matching(stacked_data, infor_cl_match_results):
     infor_df = pd.DataFrame(infor_cl_data) if infor_cl_data else pd.DataFrame()
     upload_df = pd.DataFrame(upload_cl_data) if upload_cl_data else pd.DataFrame()
 
-    print(infor_df.head())  # Debug log
-    print(upload_df.head())  # Debug log
 
+    if infor_df.empty:
+        # no infor matches, then we can simply return empty dataframe and skip to item master matching
+        return pd.DataFrame()
     
+    # now we have to senarios, one is we have CCX and Infor, one is we only have Infor
+    # we will first join CCX and Infor, then treat anything from Infor that not joinable to CCX as the same as if we only see infor match
+    for df in [ccx_df, infor_df, upload_df]:
+        # make sure the date columns are in the same format
+        df['Effective Date'] = pd.to_datetime(df['Effective Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+        df['Expiration Date'] = pd.to_datetime(df['Expiration Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+        # make sure the price columns are numeric
+        df['Contract Price'] = pd.to_numeric(df['Contract Price'], errors='coerce')
+        # make sure the QOE columns are integer
+        df['QOE'] = pd.to_numeric(df['QOE'], errors='coerce').astype('Int64')
+        df['EA Price'] = df['Contract Price'] / df['QOE']
+        # make sure the join key columns are in the same format
+        df['Mfg Part Num'] = df['Mfg Part Num'].astype(str).str.strip().str.upper()
+        df['Contract Number'] = df['Contract Number'].astype(str).str.strip().str.upper()
+        df['File Row'] = df['File Row'].astype(int)
+
+    if not ccx_df.empty:
+        CCX_infor_df = pd.merge(infor_df, 
+                                ccx_df,
+                                on = ['File Row', 'Contract Number', 'Mfg Part Num'],
+                                how = 'left',
+                                suffixes  =('_Infor', '_CCX'),
+                                indicator = True)
+        CCX_infor_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'CCX_infor_df.xlsx'), index=False)
+        
     return 0
