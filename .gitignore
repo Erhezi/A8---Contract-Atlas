@@ -18,6 +18,7 @@
 !preprocessorEC/templates/steps/*.html
 !run.py
 !.gitignore
+!requirements.txt
 
 # Explicit ignores even if they match the patterns above
 __pycache__/
