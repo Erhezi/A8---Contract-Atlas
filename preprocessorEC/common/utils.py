@@ -514,7 +514,7 @@ def calculate_mfn_match_score(ccx_mfn, upload_mfn):
         return adjusted_score, complexity_score
 
 def calculate_ea_price_match_score(ccx_price, upload_price, ccx_qoe, upload_qoe):
-    """Calculate EA price match score (10% weight)"""
+    """Calculate EA price match score"""
     try:
         # Calculate EA price (Contract Price / QOE)
         ccx_ea_price = float(ccx_price) / float(ccx_qoe)
@@ -657,34 +657,56 @@ def calculate_description_similarity(ccx_desc, upload_desc, model=None):
         
         return intersection / union
 
-def calculate_confidence_score(item, model=None):
-    """Calculate overall confidence score based on weighted factors"""
+def calculate_confidence_score(item, model=None, apply_to_step=2):
+    """Calculate overall confidence score based on weighted factors
+    apply_to_step: 2 apply to step 2, 4 apply to step 4"""
     # Make a copy of the item to avoid modifying the original
+    apply_to_dict = {
+                    2: {
+                            'mpn_a': 'mfg_part_num_ccx', 'mpn_upload': 'Mfg_Part_Num',
+                            'uom_a': 'uom_ccx', 'uom_upload': 'UOM',
+                            'qoe_a': 'qoe_ccx', 'qoe_upload': 'QOE',
+                            'price_a': 'price_ccx', 'price_upload': 'Contract_Price',
+                            'desc_a': 'description_ccx', 'desc_upload': 'Description',
+                            'ea_price_a': 'ccx_ea_price', 'ea_price_upload': 'upload_ea_price'
+                        },
+                    4: {
+                            'mpn_a': 'mfg_part_num_infor', 'mpn_upload': 'Mfg_Part_Num',
+                            'uom_a': 'uom_infor', 'uom_upload': 'UOM',
+                            'qoe_a': 'qoe_infor', 'qoe_upload': 'QOE',
+                            'price_a': 'price_infor', 'price_upload': 'Contract_Price',
+                            'desc_a': 'description_infor', 'desc_upload': 'Description',
+                            'ea_price_a': 'infor_ea_price', 'ea_price_upload': 'upload_ea_price'
+                        }
+                    }
+
     result = item.copy()
     
     # Individual factor scores
-    mfn_score, mfn_complexity = calculate_mfn_match_score(item['mfg_part_num_ccx'], item['Mfg_Part_Num'])
+    mfn_score, mfn_complexity = calculate_mfn_match_score(item[apply_to_dict[apply_to_step]['mpn_a']], 
+                                                          item[apply_to_dict[apply_to_step]['mpn_upload']])
     
     # Exact match checks
-    uom_score = 1.0 if item['uom_ccx'] == item['UOM'] else 0.0
-    qoe_score = 1.0 if str(item['qoe_ccx']).strip() == str(item['QOE']).strip() else 0.0
+    uom_score = 1.0 if item[apply_to_dict[apply_to_step]['uom_a']] == item[apply_to_dict[apply_to_step]['uom_upload']] else 0.0
+    qoe_score = 1.0 if str(item[apply_to_dict[apply_to_step]['qoe_a']]).strip() == str(item[apply_to_dict[apply_to_step]['qoe_upload']]).strip() else 0.0
     
     # Price comparison
     price_score, price_diff_pct = calculate_ea_price_match_score(
-        item['price_ccx'], item['Contract_Price'],
-        item['qoe_ccx'], item['QOE']
-    )
+        item[apply_to_dict[apply_to_step]['price_a']], item[apply_to_dict[apply_to_step]['price_upload']],
+        item[apply_to_dict[apply_to_step]['qoe_a']], item[apply_to_dict[apply_to_step]['qoe_upload']])
     
     # Description similarity
-    desc_score = calculate_description_similarity(item['description_ccx'], item['Description'], model=model)
+    desc_score = calculate_description_similarity(item[apply_to_dict[apply_to_step]['desc_a']], 
+                                                  item[apply_to_dict[apply_to_step]['desc_upload']], model=model)
     
     # Calculate EA prices for display
     try:
-        ccx_ea_price = float(item['price_ccx']) / float(item['qoe_ccx'])
-        upload_ea_price = float(item['Contract_Price']) / float(item['QOE'])
+        ccx_ea_price = float(item[apply_to_dict[apply_to_step]['price_a']]) / float(item[apply_to_dict[apply_to_step]['qoe_a']])
+        upload_ea_price = float(item[apply_to_dict[apply_to_step]['price_upload']]) / float(item[apply_to_dict[apply_to_step]['qoe_upload']])
+        print(f"CCX EA Price: {ccx_ea_price}, Upload EA Price: {upload_ea_price}")  # Debug log
     except (ValueError, TypeError, ZeroDivisionError):
-        ccx_ea_price = None
-        upload_ea_price = None
+        ccx_ea_price = float('nan')
+        upload_ea_price = float('nan')
     
     # Weighted score calculation - this is already fine-tuned, don't touch my weights
     if desc_score > 0.4:
@@ -714,8 +736,8 @@ def calculate_confidence_score(item, model=None):
     result['price_diff_pct'] = price_diff_pct
     result['desc_score'] = desc_score
     result['weighted_score'] = weighted_score
-    result['ccx_ea_price'] = ccx_ea_price
-    result['upload_ea_price'] = upload_ea_price
+    result[apply_to_dict[apply_to_step]['ea_price_a']] = ccx_ea_price
+    result[apply_to_dict[apply_to_step]['ea_price_upload']] = upload_ea_price
     
     # Assign confidence level
     if weighted_score >= 0.8:
@@ -730,7 +752,7 @@ def calculate_confidence_score(item, model=None):
     
     return result
 
-def process_item_comparisons(contract_items, skip_scoring=False, model=None):
+def process_item_comparisons(contract_items, skip_scoring=False, model=None, apply_to_step=2):
     """Process all items and calculate confidence scores"""
     # If model is provided, use it - no need to load again
     # Otherwise, check if we should load it (if not skip_scoring)
@@ -752,9 +774,9 @@ def process_item_comparisons(contract_items, skip_scoring=False, model=None):
     else:
         # Calculate confidence scores for each item
         for item in contract_items:
-            scored_item = calculate_confidence_score(item, model=model)
+            scored_item = calculate_confidence_score(item, model=model, apply_to_step=apply_to_step)
             scored_items.append(scored_item)
-            print(f"Scored Item: {scored_item}")  # Debug log
+            # print(f"Scored Item: {scored_item}")  # Debug log
     
     # Group by confidence level
     result = {
@@ -784,6 +806,7 @@ def process_item_comparisons(contract_items, skip_scoring=False, model=None):
     }
     
     return result
+
 
 def apply_deduplication_policy(comparison_results, policy, custom_fields=None, sort_directions=None):
     """
@@ -871,13 +894,16 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     stacked_df['EA Price'] = pd.to_numeric(stacked_df['EA Price'], errors='coerce')
     # make QOE in stacked_df as integer
     stacked_df['QOE'] = pd.to_numeric(stacked_df['QOE'], errors='coerce').astype('Int64')
+    # make sure the join key columns are in the same format
+    stacked_df['Mfg Part Num'] = stacked_df['Mfg Part Num'].astype(str).str.strip().str.upper()
+    stacked_df['Contract Number'] = stacked_df['Contract Number'].astype(str).str.strip().str.upper()
+    stacked_df['File Row'] = stacked_df['File Row'].astype(int) 
 
     # dedup the stacked_df so the TP copy only appear once
     # this requires that if the input file (upload TP file) contains multiple contract and if the contract numbers
     # were unknown, they will need assign a unique place holder number to each of the contracts
     stacked_df = stacked_df.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number'], keep='first')
-
-    
+   
     # # temporarily write out the stacked_df for debugging, store the file to temp_files folder
     # temp_file_path = os.path.join(current_app.root_path, 'temp_files', 'stacked_df_debug.xlsx')
     # stacked_df.to_excel(temp_file_path, index=False)
@@ -943,7 +969,9 @@ def three_way_contract_line_matching(comparison_results, infor_cl_match_results)
         infor_cl_match_results: List of dictionaries containing Infor CL match results
     
     Returns:
-        DataFrame with three-way matched results
+        DataFrame with three-way matched results (one with label result directly, one for showing (dup removed based on contract))
+        False Positive: True/False or None
+        Need Review: Yes/No
     """
     
     # parse comparison results 
@@ -983,6 +1011,88 @@ def three_way_contract_line_matching(comparison_results, infor_cl_match_results)
     ccx_df = pd.DataFrame(ccx_data) if ccx_data else pd.DataFrame()
         
     # get the infor_cl_match_results and make the data looks similar to stacked_data
+    all_items = []
+    for group in infor_cl_match_results:
+        items = group.get('items', [])
+        for item in items:
+            all_items.append(item)
+        
+    all_items_df = pd.DataFrame(all_items) if all_items else pd.DataFrame()
+
+    if all_items_df.empty:
+        # no infor matches, then we can simply return empty dataframe and skip to item master matching
+        return pd.DataFrame()
+    
+    # make sure the join key columns are in the same format
+    all_items_df['mfg_part_num_infor'] = all_items_df['mfg_part_num_infor'].astype(str).str.strip().str.upper()
+    all_items_df['contract_number_infor'] = all_items_df['contract_number_infor'].astype(str).str.strip().str.upper()
+    all_items_df['File_Row'] = all_items_df['File_Row'].astype(int)
+
+    ccx_df['Mfg Part Num'] = ccx_df['Mfg Part Num'].astype(str).str.strip().str.upper()
+    ccx_df['Contract Number'] = ccx_df['Contract Number'].astype(str).str.strip().str.upper()
+    ccx_df['File Row'] = ccx_df['File Row'].astype(int)
+
+
+    if not ccx_df.empty:
+        merged_df = pd.merge(
+                            all_items_df, 
+                            ccx_df[['File Row', 'Mfg Part Num', 'Contract Number', 'False Positive']],
+                            left_on = ['File_Row', 'contract_number_infor', 'mfg_part_num_infor'],
+                            right_on = ['File Row', 'Contract Number', 'Mfg Part Num'],
+                            how = 'left',
+                            indicator = True)
+        merged_df.loc[:, 'Need Review'] = merged_df['_merge'].apply(lambda x: 'No' if x == 'both' else 'Yes')
+        merged_df = merged_df.drop(columns=['_merge', 'File Row', 'Contract Number', 'Mfg Part Num'])
+        # Infor data -- same contract can replicate under different vendor or being loaded twice under different Infor contract object ID
+        # we may want to drop them in the future, but for now I will simply keep them if they are there, and return two dataframes
+        merged_to_show_df = merged_df.drop_duplicates(subset = ['File_Row', 'mfg_part_num_infor', 'contract_number_infor'], keep = 'first')
+        # merged_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'merged_df_debug.xlsx'), index=False)
+        return merged_df, merged_to_show_df
+    
+    all_items_df['False Positive'] = None
+    all_items_df['Need Review'] = 'Yes'
+
+    merged_df = all_items_df.copy()
+    merged_to_show_df = merged_df.drop_duplicates(subset = ['File_Row', 'mfg_part_num_infor', 'contract_number_infor'], keep = 'first')
+
+    return merged_df, merged_to_show_df
+
+def three_way_item_master_matching_compute_similarity(merged_to_show_df):
+    """
+    Compute similarity scores for three-way item master matching.
+    
+    Args:
+        merged_to_show_df: DataFrame containing merged data from CCX and Infor CL
+    
+    Retruns:
+        DataFrame with similarity scores and flags for review
+    """
+    
+    # Check if merged_df is empty
+    if merged_to_show_df.empty:
+        return pd.DataFrame()
+    
+    # carve out the portion need to run through confidence score calculation
+    to_calc_df = merged_to_show_df[merged_to_show_df['Need Review'] == 'Yes'].copy()
+    item_list = to_calc_df.to_dict(orient='records')
+    
+    result = process_item_comparisons(item_list, skip_scoring=False, model=None, apply_to_step=4)
+    print(result)
+    
+    return result
+
+
+def make_infor_upload_stack(infor_cl_match_results):
+    """
+    Create a stacked DataFrame from Infor CL match results.
+    
+    Args:
+        infor_cl_match_results: List of dictionaries containing Infor CL match results
+    
+    Returns:
+        DataFrame with stacked Infor CL data
+    """
+    
     infor_cl_data, upload_cl_data = [], []
     p_cnt = 0
     for group in infor_cl_match_results:
@@ -1005,7 +1115,8 @@ def three_way_contract_line_matching(comparison_results, infor_cl_match_results)
                 'Dataset': 'Infor',
                 'File Row': item.get('File_Row', ''),
                 'Pair ID': 'ti' + str(p_cnt), # Unique identifier for the pair
-                'Item Master ID': item.get('item_number_infor', ''),
+                'ItemNumber': item.get('item_number_infor', ''),
+                'Contract ERP ID': item.get('erp_contract_id_infor', '') # same contract number sometimes can be put under two different vendor, thus two contract objects
             }
             tp_row = {
                 'Source Contract Type': item.get('Source_Contract_Type', ''),
@@ -1032,34 +1143,22 @@ def three_way_contract_line_matching(comparison_results, infor_cl_match_results)
     infor_df = pd.DataFrame(infor_cl_data) if infor_cl_data else pd.DataFrame()
     upload_df = pd.DataFrame(upload_cl_data) if upload_cl_data else pd.DataFrame()
 
-
-    if infor_df.empty:
-        # no infor matches, then we can simply return empty dataframe and skip to item master matching
-        return pd.DataFrame()
-    
-    # now we have to senarios, one is we have CCX and Infor, one is we only have Infor
-    # we will first join CCX and Infor, then treat anything from Infor that not joinable to CCX as the same as if we only see infor match
-    for df in [ccx_df, infor_df, upload_df]:
-        # make sure the date columns are in the same format
-        df['Effective Date'] = pd.to_datetime(df['Effective Date'], errors='coerce').dt.strftime('%Y-%m-%d')
-        df['Expiration Date'] = pd.to_datetime(df['Expiration Date'], errors='coerce').dt.strftime('%Y-%m-%d')
-        # make sure the price columns are numeric
-        df['Contract Price'] = pd.to_numeric(df['Contract Price'], errors='coerce')
-        # make sure the QOE columns are integer
-        df['QOE'] = pd.to_numeric(df['QOE'], errors='coerce').astype('Int64')
-        df['EA Price'] = df['Contract Price'] / df['QOE']
+    stacked_df = pd.concat([infor_df, upload_df], ignore_index=True)
+    if not stacked_df.empty:
+        # make sure the staked_df column show date as YYYY-MM-DD
+        stacked_df['Effective Date'] = pd.to_datetime(stacked_df['Effective Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+        stacked_df['Expiration Date'] = pd.to_datetime(stacked_df['Expiration Date'], errors='coerce').dt.strftime('%Y-%m-%d')
+        # make Contract Price and EA Price in stacked_df show as numeric
+        stacked_df['Contract Price'] = pd.to_numeric(stacked_df['Contract Price'], errors='coerce')
+        # make QOE in stacked_df as integer
+        stacked_df['QOE'] = pd.to_numeric(stacked_df['QOE'], errors='coerce').astype('Int64')
+        # calculate EA Price
+        stacked_df['EA Price'] = stacked_df['Contract Price'] / stacked_df['QOE']
         # make sure the join key columns are in the same format
-        df['Mfg Part Num'] = df['Mfg Part Num'].astype(str).str.strip().str.upper()
-        df['Contract Number'] = df['Contract Number'].astype(str).str.strip().str.upper()
-        df['File Row'] = df['File Row'].astype(int)
+        stacked_df['Mfg Part Num'] = stacked_df['Mfg Part Num'].astype(str).str.strip().str.upper()
+        stacked_df['Contract Number'] = stacked_df['Contract Number'].astype(str).str.strip().str.upper()
+        stacked_df['File Row'] = stacked_df['File Row'].astype(int)
 
-    if not ccx_df.empty:
-        CCX_infor_df = pd.merge(infor_df, 
-                                ccx_df,
-                                on = ['File Row', 'Contract Number', 'Mfg Part Num'],
-                                how = 'left',
-                                suffixes  =('_Infor', '_CCX'),
-                                indicator = True)
-        CCX_infor_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'CCX_infor_df.xlsx'), index=False)
-        
-    return 0
+        stacked_df = stacked_df.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number'], keep='first')
+
+    return stacked_df

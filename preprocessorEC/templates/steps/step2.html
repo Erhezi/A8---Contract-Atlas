@@ -1442,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         eventSource.onerror = function() {
             eventSource.close();
-            progressMessage.textContent = 'Error processing items x. Please try again.';
+            progressMessage.textContent = 'Error processing items calling process-item-comparison-with-progress. Please try again.';
             setTimeout(() => {
                 loadingOverlayProgress.style.display = 'none';
             }, 3000);

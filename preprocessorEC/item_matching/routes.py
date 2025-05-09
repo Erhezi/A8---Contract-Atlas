@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from ..common.session import get_temp_table_name, store_infor_cl_matches, get_comparison_results
 from ..common.db import match_to_infor_contract_lines, get_db_connection
 # Removed unused imports for this specific function
-from ..common.utils import three_way_contract_line_matching
+from ..common.utils import three_way_contract_line_matching, three_way_item_master_matching_compute_similarity
 # from ..common.model_loader import get_sentence_transformer_model
 # import threading
 # import pandas as pd
@@ -71,7 +71,8 @@ def match_infor_cl():
 
         # run three way matching
         print("calling three way matching ...")
-        three_way_contract_line_matching(comparison_results, contract_list)
+        merged_df, merged_to_show_df = three_way_contract_line_matching(comparison_results, contract_list)
+        three_way_item_master_matching_compute_similarity(merged_to_show_df)
 
         current_app.logger.info(f"Successfully matched Infor CL for user {user_id}. Found {len(contract_list)} contracts/groups.")
         return jsonify({
