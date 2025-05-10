@@ -703,10 +703,9 @@ def calculate_confidence_score(item, model=None, apply_to_step=2):
     try:
         ccx_ea_price = float(item[apply_to_dict[apply_to_step]['price_a']]) / float(item[apply_to_dict[apply_to_step]['qoe_a']])
         upload_ea_price = float(item[apply_to_dict[apply_to_step]['price_upload']]) / float(item[apply_to_dict[apply_to_step]['qoe_upload']])
-        print(f"CCX EA Price: {ccx_ea_price}, Upload EA Price: {upload_ea_price}")  # Debug log
     except (ValueError, TypeError, ZeroDivisionError):
-        ccx_ea_price = float('nan')
-        upload_ea_price = float('nan')
+        ccx_ea_price = None
+        upload_ea_price = None
     
     # Weighted score calculation - this is already fine-tuned, don't touch my weights
     if desc_score > 0.4:
@@ -1045,39 +1044,51 @@ def three_way_contract_line_matching(comparison_results, infor_cl_match_results)
         merged_df = merged_df.drop(columns=['_merge', 'File Row', 'Contract Number', 'Mfg Part Num'])
         # Infor data -- same contract can replicate under different vendor or being loaded twice under different Infor contract object ID
         # we may want to drop them in the future, but for now I will simply keep them if they are there, and return two dataframes
-        merged_to_show_df = merged_df.drop_duplicates(subset = ['File_Row', 'mfg_part_num_infor', 'contract_number_infor'], keep = 'first')
         # merged_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'merged_df_debug.xlsx'), index=False)
-        return merged_df, merged_to_show_df
+        return merged_df
     
-    all_items_df['False Positive'] = None
+    all_items_df['False Positive'] = False
     all_items_df['Need Review'] = 'Yes'
 
     merged_df = all_items_df.copy()
-    merged_to_show_df = merged_df.drop_duplicates(subset = ['File_Row', 'mfg_part_num_infor', 'contract_number_infor'], keep = 'first')
 
-    return merged_df, merged_to_show_df
+    return merged_df
 
-def three_way_item_master_matching_compute_similarity(merged_to_show_df):
+
+def three_way_item_master_matching_compute_similarity(merged_df):
     """
     Compute similarity scores for three-way item master matching.
     
     Args:
-        merged_to_show_df: DataFrame containing merged data from CCX and Infor CL
+        merged_df: DataFrame containing merged data from CCX and Infor CL
     
     Retruns:
         DataFrame with similarity scores and flags for review
     """
-    
-    # Check if merged_df is empty
-    if merged_to_show_df.empty:
+    if merged_df.empty:
         return pd.DataFrame()
+    # just focusing on contract - item, ignore the the fact that on Infor same contract can replicates
     
+    merged_to_show_df = merged_df.drop_duplicates(subset = ['File_Row', 'mfg_part_num_infor', 'contract_number_infor'], keep = 'first')
+    need_review_df = merged_to_show_df[merged_to_show_df['Need Review'] == 'Yes'].copy()
+    no_need_review_df = merged_to_show_df[merged_to_show_df['Need Review'] == 'No'].copy()
+
+    review_count, no_need_review_count = len(need_review_df), len(no_need_review_df)
+    im_count = len(set(no_need_review_df[no_need_review_df['item_number_infor'] != '']['File_Row']))
+    im_catched = no_need_review_df[no_need_review_df['item_number_infor'] != ''][['File_Row', 'item_number_infor']].drop_duplicates()
+    im_catched = im_catched.rename(columns={'item_number_infor': 'ItemNumber'})
+    im_catched = im_catched.drop_duplicates(subset = ['File_Row', 'ItemNumber'], keep = 'first')
+
     # carve out the portion need to run through confidence score calculation
     to_calc_df = merged_to_show_df[merged_to_show_df['Need Review'] == 'Yes'].copy()
+    to_calc_df['False Positive'] = False
     item_list = to_calc_df.to_dict(orient='records')
     
     result = process_item_comparisons(item_list, skip_scoring=False, model=None, apply_to_step=4)
-    print(result)
+    result['summary']['review_count'] = review_count
+    result['summary']['no_need_review_count'] = no_need_review_count
+    result['summary']['item_master_count'] = im_count
+    result['im_catched'] = im_catched.to_dict(orient='records') if not im_catched.empty else []
     
     return result
 

@@ -195,6 +195,192 @@
         text-align: center;
         color: #6c757d;
     }
+
+    /* Confidence Cards Styles - from step2.html */
+    .confidence-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .confidence-card {
+        flex: 1;
+        min-width: 240px;
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .confidence-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .confidence-card.selected {
+        border: 2px solid #3498db;
+    }
+    
+    .confidence-card.high {
+        border-top: 5px solid #2ecc71;
+    }
+    
+    .confidence-card.medium {
+        border-top: 5px solid #f39c12;
+    }
+    
+    .confidence-card.low {
+        border-top: 5px solid #e74c3c;
+    }
+    
+    .confidence-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .confidence-card.high .confidence-title {
+        color: #2ecc71;
+    }
+    
+    .confidence-card.medium .confidence-title {
+        color: #f39c12;
+    }
+    
+    .confidence-card.low .confidence-title {
+        color: #e74c3c;
+    }
+    
+    .count-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .count-label {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+    }
+    
+    .false-positive-count {
+        color: #e74c3c;
+        font-size: 0.9rem;
+        margin-top: 10px;
+    }
+
+    /* Batch controls */
+    .controls-container {
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .filter-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .batch-controls {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .score-cell {
+        text-align: center;
+        font-weight: bold;
+    }
+    
+    .high-score {
+        color: #2ecc71;
+    }
+    
+    .medium-score {
+        color: #f39c12;
+    }
+    
+    .low-score {
+        color: #e74c3c;
+    }
+    
+    .search-type-select {
+        padding: 8px;
+        border: none;
+        border-right: 1px solid #ddd;
+        background-color: #f5f5f5;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+    
+    /* Item comparison container */
+    .item-comparison-container {
+        margin-top: 20px;
+        display: none; /* Hidden initially, shown after processing */
+    }
+
+    /* Enhanced Summary Cards Styling - Matching Step 3 */
+    .summary-stats-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr); /* Changed to 3 columns to fit all cards in one row */
+        gap: 20px; /* Increase gap between cards */
+        width: 100%;
+        margin-right: 0;
+        margin-left: 0;
+        margin-top: 0;
+        margin-bottom: 10px;
+    }
+
+    .summary-stats-column {
+        padding: 0;
+    }
+
+    .summary-stat-card {
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 0;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        border-left: 5px solid #3498db;
+        height: 100%;
+    }
+
+    .summary-stat-card .card-body {
+        padding: 10px 15px 10px;
+    }
+
+    .summary-stat-card .card-title {
+        display: flex;
+        align-items: center;
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        margin-bottom: 8px;
+        margin-top: 2px;
+        font-weight: normal;
+    }
+
+    .summary-stat-card .stat-value {
+        font-size: 1.7rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-top: 0px;
+    }
+
+    .need-review-card {
+        border-left-color: #9b59b6; /* Purple */
+    }
+
+    .no-review-card {
+        border-left-color: #2ecc71; /* Green */
+    }
+
+    .item-master-card {
+        border-left-color: #3498db; /* Blue */
+    }
 </style>
 
 <div class="step-content">
@@ -208,53 +394,123 @@
                 Start Matching to Infor Contract Lines
             </button>
         </div>
-
-        <!-- Results Summary -->
-        <div id="result-summary-4-1" class="result-summary">
-            Found <strong id="match-count-4-1">0</strong> potential matches in Infor Contract Lines.
-        </div>
-
-        <!-- Table Controls (Filter) -->
-        <div id="table-controls-4-1" class="table-controls">
-            <div class="search-wrapper">
-                <input type="text" id="item-search-4-1" class="search-input" placeholder="Filter results...">
-                <button type="button" id="clear-search-btn-4-1" class="clear-search-btn" title="Clear search">Clear</button>
+        
+        <!-- Review Summary Card - Styled to match step3.html -->
+        <div id="review-summary-card-4-1" class="result-summary" style="display: none;">
+            <h4 style="margin-top: 0; margin-bottom: 15px;">Upload - Infor Contract Matching Review Status Summary</h4>
+            <div class="summary-stats-row">
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card need-review-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Review Needed</h5>
+                            <div class="stat-value" id="need-review-count-4-1">0</div>
+                            <div class="text-muted">Items requiring manual review</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card no-review-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">No Review Needed</h5>
+                            <div class="stat-value" id="no-need-review-count-4-1">0</div>
+                            <div class="text-muted">Items automatically matched</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card item-master-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Item Master Item</h5>
+                            <div class="stat-value" id="item-master-count-4-1">0</div>
+                            <div class="text-muted">Items with Infor Item Number</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="visible-item-count-4-1"></div>
         </div>
         
-        <!-- Item Comparison Table -->
-        <div id="items-table-container-4-1" class="items-table-container">
-            <table id="items-table-4-1" class="items-table">
-                <thead>
-                    <tr>
-                        <!-- Define columns based on data from match_to_infor_contract_lines -->
-                        <th data-sort="Mfg_Part_Num">Upload MFN<span class="sort-indicator"></span></th>
-                        <th data-sort="mfg_part_num_infor">Infor MFN<span class="sort-indicator"></span></th>
-                        <th data-sort="same_mfg_part_num">MFN Match<span class="sort-indicator"></span></th>
-                        <th data-sort="UOM">Upload UOM<span class="sort-indicator"></span></th>
-                        <th data-sort="uom_infor">Infor UOM<span class="sort-indicator"></span></th>
-                        <th data-sort="Contract_Price">Upload Price<span class="sort-indicator"></span></th>
-                        <th data-sort="price_infor">Infor Price<span class="sort-indicator"></span></th>
-                        <th data-sort="Description" class="description-col">Upload Desc<span class="sort-indicator"></span></th>
-                        <th data-sort="description_infor" class="description-col">Infor Desc<span class="sort-indicator"></span></th>
-                        <th data-sort="contract_number_infor">Infor Contract #<span class="sort-indicator"></span></th>
-                        <th data-sort="item_number_infor">Infor Item #<span class="sort-indicator"></span></th>
-                        <th data-sort="manufacturer_name_infor">Infor Mfr Name<span class="sort-indicator"></span></th>
-                        <th data-sort="vendor_name_infor">Infor Vendor Name<span class="sort-indicator"></span></th>
-                        <th data-sort="File_Row">File Row<span class="sort-indicator"></span></th>
-                    </tr>
-                </thead>
-                <tbody id="items-tbody-4-1">
-                    <!-- Items will be populated here -->
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- No Matches Message -->
-        <div id="no-matches-message-4-1" class="no-matches">
-            <h4>No matching items found in Infor Contract Lines</h4>
-            <p>Your uploaded items do not appear to have matches based on Manufacturer Part Number in the Infor Contract Lines database.</p>
+        <!-- Item Comparison Container - Similar to step2.html -->
+        <div id="item-comparison-container-4-1" class="item-comparison-container">
+            <div id="comparison-results-container-4-1">
+                <div class="confidence-cards">
+                    <div id="high-confidence-card-4-1" class="confidence-card high" data-level="high">
+                        <div class="confidence-title">High Confidence</div>
+                        <div class="count-number" id="high-count-4-1">0</div>
+                        <div class="count-label">Items</div>
+                        <div class="false-positive-count" id="high-false-positive-count-4-1">0 marked as false positive</div>
+                    </div>
+                    
+                    <div id="medium-confidence-card-4-1" class="confidence-card medium" data-level="medium">
+                        <div class="confidence-title">Medium Confidence</div>
+                        <div class="count-number" id="medium-count-4-1">0</div>
+                        <div class="count-label">Items</div>
+                        <div class="false-positive-count" id="medium-false-positive-count-4-1">0 marked as false positive</div>
+                    </div>
+                    
+                    <div id="low-confidence-card-4-1" class="confidence-card low" data-level="low">
+                        <div class="confidence-title">Low Confidence</div>
+                        <div class="count-number" id="low-count-4-1">0</div>
+                        <div class="count-label">Items</div>
+                        <div class="false-positive-count" id="low-false-positive-count-4-1">0 marked as false positive</div>
+                    </div>
+                </div>
+                
+                <div id="items-detail-view-4-1" style="display:none;">
+                    <h4 id="detail-title-4-1">High Confidence Matches</h4>
+                    
+                    <div class="controls-container">
+                        <div class="filter-container">
+                            <div class="search-wrapper">
+                                <select id="item-search-type-4-1" class="search-type-select">
+                                    <option value="contains">Contains</option>
+                                    <option value="not-contains">Not Contains</option>
+                                </select>
+                                <input type="text" id="item-search-4-1" class="search-input" placeholder="Filter items...">
+                                <button type="button" id="clear-search-btn-4-1" class="clear-search-btn" title="Clear search">Clear</button>
+                            </div>
+                        </div>
+                        
+                        <div class="batch-controls">
+                            <button id="select-all-btn-4-1" class="btn btn-sm btn-secondary">Select All</button>
+                            <button id="deselect-all-btn-4-1" class="btn btn-sm btn-secondary">Deselect All</button>
+                            <button id="save-selections-btn-4-1" class="btn btn-sm btn-primary">Save Selections</button>
+                        </div>
+                    </div>
+                    
+                    <div class="items-table-container">
+                        <table id="items-table-4-1" class="items-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="Mfg_Part_Num">Upload MFN<span class="sort-indicator"></span></th>
+                                    <th data-sort="mfg_part_num_infor">Infor MFN<span class="sort-indicator"></span></th>
+                                    <th data-sort="same_mfg_part_num">MFN Match<span class="sort-indicator"></span></th>
+                                    <th data-sort="UOM">Upload UOM<span class="sort-indicator"></span></th>
+                                    <th data-sort="uom_infor">Infor UOM<span class="sort-indicator"></span></th>
+                                    <th data-sort="Contract_Price">Upload Price<span class="sort-indicator"></span></th>
+                                    <th data-sort="price_infor">Infor Price<span class="sort-indicator"></span></th>
+                                    <th data-sort="weighted_score">Confidence<span class="sort-indicator"></span></th>
+                                    <th>False Positive</th>
+                                    <th data-sort="Description" class="description-col">Upload Desc<span class="sort-indicator"></span></th>
+                                    <th data-sort="description_infor" class="description-col">Infor Desc<span class="sort-indicator"></span></th>
+                                    <th data-sort="contract_number_infor">Infor Contract #<span class="sort-indicator"></span></th>
+                                    <th data-sort="item_number_infor">Infor Item #<span class="sort-indicator"></span></th>
+                                    <th data-sort="manufacturer_name_infor">Infor Mfr Name<span class="sort-indicator"></span></th>
+                                    <th data-sort="vendor_name_infor">Infor Vendor Name<span class="sort-indicator"></span></th>
+                                    <th data-sort="File_Row">File Row<span class="sort-indicator"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="items-tbody-4-1">
+                                <!-- Items will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="no-matches-message-4-1" class="no-matches" style="display:none;">
+                        <h4>No items found in this confidence level</h4>
+                        <p>Please select a different confidence level or adjust your filters.</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Action Buttons -->
@@ -287,72 +543,65 @@ document.addEventListener('DOMContentLoaded', function() {
     // Elements for Step 4.1
     const startInforCLMatchingBtn = document.getElementById('start-infor-cl-matching-btn');
     const loadingOverlay = document.getElementById('loading-overlay');
-    const itemsTableContainer = document.getElementById('items-table-container-4-1');
+    const itemComparisonContainer = document.getElementById('item-comparison-container-4-1');
+    const comparisonResultsContainer = document.getElementById('comparison-results-container-4-1');
+    const itemsDetailView = document.getElementById('items-detail-view-4-1');
+    const detailTitle = document.getElementById('detail-title-4-1');
     const itemsTable = document.getElementById('items-table-4-1');
     const itemsTbody = document.getElementById('items-tbody-4-1');
-    const itemSearchInput = document.getElementById('item-search-4-1');
-    const clearSearchBtn = document.getElementById('clear-search-btn-4-1');
-    const tableControls = document.getElementById('table-controls-4-1');
-    const resultSummary = document.getElementById('result-summary-4-1');
-    const matchCountSpan = document.getElementById('match-count-4-1');
     const noMatchesMessage = document.getElementById('no-matches-message-4-1');
     const actionButtons = document.getElementById('action-buttons-4-1');
-    const visibleItemCountSpan = document.getElementById('visible-item-count-4-1');
-
-    // Placeholders for subsequent steps
+    const itemSearchInput = document.getElementById('item-search-4-1');
+    const itemSearchType = document.getElementById('item-search-type-4-1');
+    const clearSearchBtn = document.getElementById('clear-search-btn-4-1');
     const step42Placeholder = document.getElementById('step-4-2-placeholder');
-    const step43Placeholder = document.getElementById('step-4-3-placeholder');
 
-    let currentItems = []; // To store all matched items from the backend
+    // Action buttons
+    const selectAllBtn = document.getElementById('select-all-btn-4-1');
+    const deselectAllBtn = document.getElementById('deselect-all-btn-4-1');
+    const saveSelectionsBtn = document.getElementById('save-selections-btn-4-1');
+
+    // Items and filtering variables
+    let allItems = []; // All items from backend
+    let currentItems = []; // Items for current confidence level
+    let currentLevel = null;
     let sortField = null;
     let sortDirection = 'asc';
 
-    // --- Event Listeners ---
-
+    // Start matching button click handler
     startInforCLMatchingBtn.addEventListener('click', function() {
         loadingOverlay.style.display = 'flex';
-        // Hide previous results if any
-        itemsTableContainer.style.display = 'none';
-        tableControls.style.display = 'none';
-        resultSummary.style.display = 'none';
-        noMatchesMessage.style.display = 'none';
+        // Hide any previous results
+        itemComparisonContainer.style.display = 'none';
         actionButtons.style.display = 'none';
+        document.getElementById('review-summary-card-4-1').style.display = 'none';
 
-        fetch('/item-matching/match-infor-contract-lines', { // Use the correct endpoint
+        fetch('/item-matching/match-infor-contract-lines', {
             method: 'POST'
-            // No body needed if it uses session data
         })
         .then(response => response.json())
         .then(data => {
             loadingOverlay.style.display = 'none';
+            
             if (data.success) {
-                // The backend returns a list of contracts, each with items.
-                // We need to flatten this into a single list of item matches.
-                currentItems = flattenContractItems(data.contracts);
-                matchCountSpan.textContent = currentItems.length;
-                resultSummary.style.display = 'block';
-
-                if (currentItems.length > 0) {
-                    // Reset sort state
-                    sortField = null;
-                    sortDirection = 'asc';
-                    document.querySelectorAll('#items-table-4-1 th').forEach(header => {
-                        header.classList.remove('sort-asc', 'sort-desc');
-                    });
-                    // Render table
-                    renderItemsTable(currentItems);
-                    itemsTableContainer.style.display = 'block';
-                    tableControls.style.display = 'flex'; // Show filter controls
-                    noMatchesMessage.style.display = 'none';
-                } else {
-                    itemsTableContainer.style.display = 'none';
-                    tableControls.style.display = 'none';
-                    noMatchesMessage.style.display = 'block';
+                try {
+                    // Process results similar to step2
+                    if (data.result) {
+                        processMatchResults(data.result);
+                        // Show the comparison container
+                        itemComparisonContainer.style.display = 'block';
+                        // Show action buttons
+                        actionButtons.style.display = 'block';
+                        // Show placeholder for next step
+                        step42Placeholder.style.display = 'block';
+                        
+                    } else {
+                        showError("No result data returned from server");
+                    }
+                } catch (err) {
+                    showError("Error processing results: " + err.message);
+                    console.error("Processing error details:", err);
                 }
-                actionButtons.style.display = 'block'; // Show complete button regardless of matches
-                // Show placeholder for next step
-                step42Placeholder.style.display = 'block';
-
             } else {
                 showError("Error matching to Infor Contract Lines: " + data.message);
             }
@@ -360,9 +609,18 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             loadingOverlay.style.display = 'none';
             showError("Error during fetch: " + error.toString());
+            console.error("Full error details:", error);
         });
     });
 
+    // Confidence card click handlers
+    document.querySelectorAll('.confidence-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const level = this.dataset.level;
+            loadConfidenceItems(level);
+        });
+    });
+    
     // Table header click for sorting
     document.querySelectorAll('#items-table-4-1 th[data-sort]').forEach(th => {
         th.addEventListener('click', function() {
@@ -383,125 +641,404 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Re-render the table with new sort
             renderItemsTable(currentItems);
-            // Re-apply filter after sorting
-            filterItemTable();
         });
     });
 
     // Filter input handler
     itemSearchInput.addEventListener('input', filterItemTable);
-
+    itemSearchType.addEventListener('change', filterItemTable);
+    
     // Clear search button handler
     clearSearchBtn.addEventListener('click', function() {
         itemSearchInput.value = '';
+        itemSearchType.value = 'contains'; // Reset to default
         filterItemTable();
     });
 
-    // --- Helper Functions ---
-
-    // Flatten the contract structure into a list of items
-    function flattenContractItems(contracts) {
-        let allItems = [];
-        contracts.forEach(contract => {
-            allItems = allItems.concat(contract.items);
+    // Select/Deselect all buttons
+    selectAllBtn.addEventListener('click', function() {
+        document.querySelectorAll('#items-tbody-4-1 input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = true;
         });
-        return allItems;
+    });
+    
+    deselectAllBtn.addEventListener('click', function() {
+        document.querySelectorAll('#items-tbody-4-1 input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    });
+    
+    // Save selections button
+    saveSelectionsBtn.addEventListener('click', function() {
+        saveSelections();
+    });
+
+    // Process results from backend and categorize by confidence
+    function processMatchResults(result) {
+        // Initialize with empty arrays to handle missing data
+        allItems = {
+            high: [],
+            medium: [],
+            low: []
+        };
+
+        let summaryData = null;
+        if (result.summary) {
+            summaryData = result.summary;
+            console.log("Summary data found:", summaryData);
+        } else {
+            console.warn("No summary data found in the result.");
+        }
+        
+        try {
+            // Safely assign arrays
+            if (Array.isArray(result.high)) allItems.high = result.high;
+            if (Array.isArray(result.medium)) allItems.medium = result.medium;
+            if (Array.isArray(result.low)) allItems.low = result.low;
+            
+            // Log the data structure to help with debugging
+            console.log("Processed items by confidence level:", {
+                high: allItems.high.length,
+                medium: allItems.medium.length,
+                low: allItems.low.length
+            });
+            
+            // Update summary counts with safe defaults
+            document.getElementById('high-count-4-1').textContent = allItems.high.length;
+            document.getElementById('medium-count-4-1').textContent = allItems.medium.length;
+            document.getElementById('low-count-4-1').textContent = allItems.low.length;
+            
+            // Check for false positives if that field is used
+            const highFalsePositives = countFalsePositives(allItems.high);
+            const mediumFalsePositives = countFalsePositives(allItems.medium);
+            const lowFalsePositives = countFalsePositives(allItems.low);
+            
+            document.getElementById('high-false-positive-count-4-1').textContent = 
+                highFalsePositives + ' marked as false positive';
+            document.getElementById('medium-false-positive-count-4-1').textContent = 
+                mediumFalsePositives + ' marked as false positive';
+            document.getElementById('low-false-positive-count-4-1').textContent = 
+                lowFalsePositives + ' marked as false positive';
+            
+            // Load appropriate confidence level items
+            if (allItems.high.length > 0) {
+                loadConfidenceItems('high');
+            } else if (allItems.medium.length > 0) {
+                loadConfidenceItems('medium');
+            } else if (allItems.low.length > 0) {
+                loadConfidenceItems('low');
+            } else {
+                // No items found
+                noMatchesMessage.style.display = 'block';
+                itemsDetailView.style.display = 'block';
+                document.querySelector('.items-table-container').style.display = 'none';
+            }
+
+            // IMPORTANT: Only call this once with the server data
+            updateAndShowReviewSummary(summaryData);
+            
+        } catch (err) {
+            console.error("Error in processMatchResults:", err);
+            showError("Error processing match results: " + err.message);
+        }
+    }
+
+    // Count false positives in items array
+    function countFalsePositives(items) {
+        return items.filter(item => item.false_positive).length;
+    }
+    
+    // Function to load items for a confidence level
+    function loadConfidenceItems(level) {
+        // Update selected card
+        document.querySelectorAll('.confidence-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        document.getElementById(level + '-confidence-card-4-1').classList.add('selected');
+        
+        // Update level title
+        detailTitle.textContent = level.charAt(0).toUpperCase() + level.slice(1) + ' Confidence Matches';
+        
+        // Set current level and items
+        currentLevel = level;
+        currentItems = allItems[level] || [];
+        
+        // Reset sorting and filtering
+        sortField = null;
+        sortDirection = 'asc';
+        document.querySelectorAll('#items-table-4-1 th').forEach(header => {
+            header.classList.remove('sort-asc', 'sort-desc');
+        });
+        
+        // Render items
+        renderItemsTable(currentItems);
+        
+        // Show the detail view
+        itemsDetailView.style.display = 'block';
+        
+        // Show/hide no matches message
+        noMatchesMessage.style.display = currentItems.length === 0 ? 'block' : 'none';
+        document.querySelector('.items-table-container').style.display = 
+            currentItems.length === 0 ? 'none' : 'block';
+
+        // Clear any existing filter
+        itemSearchInput.value = '';
+        filterItemTable();
     }
 
     // Function to render the items table
     function renderItemsTable(items) {
-        itemsTbody.innerHTML = ''; // Clear existing rows
+        itemsTbody.innerHTML = ''; // Clear the table
         
-        // Sort items if sort field is set
-        let itemsToRender = [...items]; // Create a copy to sort
-        if (sortField) {
-            itemsToRender.sort((a, b) => {
-                let valA = a[sortField];
-                let valB = b[sortField];
+        try {
+            // Sort items if sort field is set
+            if (sortField) {
+                items = [...items].sort((a, b) => {
+                    let valA = a[sortField];
+                    let valB = b[sortField];
+                    
+                    // Handle null, undefined, and NaN values
+                    if (valA === null || valA === undefined || (typeof valA === 'number' && isNaN(valA))) valA = '';
+                    if (valB === null || valB === undefined || (typeof valB === 'number' && isNaN(valB))) valB = '';
+                    
+                    // Handle numeric fields
+                    if (typeof valA === 'number' && typeof valB === 'number') {
+                        return sortDirection === 'asc' ? valA - valB : valB - valA;
+                    }
+                    
+                    // Handle string fields
+                    valA = String(valA || '').toLowerCase();
+                    valB = String(valB || '').toLowerCase();
+                    
+                    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
 
-                // Handle potential null/undefined values and different types
-                valA = valA === null || valA === undefined ? '' : valA;
-                valB = valB === null || valB === undefined ? '' : valB;
-
-                // Basic numeric comparison if possible
-                const numA = parseFloat(valA);
-                const numB = parseFloat(valB);
-                if (!isNaN(numA) && !isNaN(numB)) {
-                    return sortDirection === 'asc' ? numA - numB : numB - numA;
-                }
-
-                // String comparison (case-insensitive)
-                valA = String(valA).toLowerCase();
-                valB = String(valB).toLowerCase();
+            // Add rows to table
+            items.forEach((item, index) => {
+                const row = document.createElement('tr');
                 
-                if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-                if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-                return 0;
+                // Get confidence class based on score and level (with safeguards)
+                const scoreClass = currentLevel === 'high' ? 'high-score' : 
+                                (currentLevel === 'medium' ? 'medium-score' : 'low-score');
+                
+                // Format EA prices with safeguards
+                const uploadPrice = item.Contract_Price !== null && !isNaN(parseFloat(item.Contract_Price)) ? 
+                    '$' + parseFloat(item.Contract_Price).toFixed(2) : 'N/A';
+                    
+                const inforPrice = item.price_infor !== null && !isNaN(parseFloat(item.price_infor)) ? 
+                    '$' + parseFloat(item.price_infor).toFixed(2) : 'N/A';
+                
+                // Is exact match with safeguard
+                const isExactMatch = item.same_mfg_part_num === 1;
+                const matchClass = isExactMatch ? 'match' : 'partial-match';
+                const matchText = isExactMatch ? 'Exact' : 'Similar';
+                
+                // Safely calculate display confidence score
+                let confidenceScore = '50%'; // Default value
+                if (typeof item.weighted_score === 'number' && !isNaN(item.weighted_score)) {
+                    confidenceScore = Math.round(item.weighted_score * 100) + '%';
+                } else {
+                    // Use confidence level as fallback
+                    confidenceScore = currentLevel === 'high' ? '90%' : (currentLevel === 'medium' ? '70%' : '50%');
+                }
+                
+                // Safely handle descriptions with optional chaining
+                const uploadDesc = item.Description || 'N/A';
+                const inforDesc = item.description_infor || 'N/A';
+                
+                row.innerHTML = `
+                    <td>${item.Mfg_Part_Num || 'N/A'}</td>
+                    <td>${item.mfg_part_num_infor || 'N/A'}</td>
+                    <td><span class="match-indicator ${matchClass}">${matchText}</span></td>
+                    <td>${item.UOM || 'N/A'}</td>
+                    <td>${item.uom_infor || 'N/A'}</td>
+                    <td>${uploadPrice}</td>
+                    <td>${inforPrice}</td>
+                    <td class="score-cell ${scoreClass}">${confidenceScore}</td>
+                    <td>
+                        <input type="checkbox" class="false-positive-checkbox" 
+                            data-index="${index}" 
+                            ${item.false_positive ? 'checked' : ''}>
+                    </td>
+                    <td class="description-col" title="${uploadDesc}">${uploadDesc.substring(0, 50)}${uploadDesc.length > 50 ? '...' : ''}</td>
+                    <td class="description-col" title="${inforDesc}">${inforDesc.substring(0, 50)}${inforDesc.length > 50 ? '...' : ''}</td>
+                    <td>${item.contract_number_infor || 'N/A'}</td>
+                    <td>${item.item_number_infor || ''}</td>
+                    <td>${item.manufacturer_name_infor || 'N/A'}</td>
+                    <td>${item.vendor_name_infor || 'N/A'}</td>
+                    <td>${item.File_Row || 'N/A'}</td>
+                `;
+                
+                itemsTbody.appendChild(row);
             });
+        } catch (err) {
+            console.error("Error rendering table:", err);
+            showError("Error rendering results: " + err.message);
         }
-
-        // Add rows to table
-        itemsToRender.forEach(item => {
-            const row = document.createElement('tr');
-            
-            const isExactMatch = item.same_mfg_part_num === 1;
-            const matchClass = isExactMatch ? 'match' : 'partial-match';
-            const matchText = isExactMatch ? 'Exact' : 'Reduced';
-
-            // Format prices
-            const uploadPrice = item.Contract_Price !== null ? '$' + parseFloat(item.Contract_Price).toFixed(2) : 'N/A';
-            const inforPrice = item.price_infor !== null ? '$' + parseFloat(item.price_infor).toFixed(2) : 'N/A';
-
-            // Add title attribute for potentially long descriptions
-            const uploadDesc = item.Description || 'N/A';
-            const inforDesc = item.description_infor || 'N/A';
-
-            row.innerHTML = `
-                <td>${item.Mfg_Part_Num || 'N/A'}</td>
-                <td>${item.mfg_part_num_infor || 'N/A'}</td>
-                <td><span class="match-indicator ${matchClass}">${matchText}</span></td>
-                <td>${item.UOM || 'N/A'}</td>
-                <td>${item.uom_infor || 'N/A'}</td>
-                <td>${uploadPrice}</td>
-                <td>${inforPrice}</td>
-                <td class="description-col" title="${uploadDesc}">${uploadDesc}</td>
-                <td class="description-col" title="${inforDesc}">${inforDesc}</td>
-                <td>${item.contract_number_infor || 'N/A'}</td>
-                <td>${item.item_number_infor || ''}</td>
-                <td>${item.manufacturer_name_infor || 'N/A'}</td>
-                <td>${item.vendor_name_infor || 'N/A'}</td>
-                <td>${item.File_Row || 'N/A'}</td>
-            `;
-            itemsTbody.appendChild(row);
-        });
-        updateVisibleItemCount(); // Update count after rendering
     }
 
-    // Function to filter the table based on search input
+    // Function to filter items based on search input
     function filterItemTable() {
         const searchTerm = itemSearchInput.value.toLowerCase();
-        const tableRows = itemsTbody.querySelectorAll('tr');
+        const searchType = itemSearchType.value;
+        const tableRows = document.querySelectorAll('#items-tbody-4-1 tr');
         
         tableRows.forEach(row => {
             const text = row.textContent.toLowerCase();
-            row.style.display = text.includes(searchTerm) ? '' : 'none';
+            const matchesContains = text.includes(searchTerm);
+            
+            // Show/hide based on search type
+            if (searchType === 'contains') {
+                row.style.display = matchesContains ? '' : 'none';
+            } else { // not-contains
+                row.style.display = matchesContains ? 'none' : '';
+            }
         });
-        updateVisibleItemCount(); // Update count after filtering
     }
 
-    // Function to update the visible item count display
-    function updateVisibleItemCount() {
-        const totalRows = currentItems.length;
-        const hiddenRows = itemsTbody.querySelectorAll('tr[style*="display: none"]').length;
-        const visibleCount = totalRows - hiddenRows;
-        visibleItemCountSpan.textContent = `Showing ${visibleCount} of ${totalRows} items`;
+    // Function to save selections (for false positives)
+    function saveSelections() {
+        // Show loading overlay
+        loadingOverlay.style.display = 'flex';
+        
+        // Get all checkboxes and their status
+        const checkboxes = document.querySelectorAll('#items-tbody-4-1 input[type="checkbox"]');
+        
+        // Create a map of all items and their status
+        const itemUpdates = Array.from(checkboxes).map(checkbox => {
+            const row = checkbox.closest('tr');
+            const fileRow = row.querySelector('td:nth-last-child(1)').textContent.trim(); // File Row
+            const inforMfn = row.querySelector('td:nth-child(2)').textContent.trim(); // Infor MFN
+            
+            return {
+                index: parseInt(checkbox.dataset.index),
+                is_false_positive: checkbox.checked,
+                file_row: fileRow,
+                infor_mfn: inforMfn
+            };
+        });
+        
+        // Update the items in memory for immediate UI update
+        itemUpdates.forEach(update => {
+            if (update.index < currentItems.length) {
+                currentItems[update.index].false_positive = update.is_false_positive;
+                allItems[currentLevel][update.index].false_positive = update.is_false_positive;
+            }
+        });
+        
+        // Create a list of false positive items for the backend
+        const falsePositiveItems = itemUpdates.map(update => ({
+            file_row: update.file_row,
+            infor_mfn: update.infor_mfn,
+            is_false_positive: update.is_false_positive
+        }));
+        
+        // Send updates to the backend
+        fetch('/item-matching/update-infor-cl-false-positives', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                false_positive_items: falsePositiveItems
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the summary with latest data from server
+                if (data.summary) {
+                    console.log("Received updated summary from server:", data.summary);
+                    updateAndShowReviewSummary(data.summary);
+                }
+                
+                // Update the counts in the UI
+                const highFalsePositives = countFalsePositives(allItems.high);
+                const mediumFalsePositives = countFalsePositives(allItems.medium);
+                const lowFalsePositives = countFalsePositives(allItems.low);
+                
+                document.getElementById('high-false-positive-count-4-1').textContent = 
+                    highFalsePositives + ' marked as false positive';
+                document.getElementById('medium-false-positive-count-4-1').textContent = 
+                    mediumFalsePositives + ' marked as false positive';
+                document.getElementById('low-false-positive-count-4-1').textContent = 
+                    lowFalsePositives + ' marked as false positive';
+                
+                // Hide loading and show success message
+                loadingOverlay.style.display = 'none';
+                alert('Selections saved successfully');
+            } else {
+                // Show error message
+                loadingOverlay.style.display = 'none';
+                alert('Error saving selections: ' + data.message);
+            }
+        })
+        .catch(error => {
+            loadingOverlay.style.display = 'none';
+            console.error('Error saving selections:', error);
+            alert('Error saving selections: ' + error);
+        });
     }
 
-    // Function to show errors (replace with your actual error handling)
+    // Function to update and show the review summary card
+    function updateAndShowReviewSummary(summaryData = null) {
+        let needReviewCount = 0;
+        let noReviewCount = 0;
+        let itemMasterCount = 0;
+        
+        if (summaryData && typeof summaryData === 'object') {
+            // Use backend summary data if available
+            needReviewCount = summaryData.review_count || 0;
+            noReviewCount = summaryData.no_need_review_count || 0;
+            itemMasterCount = summaryData.item_master_count || 0;
+            
+            console.log("Setting from summary data - Review:", needReviewCount, 
+                        "No Review:", noReviewCount, "Item Master:", itemMasterCount);
+        } else {
+            console.log("No valid summary data provided, calculating locally");
+            // Fall back to calculating from local data
+            const needReviewItems = [
+                ...allItems.medium.filter(item => !item.false_positive), 
+                ...allItems.low.filter(item => !item.false_positive)
+            ];
+            
+            const noReviewItems = allItems.high.filter(item => !item.false_positive);
+            
+            // Count items with Infor Item Number
+            const itemMasterItems = allItems.high.concat(allItems.medium, allItems.low)
+                .filter(item => item.item_number_infor && item.item_number_infor !== 'N/A' && !item.false_positive);
+            
+            needReviewCount = needReviewItems.length;
+            noReviewCount = noReviewItems.length;
+            itemMasterCount = itemMasterItems.length;
+            
+            console.log("Calculated locally - Review:", needReviewCount, 
+                        "No Review:", noReviewCount, "Item Master:", itemMasterCount);
+        }
+        
+        // Set the values in the UI - ensure they're all numbers
+        document.getElementById('need-review-count-4-1').textContent = Number(needReviewCount);
+        document.getElementById('no-need-review-count-4-1').textContent = Number(noReviewCount);
+        document.getElementById('item-master-count-4-1').textContent = Number(itemMasterCount);
+        
+        // Extra check to confirm values were set
+        console.log("Values after setting to DOM:", {
+            review: document.getElementById('need-review-count-4-1').textContent,
+            noReview: document.getElementById('no-need-review-count-4-1').textContent,
+            itemMaster: document.getElementById('item-master-count-4-1').textContent
+        });
+        
+        // Show the review summary card
+        document.getElementById('review-summary-card-4-1').style.display = 'block';
+    }
+
+    // Function to show errors
     function showError(message) {
         console.error(message);
-        alert(message); // Simple alert for now
+        alert(message);
     }
-
 });
 </script>

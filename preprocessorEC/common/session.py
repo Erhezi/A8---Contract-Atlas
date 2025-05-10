@@ -153,7 +153,6 @@ def clear_deduped_results(user_id):
         session.pop(key)
         session.modified = True
 
-# --- Item Matching Data (New) ---
 def store_infor_cl_matches(user_id, match_list):
     """Store the Infor Contract Line match results for a user."""
     key = f'infor_cl_matches_{user_id}'

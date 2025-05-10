@@ -62,22 +62,27 @@ def match_infor_cl():
                 'message': f'Error during matching: {error_msg}' # Provide the specific error
             }), 500
 
-        # Store results in session for subsequent steps using specific helper
-        store_infor_cl_matches(user_id, contract_list) # Use specific helper
 
         # get the comparison results from session
         comparison_results = get_comparison_results(user_id)
         # if stacked_data is None, meaning after review we end up having no duplicates in step2, this is fine, we will simply proceed
-
         # run three way matching
         print("calling three way matching ...")
-        merged_df, merged_to_show_df = three_way_contract_line_matching(comparison_results, contract_list)
-        three_way_item_master_matching_compute_similarity(merged_to_show_df)
+        merged_df = three_way_contract_line_matching(comparison_results, contract_list)
+        result = three_way_item_master_matching_compute_similarity(merged_df)
+        
+        # Store the result in session for later use
+        merged_results = {
+            'merged_df': merged_df.to_dict(orient='records'),  # Convert DataFrame to dict for JSON serialization
+            'merged_to_review': result
+        }
+        store_infor_cl_matches(user_id, merged_results)  # Use specific helper
+
 
         current_app.logger.info(f"Successfully matched Infor CL for user {user_id}. Found {len(contract_list)} contracts/groups.")
         return jsonify({
             'success': True,
-            'contracts': contract_list # Ensure the key matches what the JS expects
+            'result': result
         })
 
     except Exception as e:
@@ -89,3 +94,117 @@ def match_infor_cl():
             conn.close()
             current_app.logger.debug(f"DB connection closed for user {user_id} after Infor CL matching.")
 
+
+@item_matching_bp.route('/update-infor-cl-false-positives', methods=['POST'])
+@login_required
+def update_infor_cl_false_positives():
+    """Update false positive flags for Infor CL matching results"""
+    try:
+        user_id = current_user.id
+        data = request.json
+        
+        # Get the false positive updates
+        false_positive_items = data.get('false_positive_items', [])
+        print(f"Received false positive items: {false_positive_items}") # Debugging line
+        
+        if not false_positive_items:
+            return jsonify({
+                'success': False,
+                'message': 'No false positive updates provided.'
+            })
+        
+        # Get the stored infor_cl_matches from session
+        from ..common.session import get_infor_cl_matches, store_infor_cl_matches
+        
+        # Retrieve current matches
+        infor_cl_matches = get_infor_cl_matches(user_id)
+        if not infor_cl_matches or 'merged_df' not in infor_cl_matches:
+            return jsonify({
+                'success': False,
+                'message': 'No Infor CL matches found in session.'
+            })
+        
+        # Get the merged dataframe as a list of dictionaries
+        merged_df_list = infor_cl_matches['merged_df']
+        
+        # Update false positive flags in merged_df
+        updated_items = 0
+        for item in merged_df_list:
+            if item.get('Need Review') == "No":
+                continue
+            for fp_item in false_positive_items:
+                if (str(item.get('File_Row')) == str(fp_item.get('file_row')) and 
+                    str(item.get('mfg_part_num_infor')) == str(fp_item.get('infor_mfn'))):
+                    item['False Positive'] = fp_item.get('is_false_positive', False)
+                    item['Need Review'] = "Reviewed"
+                    updated_items += 1
+                    break
+        
+        # Update the merged_to_review data
+        im_cathed_items = infor_cl_matches.get('merged_to_review', {}).get('im_catched', [])
+        print(f"IM catched items (before update): {im_cathed_items}") # Debugging line
+        if 'merged_to_review' in infor_cl_matches:
+            result = infor_cl_matches['merged_to_review']
+            
+            # Update items in each confidence level
+            for level in ['high', 'medium', 'low']:
+                if level in result:
+                    for item in result[level]:
+                        for fp_item in false_positive_items:
+                            if (str(item.get('File_Row')) == str(fp_item.get('file_row')) and 
+                                str(item.get('mfg_part_num_infor')) == str(fp_item.get('infor_mfn'))):
+                                item['False Positive'] = fp_item.get('is_false_positive', False)
+                                break
+            
+            # Recalculate summary counts
+            if 'summary' in result:
+                high_fp = sum(1 for item in result.get('high', []) if item.get('false_positive'))
+                medium_fp = sum(1 for item in result.get('medium', []) if item.get('false_positive'))
+                low_fp = sum(1 for item in result.get('low', []) if item.get('false_positive'))
+                
+                # Update false positive counts
+                result['summary']['high']['false_positives'] = high_fp
+                result['summary']['medium']['false_positives'] = medium_fp
+                result['summary']['low']['false_positives'] = low_fp
+                
+                # Calculate items for review stats
+                review_items = []
+                no_review_items = []
+                item_master_items = []
+                
+                # Items needing review: medium and low confidence that are NOT false positives
+                for level in ['medium', 'low']:
+                    review_items.extend([item for item in result.get(level, []) if not item.get('false_positive')])
+                
+                # Items not needing review: high confidence that are NOT false positives
+                no_review_items.extend([item for item in result.get('high', []) if not item.get('false_positive')])
+                
+                # Items with Infor Item Number across all confidence levels
+                for level in ['high', 'medium', 'low']:
+                    item_master_items.extend([
+                        item for item in result.get(level, [])
+                        if item.get('item_number_infor') and item.get('item_number_infor') != 'N/A' 
+                        and not item.get('false_positive')
+                    ])
+                
+                # Update summary counts
+                result['summary']['review_count'] = len(review_items)
+                result['summary']['no_need_review_count'] = len(no_review_items)
+                result['summary']['item_master_count'] = len(item_master_items)
+        
+        # Store updated results back in session
+        store_infor_cl_matches(user_id, infor_cl_matches)
+        session.modified = True  # Mark session as modified
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully updated {updated_items} items.',
+            'summary': infor_cl_matches.get('merged_to_review', {}).get('summary', {})
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating Infor CL false positives: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'message': f'Error updating false positives: {str(e)}'
+        })
