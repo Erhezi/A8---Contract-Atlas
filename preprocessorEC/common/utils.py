@@ -1088,7 +1088,7 @@ def three_way_item_master_matching_compute_similarity(merged_df):
     result['summary']['review_count'] = review_count
     result['summary']['no_need_review_count'] = no_need_review_count
     result['summary']['item_master_count'] = im_count
-    result['im_catched'] = im_catched.to_dict(orient='records') if not im_catched.empty else []
+    result['im_catched'] = im_catched.values.tolist() if not im_catched.empty else []
     
     return result
 

@@ -141,8 +141,6 @@ def update_infor_cl_false_positives():
                     break
         
         # Update the merged_to_review data
-        im_cathed_items = infor_cl_matches.get('merged_to_review', {}).get('im_catched', [])
-        print(f"IM catched items (before update): {im_cathed_items}") # Debugging line
         if 'merged_to_review' in infor_cl_matches:
             result = infor_cl_matches['merged_to_review']
             
@@ -167,30 +165,25 @@ def update_infor_cl_false_positives():
                 result['summary']['medium']['false_positives'] = medium_fp
                 result['summary']['low']['false_positives'] = low_fp
                 
-                # Calculate items for review stats
-                review_items = []
-                no_review_items = []
-                item_master_items = []
-                
-                # Items needing review: medium and low confidence that are NOT false positives
-                for level in ['medium', 'low']:
-                    review_items.extend([item for item in result.get(level, []) if not item.get('false_positive')])
-                
-                # Items not needing review: high confidence that are NOT false positives
-                no_review_items.extend([item for item in result.get('high', []) if not item.get('false_positive')])
-                
-                # Items with Infor Item Number across all confidence levels
-                for level in ['high', 'medium', 'low']:
-                    item_master_items.extend([
-                        item for item in result.get(level, [])
-                        if item.get('item_number_infor') and item.get('item_number_infor') != 'N/A' 
-                        and not item.get('false_positive')
-                    ])
+                # Calculate review counts
+                need_review_count = 0
+                no_need_review_count = 0
+                item_master_matched = []
+                for item in merged_df_list:
+                    if item.get('False Positive') == False and item.get('item_number_infor') != '':
+                        item_master_matched.append((item.get('File_Row'), item.get('item_number_infor')))
+                    if item.get('Need Review') == 'Yes':
+                        need_review_count += 1
+                    elif item.get('Need Review') == 'No':
+                        no_need_review_count += 1
+                    elif item.get('Need Review') == 'Reviewed':
+                        no_need_review_count += 1
                 
                 # Update summary counts
-                result['summary']['review_count'] = len(review_items)
-                result['summary']['no_need_review_count'] = len(no_review_items)
-                result['summary']['item_master_count'] = len(item_master_items)
+                result['summary']['review_count'] = need_review_count
+                result['summary']['no_need_review_count'] = no_need_review_count
+                result['summary']['item_master_count'] = len(set(item_master_matched))
+                result['im_catched'] = list(set(item_master_matched))
         
         # Store updated results back in session
         store_infor_cl_matches(user_id, infor_cl_matches)
