@@ -128,7 +128,7 @@ def prepare_dataframe(df, column_mapping):
             mapped_df.rename(columns={user_field: std_field}, inplace=True)
         if 'Buyer Part Num' not in mapped_df.columns:
             mapped_df.loc[:, 'Buyer Part Num'] = ''
-
+    
     # Add derived columns
     mapped_df['Original UOM'] = mapped_df['UOM'].apply(lambda x: np.nan if pd.isnull(x) else x.strip().upper())
     mapped_df['Reduced Mfg Part Num'] = mapped_df['Mfg Part Num'].apply(reduce_mfg_part_num)
@@ -139,6 +139,10 @@ def prepare_dataframe(df, column_mapping):
     if missing_fields:
         return None, None, missing_fields, required_fields
     
+    # make vendor erp id standardized
+    mapped_df['ERP Vendor ID'] = mapped_df['ERP Vendor ID'].str.strip().str.upper()
+    mapped_df['ERP Vendor ID'] = mapped_df['ERP Vendor ID'].apply(lambda x: x[:7])
+
     # Create copies for validation and results
     result_df = mapped_df[required_fields[:3] + ['Buyer Part Num'] + required_fields[3:] + ['Reduced Mfg Part Num', 'Original UOM', 'File Row']].copy()
     error_df = result_df.copy()
@@ -150,7 +154,7 @@ def prepare_dataframe(df, column_mapping):
     error_df['Error-Invalid QOE'] = ''
     error_df['Error-Invalid UOM'] = ''
     error_df['Error-EA QOE NOT 1'] = ''
-    error_df['Error-Multiple Vendors'] = '' 
+    error_df['Error-Invalid Vendor'] = '' 
     error_df['Error-Invalid Source Contract Type'] = ''
     error_df['Warning-Potential Duplicates'] = ''
     error_df['Has Error'] = False
@@ -290,7 +294,8 @@ def validate_uom_qoe_compatibility(error_df):
 
 
 def validate_contract_vendor_relationship(error_df):
-    """Validate that each Contract Number has only one ERP Vendor ID"""
+    """Validate that each Contract Number get associated to one ERP Vendor ID,
+    deprecated 2025-05-12, as this is allowed and observed in INFOR contract"""
     # Group by Contract Number and get unique ERP Vendor IDs for each
     contract_vendors = error_df.groupby('Contract Number')['ERP Vendor ID'].unique()
     
@@ -309,6 +314,21 @@ def validate_contract_vendor_relationship(error_df):
             # Add error message
             error_df.loc[contract_mask, 'Error-Multiple Vendors'] = f'Contract has multiple vendors: {vendors}'
             error_df.loc[contract_mask, 'Has Error'] = True
+    
+    return error_df
+
+
+def validate_vendor_id(error_df, valid_vids = None):
+    """Validate Vendor ID is legitimate"""
+    # validate if vendor id is a 7 digit number
+    invalid_vid_mask = ~error_df['ERP Vendor ID'].str.match(r'^\d{7}$')
+    if valid_vids is not None:
+        # Check if vendor ID is in the list of valid vendor IDs
+        invalid_vid_mask |= ~error_df['ERP Vendor ID'].isin(valid_vids)       
+            
+    # Add error message
+    error_df.loc[invalid_vid_mask, 'Error-Invalid Vendor'] = 'vendor ID is not Valid'
+    error_df.loc[invalid_vid_mask, 'Has Error'] = True
     
     return error_df
 
@@ -360,7 +380,7 @@ def finalize_validation(error_df, result_df):
     
     return result_df, error_df, has_errors
 
-def validate_file(df, column_mapping, duplicate_mode='default'):
+def validate_file(df, column_mapping, valid_vids = None, duplicate_mode='default'):
     """
     Main validation function that coordinates all validation steps
     Returns: (result_df, error_df, has_errors)
@@ -380,7 +400,7 @@ def validate_file(df, column_mapping, duplicate_mode='default'):
     error_df = validate_qoe(error_df)
     error_df = validate_uom(error_df)
     error_df = validate_uom_qoe_compatibility(error_df)
-    error_df = validate_contract_vendor_relationship(error_df)
+    error_df = validate_vendor_id(error_df, valid_vids = valid_vids)
     error_df, duplicate_info, duplicate_keys = check_duplicates(error_df, duplicate_mode)
     
     # Finalize and return results
@@ -959,13 +979,16 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     return sorted_df, results_summary
 
 
-def three_way_contract_line_matching(comparison_results, infor_cl_match_results):
+def three_way_contract_line_matching(comparison_results, 
+                                     infor_cl_match_results,
+                                     excluded_contracts):
     """
     Perform three-way contract line matching between CCX, TP, and Infor CL.
     
     Args:
         comparison_results: ccx and upload data with false positive label
         infor_cl_match_results: List of dictionaries containing Infor CL match results
+        excluded_contracts: List of excluded contracts from CCX
     
     Returns:
         DataFrame with three-way matched results (one with label result directly, one for showing (dup removed based on contract))
@@ -1011,9 +1034,13 @@ def three_way_contract_line_matching(comparison_results, infor_cl_match_results)
         
     # get the infor_cl_match_results and make the data looks similar to stacked_data
     all_items = []
+    excluded_contracts = [i.upper().strip() for i in excluded_contracts]
     for group in infor_cl_match_results:
         items = group.get('items', [])
         for item in items:
+            if item.get('contract_number_infor', '').upper().strip() in excluded_contracts:
+                # skip the excluded contracts
+                continue
             all_items.append(item)
         
     all_items_df = pd.DataFrame(all_items) if all_items else pd.DataFrame()
@@ -1022,6 +1049,10 @@ def three_way_contract_line_matching(comparison_results, infor_cl_match_results)
         # no infor matches, then we can simply return empty dataframe and skip to item master matching
         return pd.DataFrame()
     
+    # compute EA price
+    all_items_df['infor_ea_price'] = all_items_df['price_infor'].astype(float) / all_items_df['qoe_infor'].astype(int)
+    all_items_df['upload_ea_price'] = all_items_df['Contract_Price'].astype(float) / all_items_df['QOE'].astype(int)
+
     # make sure the join key columns are in the same format
     all_items_df['mfg_part_num_infor'] = all_items_df['mfg_part_num_infor'].astype(str).str.strip().str.upper()
     all_items_df['contract_number_infor'] = all_items_df['contract_number_infor'].astype(str).str.strip().str.upper()

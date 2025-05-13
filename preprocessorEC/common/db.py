@@ -30,6 +30,49 @@ def db_transaction():
         if conn:
             conn.close()
 
+def get_vendor_supplier_mapping(conn):
+    """Get the vendor-supplier mapping from the database"""
+    try:
+        cursor = conn.cursor()
+        query = f"""select Supplier, Vendor, VendorName
+                from [DM_MONTYNT\\dli2].MDM_SUPPLIER_NAME_INFOR
+                where active = 'Yes' AND VENDOR <> ''"""
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            results.append(dict(zip(columns, row)))
+        return results
+    except Exception as e:
+        print(f"Database error: {str(e)}")
+        return None
+    
+def get_valid_vid_in_list(conn):
+    """Get the valid vendor IDs from the database
+    return list of unique vendor IDs"""
+    try:
+        cursor = conn.cursor()
+        query = f"""select distinct Vendor
+                from [DM_MONTYNT\\dli2].MDM_SUPPLIER_NAME_INFOR
+                where active = 'Yes' AND VENDOR <> ''"""
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            results.append(dict(zip(columns, row)))
+        # Extract unique vendor IDs from the results
+        vendor_ids = set()
+        for row in results:
+            vendor_id = row['Vendor']
+            if vendor_id:
+                vendor_ids.add(vendor_id)
+        return list(vendor_ids)
+    except Exception as e: 
+        print(f"Database error: {str(e)}")
+        return None
+
 def create_temp_table(table_name, df, conn):
     """Create a temporary table in the database for the uploaded file data"""
     try:
@@ -487,29 +530,11 @@ def match_to_item_master(temp_table, conn):
             results.append(dict(zip(columns, row)))
         
         # Group by item number (Item Master side)
-        item_summary = {}
-        for item in results:
-            item_num = item['item_number_infor']
-            if item_num not in item_summary:
-                item_summary[item_num] = {
-                    'item_number': item_num,
-                    'description': item['description_infor'],
-                    'manufacturer_name': item['manufacturer_name_infor'],
-                    'total_matches': 0,
-                    'exact_matches': 0,
-                    'items': []
-                }
-            
-            # Count this item
-            item_summary[item_num]['total_matches'] += 1
-            if item['same_mfg_part_num'] == 1:
-                item_summary[item_num]['exact_matches'] += 1
-            
-            # Add this item to the items list
-            item_summary[item_num]['items'].append(item)
-        
-        # Convert to a list
-        item_list = list(item_summary.values())
+        item_list = {}
+        item_list['items'] = results
+        item_list['total_matches'] = len(results)
+        item_list['unique_matches'] = len(set(item['item_number_infor'] for item in results))
+        item_list['false_positive_count'] = 0
         
         return True, "", item_list
         

@@ -7,7 +7,7 @@ import pandas as pd
 import os
 import time
 import re
-from ..common.db import get_db_connection, create_temp_table
+from ..common.db import get_db_connection, get_valid_vid_in_list
 from ..common.utils import validate_file, save_error_file
 # Import user-specific session helpers
 from ..common.session import (
@@ -92,7 +92,7 @@ def map_columns():
     # Get column mapping from POST data
     column_mapping = {}
     for field, column in request.form.items():
-        print(f"Field: {field}, Column: {column}")  # Debugging line
+        # print(f"Field: {field}, Column: {column}")  # Debugging line
         if column:  # Only include fields that are mapped to a column
             column_mapping[field] = column
     
@@ -155,8 +155,16 @@ def validate_file_route():
         duplicate_mode = request.form.get('duplicate_mode', get_session_data(f'duplicate_check_mode_{user_id}', 'default'))
         store_session_data(f'duplicate_check_mode_{user_id}', duplicate_mode) # Store user-specifically
         
-        # Validate the file
-        valid_df, error_df, has_errors = validate_file(df, column_mapping, duplicate_mode)
+        # Get valid vendor IDs from database
+        conn = get_db_connection() # Use helper
+        try:
+            valid_vid = get_valid_vid_in_list(conn)
+        
+            # Validate the file
+            valid_df, error_df, has_errors = validate_file(df, column_mapping, valid_vid, duplicate_mode)
+        finally:
+            if conn:
+                conn.close()
         
         if isinstance(has_errors, str):
             # This means there was an error in the validation process

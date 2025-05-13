@@ -2,8 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask import stream_with_context
 from flask_login import login_required, current_user
 # Import specific session helpers
-from ..common.session import get_temp_table_name, store_infor_cl_matches, get_comparison_results
-from ..common.db import match_to_infor_contract_lines, get_db_connection
+from ..common.session import get_temp_table_name, get_excluded_contracts, store_infor_cl_matches, get_comparison_results, store_infor_im_matches, get_infor_im_matches
+from ..common.db import match_to_infor_contract_lines, get_db_connection, match_to_item_master
 # Removed unused imports for this specific function
 from ..common.utils import three_way_contract_line_matching, three_way_item_master_matching_compute_similarity
 # from ..common.model_loader import get_sentence_transformer_model
@@ -65,10 +65,12 @@ def match_infor_cl():
 
         # get the comparison results from session
         comparison_results = get_comparison_results(user_id)
+        # get the excluded contracts from session
+        excluded_contracts = get_excluded_contracts(user_id)
         # if stacked_data is None, meaning after review we end up having no duplicates in step2, this is fine, we will simply proceed
         # run three way matching
         print("calling three way matching ...")
-        merged_df = three_way_contract_line_matching(comparison_results, contract_list)
+        merged_df = three_way_contract_line_matching(comparison_results, contract_list, excluded_contracts)
         result = three_way_item_master_matching_compute_similarity(merged_df)
         
         # Store the result in session for later use
@@ -201,3 +203,127 @@ def update_infor_cl_false_positives():
             'success': False, 
             'message': f'Error updating false positives: {str(e)}'
         })
+
+@item_matching_bp.route('/match-item-master', methods=['POST'])
+@login_required
+def match_item_master():
+    """Match items from the user's temporary table to Infor Item Master"""
+    # Use current_user.id which is standard for Flask-Login
+    if not current_user or not current_user.is_authenticated:
+         return jsonify({'success': False, 'message': 'User not found or session expired.'}), 401
+    user_id = current_user.id
+
+    # --- Retrieve the table name from session using specific helper ---
+    table_name = get_temp_table_name(user_id)
+
+    if not table_name:
+        current_app.logger.error(f"Temporary table name not found in session for user {user_id}.")
+        return jsonify({
+            'success': False,
+            'message': 'Required data from previous steps is missing. Please ensure you have uploaded and validated your file.'
+        }), 400
+
+    # --- Perform the matching ---
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+             current_app.logger.error(f"Failed to get DB connection for user {user_id} during Item Master matching.")
+             return jsonify({'success': False, 'message': 'Database connection error.'}), 500
+
+        # Call the database function to perform the matching
+        success, error_msg, item_list = match_to_item_master(table_name, conn)
+
+        if not success:
+            current_app.logger.error(f"match_to_item_master failed for user {user_id}, table {table_name}: {error_msg}")
+            return jsonify({
+                'success': False,
+                'message': f'Error during matching: {error_msg}'
+            }), 500
+
+        
+        store_infor_im_matches(user_id, item_list)  # Store the item list in session
+
+        current_app.logger.info(f"Successfully matched Item Master for user {user_id}. Found {len(item_list)} items.")
+        return jsonify({
+            'success': True,
+            'result': item_list
+        })
+
+    except Exception as e:
+        # Log the full exception for debugging
+        current_app.logger.exception(f"Unexpected error during Item Master matching for user {user_id}: {e}")
+        return jsonify({'success': False, 'message': f'An unexpected server error occurred.'}), 500
+    finally:
+        if conn:
+            conn.close()
+            current_app.logger.debug(f"DB connection closed for user {user_id} after Item Master matching.")
+
+
+@item_matching_bp.route('/update-item-master-false-positives', methods=['POST'])
+@login_required
+def update_item_master_false_positives():
+    """Update false positive flags for Item Master matches"""
+    user_id = current_user.id
+    
+    try:
+        # Parse JSON data from request
+        data = request.get_json()
+        
+        if not data or 'false_positive_items' not in data:
+            return jsonify({'success': False, 'message': 'No false positive data provided'})
+        
+        # Get the current matches from session
+        matches = get_infor_im_matches(user_id)
+        
+        if not matches or not isinstance(matches, dict) or 'items' not in matches:
+            return jsonify({'success': False, 'message': 'No Item Master matches found in session'})
+        
+        # Get false positive items from request
+        false_positive_items = data['false_positive_items']
+        
+        # Get items from matches
+        all_items = matches['items']
+        
+        # Update false positive flags on the items
+        items_updated = 0
+        for fp_item in false_positive_items:
+            file_row = str(fp_item.get('file_row', '')).strip().replace('N/A', '')
+            item_number = str(fp_item.get('item_number', '')).strip().replace('N/A', '')
+            infor_mfn = str(fp_item.get('infor_mfn', '')).strip().replace('N/A', '')
+            infor_vendor_id = str(fp_item.get('infor_vendor_id', '')).strip().replace('N/A', '')
+            is_false_positive = fp_item.get('is_false_positive', False)
+            
+            # Find matching items using all available identifying information
+            for item in all_items:
+                item_file_row = str(item.get('File_Row', '')).strip()
+                item_number_infor = str(item.get('item_number_infor', '')).strip()
+                item_mfn_infor = str(item.get('mfg_part_num_infor', '')).strip()
+                item_vendor_id = str(item.get('erp_vendor_id_infor', '')).strip()
+                
+                if ((not file_row or item_file_row == file_row) and 
+                    (not item_number or item_number_infor == item_number) and
+                    (not infor_mfn or item_mfn_infor == infor_mfn) and
+                    (not infor_vendor_id or item_vendor_id == infor_vendor_id)):
+                    
+                    # Mark the item
+                    item['false_positive'] = is_false_positive
+                    items_updated += 1
+        
+        # Update the false positive count
+        false_positive_count = sum(1 for item in all_items if item.get('false_positive'))
+        matches['false_positive_count'] = false_positive_count
+        
+        # Save updated matches back to session
+        store_infor_im_matches(user_id, matches)
+        
+        # Return success response with updated count
+        return jsonify({
+            'success': True, 
+            'message': f'Updated {items_updated} items',
+            'false_positive_count': false_positive_count
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating item master false positives: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})

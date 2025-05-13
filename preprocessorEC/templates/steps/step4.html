@@ -55,8 +55,6 @@
     .items-table .sort-indicator {
         margin-left: 5px;
         opacity: 0.5;
-        display: inline-block; /* Ensure indicator is displayed */
-        width: 10px; /* Give it some space */
     }
     
     .items-table th.sort-asc .sort-indicator::after {
@@ -68,21 +66,23 @@
     }
 
     .match-indicator {
-        display: inline-block;
-        padding: 3px 6px;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        font-weight: 500;
+        display: flex;
+        justify-content: center;
+        width: 100%;
+    }
+
+    .match-indicator.match::before {
+        content: "✓";
+        color: #2ecc71;
+        font-weight: bold;
+        font-size: 1.2rem;
     }
     
-    .match-indicator.match {
-        background-color: #d4edda;
-        color: #155724;
-    }
-    
-    .match-indicator.partial-match {
-        background-color: #fff3cd; /* Light yellow for partial */
-        color: #856404;
+    .match-indicator.no-match::before {
+        content: "✗";
+        color: #e74c3c;
+        font-weight: bold;
+        font-size: 1.2rem;
     }
 
     .no-matches {
@@ -381,6 +381,52 @@
     .item-master-card {
         border-left-color: #3498db; /* Blue */
     }
+
+
+    .items-table th {
+        background-color: #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        cursor: pointer;
+        padding: 6px;
+        text-align: left;
+        white-space: normal; /* Allow text wrapping */
+        height: auto;
+        vertical-align: middle;
+    }
+
+    .items-table .sort-indicator {
+        margin-left: 5px;
+        opacity: 0.5;
+    }
+
+
+    .items-table th.description-col {
+        min-width: 150px;
+    }
+
+    #items-table-4-2 td:nth-child(4) {
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+
+    #items-table-4-2 td:nth-child(4) .match-indicator {
+        display: flex !important;
+        justify-content: center !important;
+        width: 70% !important;
+    }
+
+    #items-table-4-1 th:nth-child(2),
+    #items-table-4-1 td:nth-child(2),
+    #items-table-4-1 th:nth-child(3),
+    #items-table-4-1 td:nth-child(3){
+        width: 5%;  
+        min-width: 80px; 
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
 </style>
 
 <div class="step-content">
@@ -481,22 +527,23 @@
                         <table id="items-table-4-1" class="items-table">
                             <thead>
                                 <tr>
-                                    <th data-sort="Mfg_Part_Num">Upload MFN<span class="sort-indicator"></span></th>
-                                    <th data-sort="mfg_part_num_infor">Infor MFN<span class="sort-indicator"></span></th>
-                                    <th data-sort="same_mfg_part_num">MFN Match<span class="sort-indicator"></span></th>
-                                    <th data-sort="UOM">Upload UOM<span class="sort-indicator"></span></th>
-                                    <th data-sort="uom_infor">Infor UOM<span class="sort-indicator"></span></th>
-                                    <th data-sort="Contract_Price">Upload Price<span class="sort-indicator"></span></th>
-                                    <th data-sort="price_infor">Infor Price<span class="sort-indicator"></span></th>
+                                    <th data-sort="item_number_infor">Infor Item #<span class="sort-indicator"></span></th>
+                                    <th data-sort="mfg_part_num_infor">Mfg Part Num (Infor)<span class="sort-indicator"></span></th>
+                                    <th data-sort="Mfg_Part_Num">Mfg Part Num (Upload)<span class="sort-indicator"></span></th>
+                                    <th data-sort="uom_infor">UOM (Infor)<span class="sort-indicator"></span></th>
+                                    <th data-sort="UOM">UOM (Upload)<span class="sort-indicator"></span></th>
+                                    <th data-sort="qoe_infor">QOE (Infor)<span class="sort-indicator"></span></th>
+                                    <th data-sort="QOE">QOE (Upload)<span class="sort-indicator"></span></th>
+                                    <th data-sort="infor_ea_price">EA Price (Infor)<span class="sort-indicator"></span></th>
+                                    <th data-sort="upload_ea_price">EA Price (Upload)<span class="sort-indicator"></span></th>
+                                    <th data-sort="same_mfg_part_num">Exact MFN Match<span class="sort-indicator"></span></th>
                                     <th data-sort="weighted_score">Confidence<span class="sort-indicator"></span></th>
                                     <th>False Positive</th>
-                                    <th data-sort="Description" class="description-col">Upload Desc<span class="sort-indicator"></span></th>
-                                    <th data-sort="description_infor" class="description-col">Infor Desc<span class="sort-indicator"></span></th>
-                                    <th data-sort="contract_number_infor">Infor Contract #<span class="sort-indicator"></span></th>
-                                    <th data-sort="item_number_infor">Infor Item #<span class="sort-indicator"></span></th>
-                                    <th data-sort="manufacturer_name_infor">Infor Mfr Name<span class="sort-indicator"></span></th>
-                                    <th data-sort="vendor_name_infor">Infor Vendor Name<span class="sort-indicator"></span></th>
-                                    <th data-sort="File_Row">File Row<span class="sort-indicator"></span></th>
+                                    <th data-sort="description_infor" class="description-col">Description (Infor)<span class="sort-indicator"></span></th>
+                                    <th data-sort="Description" class="description-col">Description (Upload)<span class="sort-indicator"></span></th>
+                                    <th data-sort="contract_number_infor">Contract Number (Infor)<span class="sort-indicator"></span></th>
+                                    <th data-sort="manufacturer_name_infor">Manufacturer (Infor)<span class="sort-indicator"></span></th>
+                                    <th data-sort="File_Row">File Row (Upload)<span class="sort-indicator"></span></th>
                                 </tr>
                             </thead>
                             <tbody id="items-tbody-4-1">
@@ -515,16 +562,83 @@
 
         <!-- Action Buttons -->
         <div id="action-buttons-4-1" class="action-buttons">
-            <form id="complete-step-4-1-form" method="POST" action="{{ url_for('common.process_step', step_id=4) }}" style="display: inline;">
-                <input type="hidden" name="substep_completed" value="4.1">
-                <button type="submit" class="btn btn-success">Complete Step 4.1</button>
-            </form>
+            <button id="complete-step-4-1-btn" class="btn btn-success">Complete Step 4.1</button>
         </div>
     </div>
 
-    <!-- Placeholder for Step 4.2 -->
-    <div id="step-4-2-placeholder" class="substep-placeholder" style="display: none;">
-        Step 4.2: Match to Item Master will appear here after completing Step 4.1.
+    <!-- Step 4.2: Match to Item Master -->
+    <div id="step-4-2-content" style="display: none;">
+        <h3>Step 4.2: Match to Item Master</h3>
+        <p>Match uploaded items against the Infor Item Master database to identify existing items.</p>
+        
+        <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4" style = "display: none;">
+            <button id="start-item-master-matching-btn" class="btn btn-primary">
+                Start Matching to Item Master
+            </button>
+        </div>
+        
+        <!-- Item Master Matching Results -->
+        <div id="item-master-results-container" class="result-summary" style="display: none;">
+            <h4 style="margin-top: 0; margin-bottom: 15px;">Upload - Item Master Matching Results</h4>
+            <!-- Summary statistics will be shown here -->
+            <div id="item-master-stats"></div>
+        </div>
+        
+        <!-- Item Master Table Container -->
+        <div id="item-master-table-container" style="display: none;">
+            <div class="controls-container">
+                <div class="filter-container">
+                    <div class="search-wrapper">
+                        <select id="item-search-type-4-2" class="search-type-select">
+                            <option value="contains">Contains</option>
+                            <option value="not-contains">Not Contains</option>
+                        </select>
+                        <input type="text" id="item-search-4-2" class="search-input" placeholder="Filter items...">
+                        <button type="button" id="clear-search-btn-4-2" class="clear-search-btn" title="Clear search">Clear</button>
+                    </div>
+                </div>
+                <div class="batch-controls">
+                    <button id="select-all-btn-4-2" class="btn btn-sm btn-secondary">Select All</button>
+                    <button id="deselect-all-btn-4-2" class="btn btn-sm btn-secondary">Deselect All</button>
+                    <button id="save-selections-btn-4-2" class="btn btn-sm btn-primary">Save Selections</button>
+                </div>
+            </div>
+            
+            <div class="items-table-container">
+                <table id="items-table-4-2" class="items-table">
+                    <thead>
+                         <tr>
+                            <th data-sort="item_number_infor">Infor Item #<span class="sort-indicator"></span></th>
+                            <th data-sort="mfg_part_num_infor">Mfg Part Num (Infor)<span class="sort-indicator"></span></th>
+                            <th data-sort="Mfg_Part_Num">Mfg Part Num (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="same_mfg_part_num">Exact MFN Match<span class="sort-indicator"></span></th>
+                            <th>False Positive</th>
+                            <th data-sort="erp_vendor_id_infor">Vendor ID (Infor)<span class="sort-indicator"></span></th>
+                            <th data-sort="ERP_Vendor_ID">Vendor ID (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="description_infor" class="description-col">Description (Infor)<span class="sort-indicator"></span></th>
+                            <th data-sort="Description" class="description-col">Description (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="File_Row">File Row (Upload)<span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="items-tbody-4-2">
+                        <!-- Items will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="no-matches-message-4-2" class="no-matches" style="display:none;">
+                <h4>No Item Master matches found</h4>
+                <p>No matches were found between your uploaded items and the Item Master.</p>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div id="action-buttons-4-2" class="action-buttons" style="display: none;">
+            <form id="complete-step-4-2-form" method="POST" action="{{ url_for('common.process_step', step_id=4) }}" style="display: inline;">
+                <input type="hidden" name="substep_completed" value="4.2">
+                <button type="submit" class="btn btn-success">Complete Step 4.2</button>
+            </form>
+        </div>
     </div>
 
     <!-- Placeholder for Step 4.3 -->
@@ -555,11 +669,46 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemSearchType = document.getElementById('item-search-type-4-1');
     const clearSearchBtn = document.getElementById('clear-search-btn-4-1');
     const step42Placeholder = document.getElementById('step-4-2-placeholder');
+    const reviewSummaryCard = document.getElementById('review-summary-card-4-1');
+
+    // Add debug logs to check if elements exist
+    console.log("Element check:", {
+        loadingOverlay: !!loadingOverlay,
+        itemComparisonContainer: !!itemComparisonContainer,
+        actionButtons: !!actionButtons,
+        reviewSummaryCard: !!reviewSummaryCard,
+        step42Placeholder: !!step42Placeholder,
+        noMatchesMessage: !!noMatchesMessage,
+        itemsDetailView: !!itemsDetailView
+    });
 
     // Action buttons
     const selectAllBtn = document.getElementById('select-all-btn-4-1');
     const deselectAllBtn = document.getElementById('deselect-all-btn-4-1');
     const saveSelectionsBtn = document.getElementById('save-selections-btn-4-1');
+
+    const selectAllBtn42 = document.getElementById('select-all-btn-4-2');
+    if (selectAllBtn42) {
+        selectAllBtn42.addEventListener('click', function() {
+            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+        });
+    }
+    const deselectAllBtn42 = document.getElementById('deselect-all-btn-4-2');
+    if (deselectAllBtn42) {
+        deselectAllBtn42.addEventListener('click', function() {
+            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+    }
+    const saveSelectionsBtn42 = document.getElementById('save-selections-btn-4-2');
+    if (saveSelectionsBtn42) {
+        saveSelectionsBtn42.addEventListener('click', function() {
+            saveFalsePositiveSelections();
+        });
+    }
 
     // Items and filtering variables
     let allItems = []; // All items from backend
@@ -568,50 +717,72 @@ document.addEventListener('DOMContentLoaded', function() {
     let sortField = null;
     let sortDirection = 'asc';
 
-    // Start matching button click handler
-    startInforCLMatchingBtn.addEventListener('click', function() {
-        loadingOverlay.style.display = 'flex';
-        // Hide any previous results
-        itemComparisonContainer.style.display = 'none';
-        actionButtons.style.display = 'none';
-        document.getElementById('review-summary-card-4-1').style.display = 'none';
 
-        fetch('/item-matching/match-infor-contract-lines', {
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            loadingOverlay.style.display = 'none';
-            
-            if (data.success) {
-                try {
-                    // Process results similar to step2
-                    if (data.result) {
-                        processMatchResults(data.result);
-                        // Show the comparison container
-                        itemComparisonContainer.style.display = 'block';
-                        // Show action buttons
-                        actionButtons.style.display = 'block';
-                        // Show placeholder for next step
-                        step42Placeholder.style.display = 'block';
-                        
-                    } else {
-                        showError("No result data returned from server");
-                    }
-                } catch (err) {
-                    showError("Error processing results: " + err.message);
-                    console.error("Processing error details:", err);
-                }
-            } else {
-                showError("Error matching to Infor Contract Lines: " + data.message);
+    // Helper function to safely set display style
+    function safeSetDisplay(element, displayValue) {
+        if (element && typeof element.style !== 'undefined') {
+            element.style.display = displayValue;
+        } else {
+            // Better error message that doesn't trigger too many warnings in the console
+            if (!element) {
+                console.warn("Element not found for safeSetDisplay");
+            } else if (!element.style) {
+                console.warn("Element found but has no style property:", element);
             }
-        })
-        .catch(error => {
-            loadingOverlay.style.display = 'none';
-            showError("Error during fetch: " + error.toString());
-            console.error("Full error details:", error);
+        }
+    }
+
+    // Start matching button click handler
+    if (startInforCLMatchingBtn) {
+        startInforCLMatchingBtn.addEventListener('click', function() {
+            // Show loading overlay
+            safeSetDisplay(loadingOverlay, 'flex');
+            
+            // Hide any previous results
+            safeSetDisplay(itemComparisonContainer, 'none');
+            safeSetDisplay(actionButtons, 'none');
+            safeSetDisplay(reviewSummaryCard, 'none');
+
+            fetch('/item-matching/match-infor-contract-lines', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading overlay
+                safeSetDisplay(loadingOverlay, 'none');
+                
+                if (data.success) {
+                    try {
+                        // Process results similar to step2
+                        if (data.result) {
+                            processMatchResults(data.result);
+                            // Show the comparison container
+                            safeSetDisplay(itemComparisonContainer, 'block');
+                            // Show action buttons
+                            safeSetDisplay(actionButtons, 'block');
+                            // Show placeholder for next step
+                            safeSetDisplay(step42Placeholder, 'block');
+                            
+                        } else {
+                            showError("No result data returned from server");
+                        }
+                    } catch (err) {
+                        showError("Error processing results: " + err.message);
+                        console.error("Processing error details:", err);
+                    }
+                } else {
+                    showError("Error matching to Infor Contract Lines: " + data.message);
+                }
+            })
+            .catch(error => {
+                safeSetDisplay(loadingOverlay, 'none');
+                showError("Error during fetch: " + error.toString());
+                console.error("Full error details:", error);
+            });
         });
-    });
+    } else {
+        console.error("Start button for Infor CL matching not found in DOM");
+    }
 
     // Confidence card click handlers
     document.querySelectorAll('.confidence-card').forEach(card => {
@@ -729,9 +900,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadConfidenceItems('low');
             } else {
                 // No items found
-                noMatchesMessage.style.display = 'block';
-                itemsDetailView.style.display = 'block';
-                document.querySelector('.items-table-container').style.display = 'none';
+                safeSetDisplay(noMatchesMessage, 'block');
+                safeSetDisplay(itemsDetailView, 'block');
+                safeSetDisplay(document.querySelector('.items-table-container'), 'none');
             }
 
             // IMPORTANT: Only call this once with the server data
@@ -754,10 +925,15 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.confidence-card').forEach(card => {
             card.classList.remove('selected');
         });
-        document.getElementById(level + '-confidence-card-4-1').classList.add('selected');
+        const selectedCard = document.getElementById(level + '-confidence-card-4-1');
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
         
         // Update level title
-        detailTitle.textContent = level.charAt(0).toUpperCase() + level.slice(1) + ' Confidence Matches';
+        if (detailTitle) {
+            detailTitle.textContent = level.charAt(0).toUpperCase() + level.slice(1) + ' Confidence Matches';
+        }
         
         // Set current level and items
         currentLevel = level;
@@ -774,16 +950,20 @@ document.addEventListener('DOMContentLoaded', function() {
         renderItemsTable(currentItems);
         
         // Show the detail view
-        itemsDetailView.style.display = 'block';
+        safeSetDisplay(itemsDetailView, 'block');
         
         // Show/hide no matches message
-        noMatchesMessage.style.display = currentItems.length === 0 ? 'block' : 'none';
-        document.querySelector('.items-table-container').style.display = 
-            currentItems.length === 0 ? 'none' : 'block';
+        safeSetDisplay(noMatchesMessage, currentItems.length === 0 ? 'block' : 'none');
+        
+        // Get the table container and safely set its display
+        const tableContainer = document.querySelector('.items-table-container');
+        safeSetDisplay(tableContainer, currentItems.length === 0 ? 'none' : 'block');
 
         // Clear any existing filter
-        itemSearchInput.value = '';
-        filterItemTable();
+        if (itemSearchInput) {
+            itemSearchInput.value = '';
+            filterItemTable();
+        }
     }
 
     // Function to render the items table
@@ -820,21 +1000,20 @@ document.addEventListener('DOMContentLoaded', function() {
             items.forEach((item, index) => {
                 const row = document.createElement('tr');
                 
-                // Get confidence class based on score and level (with safeguards)
+                // Get confidence class based on score and level
                 const scoreClass = currentLevel === 'high' ? 'high-score' : 
                                 (currentLevel === 'medium' ? 'medium-score' : 'low-score');
                 
-                // Format EA prices with safeguards
-                const uploadPrice = item.Contract_Price !== null && !isNaN(parseFloat(item.Contract_Price)) ? 
-                    '$' + parseFloat(item.Contract_Price).toFixed(2) : 'N/A';
+                // Format EA prices with safeguards - Use upload_ea_price and infor_ea_price
+                const uploadEAPrice = item.upload_ea_price !== null && !isNaN(parseFloat(item.upload_ea_price)) ? 
+                    '$' + parseFloat(item.upload_ea_price).toFixed(2) : 'N/A';
                     
-                const inforPrice = item.price_infor !== null && !isNaN(parseFloat(item.price_infor)) ? 
-                    '$' + parseFloat(item.price_infor).toFixed(2) : 'N/A';
+                const inforEAPrice = item.infor_ea_price !== null && !isNaN(parseFloat(item.infor_ea_price)) ? 
+                    '$' + parseFloat(item.infor_ea_price).toFixed(2) : 'N/A';
                 
                 // Is exact match with safeguard
                 const isExactMatch = item.same_mfg_part_num === 1;
                 const matchClass = isExactMatch ? 'match' : 'partial-match';
-                const matchText = isExactMatch ? 'Exact' : 'Similar';
                 
                 // Safely calculate display confidence score
                 let confidenceScore = '50%'; // Default value
@@ -850,25 +1029,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 const inforDesc = item.description_infor || 'N/A';
                 
                 row.innerHTML = `
-                    <td>${item.Mfg_Part_Num || 'N/A'}</td>
+                    <td>${item.item_number_infor || ''}</td>
                     <td>${item.mfg_part_num_infor || 'N/A'}</td>
-                    <td><span class="match-indicator ${matchClass}">${matchText}</span></td>
-                    <td>${item.UOM || 'N/A'}</td>
+                    <td>${item.Mfg_Part_Num || 'N/A'}</td>
                     <td>${item.uom_infor || 'N/A'}</td>
-                    <td>${uploadPrice}</td>
-                    <td>${inforPrice}</td>
+                    <td>${item.UOM || 'N/A'}</td>
+                    <td>${item.qoe_infor || 'N/A'}</td>
+                    <td>${item.QOE || 'N/A'}</td>
+                    <td>${inforEAPrice}</td>
+                    <td>${uploadEAPrice}</td>
+                    <td><span class="match-indicator ${matchClass}"></span></td>
                     <td class="score-cell ${scoreClass}">${confidenceScore}</td>
                     <td>
                         <input type="checkbox" class="false-positive-checkbox" 
                             data-index="${index}" 
                             ${item.false_positive ? 'checked' : ''}>
                     </td>
-                    <td class="description-col" title="${uploadDesc}">${uploadDesc.substring(0, 50)}${uploadDesc.length > 50 ? '...' : ''}</td>
                     <td class="description-col" title="${inforDesc}">${inforDesc.substring(0, 50)}${inforDesc.length > 50 ? '...' : ''}</td>
+                    <td class="description-col" title="${uploadDesc}">${uploadDesc.substring(0, 50)}${uploadDesc.length > 50 ? '...' : ''}</td>
                     <td>${item.contract_number_infor || 'N/A'}</td>
-                    <td>${item.item_number_infor || ''}</td>
                     <td>${item.manufacturer_name_infor || 'N/A'}</td>
-                    <td>${item.vendor_name_infor || 'N/A'}</td>
                     <td>${item.File_Row || 'N/A'}</td>
                 `;
                 
@@ -899,10 +1079,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Function to save selections (for false positives)
+    // Function to save selections (for false positives in 4.1)
     function saveSelections() {
         // Show loading overlay
-        loadingOverlay.style.display = 'flex';
+        safeSetDisplay(loadingOverlay, 'flex');
         
         // Get all checkboxes and their status
         const checkboxes = document.querySelectorAll('#items-tbody-4-1 input[type="checkbox"]');
@@ -910,14 +1090,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // Create a map of all items and their status
         const itemUpdates = Array.from(checkboxes).map(checkbox => {
             const row = checkbox.closest('tr');
-            const fileRow = row.querySelector('td:nth-last-child(1)').textContent.trim(); // File Row
-            const inforMfn = row.querySelector('td:nth-child(2)').textContent.trim(); // Infor MFN
+            const fileRow = row.querySelector('td:nth-child(17)').textContent.trim(); // File Row is now in column 17
+            const inforMfn = row.querySelector('td:nth-child(2)').textContent.trim(); // Infor MFN is in column 2
+            const itemNumber = row.querySelector('td:nth-child(1)').textContent.trim(); // Infor Item # is in column 1
             
             return {
                 index: parseInt(checkbox.dataset.index),
                 is_false_positive: checkbox.checked,
                 file_row: fileRow,
-                infor_mfn: inforMfn
+                infor_mfn: inforMfn,
+                item_number: itemNumber
             };
         });
         
@@ -968,16 +1150,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     lowFalsePositives + ' marked as false positive';
                 
                 // Hide loading and show success message
-                loadingOverlay.style.display = 'none';
+                safeSetDisplay(loadingOverlay, 'none');
                 alert('Selections saved successfully');
             } else {
                 // Show error message
-                loadingOverlay.style.display = 'none';
+                safeSetDisplay(loadingOverlay, 'none');
                 alert('Error saving selections: ' + data.message);
             }
         })
         .catch(error => {
-            loadingOverlay.style.display = 'none';
+            safeSetDisplay(loadingOverlay, 'none');
             console.error('Error saving selections:', error);
             alert('Error saving selections: ' + error);
         });
@@ -1019,26 +1201,470 @@ document.addEventListener('DOMContentLoaded', function() {
                         "No Review:", noReviewCount, "Item Master:", itemMasterCount);
         }
         
-        // Set the values in the UI - ensure they're all numbers
-        document.getElementById('need-review-count-4-1').textContent = Number(needReviewCount);
-        document.getElementById('no-need-review-count-4-1').textContent = Number(noReviewCount);
-        document.getElementById('item-master-count-4-1').textContent = Number(itemMasterCount);
+        // Set the values in the UI - ensure they're all numbers and elements exist
+        const needReviewElement = document.getElementById('need-review-count-4-1');
+        const noReviewElement = document.getElementById('no-need-review-count-4-1');
+        const itemMasterElement = document.getElementById('item-master-count-4-1');
+        
+        if (needReviewElement) needReviewElement.textContent = Number(needReviewCount);
+        if (noReviewElement) noReviewElement.textContent = Number(noReviewCount);
+        if (itemMasterElement) itemMasterElement.textContent = Number(itemMasterCount);
         
         // Extra check to confirm values were set
         console.log("Values after setting to DOM:", {
-            review: document.getElementById('need-review-count-4-1').textContent,
-            noReview: document.getElementById('no-need-review-count-4-1').textContent,
-            itemMaster: document.getElementById('item-master-count-4-1').textContent
+            review: needReviewElement ? needReviewElement.textContent : 'element not found',
+            noReview: noReviewElement ? noReviewElement.textContent : 'element not found',
+            itemMaster: itemMasterElement ? itemMasterElement.textContent : 'element not found'
         });
         
         // Show the review summary card
-        document.getElementById('review-summary-card-4-1').style.display = 'block';
+        safeSetDisplay(reviewSummaryCard, 'block');
     }
 
     // Function to show errors
     function showError(message) {
         console.error(message);
         alert(message);
+    }
+
+    // Variables for Step 4.2
+    const step42Content = document.getElementById('step-4-2-content');
+    const startItemMasterMatchingBtn = document.getElementById('start-item-master-matching-btn');
+    const itemMasterResultsContainer = document.getElementById('item-master-results-container');
+    const itemMasterTableContainer = document.getElementById('item-master-table-container');
+    const itemMasterStats = document.getElementById('item-master-stats');
+    const itemsTable42 = document.getElementById('items-table-4-2');
+    const itemsTbody42 = document.getElementById('items-tbody-4-2');
+    const noMatchesMessage42 = document.getElementById('no-matches-message-4-2');
+    const actionButtons42 = document.getElementById('action-buttons-4-2');
+    const itemSearchInput42 = document.getElementById('item-search-4-2');
+    const itemSearchType42 = document.getElementById('item-search-type-4-2');
+    const clearSearchBtn42 = document.getElementById('clear-search-btn-4-2');
+    const step43Placeholder = document.getElementById('step-4-3-placeholder');
+
+    // Items and filtering variables for Step 4.2
+    let allItemMasterItems = [];
+    let sortField42 = null;
+    let sortDirection42 = 'asc';
+
+    // When Step 4.1 is completed, show Step 4.2
+    // Replace the existing completeStep41Btn click handler with this version
+
+    // When Step 4.1 is completed, show Step 4.2 and automatically start Item Master matching
+    const completeStep41Btn = document.getElementById('complete-step-4-1-btn');
+    if (completeStep41Btn) {
+        completeStep41Btn.addEventListener('click', function() {
+            // Show loading overlay
+            safeSetDisplay(loadingOverlay, 'flex');
+            
+            // Show Step 4.2 but keep Step 4.1 visible
+            safeSetDisplay(document.getElementById('step-4-2-content'), 'block');
+            
+            // Optional: Scroll to the Step 4.2 section smoothly
+            document.getElementById('step-4-2-content').scrollIntoView({ behavior: 'smooth' });
+            
+            // Directly call the Item Master matching endpoint (skip the "Start Matching" button)
+            fetch('/item-matching/match-item-master', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                safeSetDisplay(loadingOverlay, 'none');
+                
+                if (data.success) {
+                    try {
+                        // Process results
+                        processItemMasterResults(data.result);
+                        // Show the table container
+                        safeSetDisplay(itemMasterTableContainer, 'block');
+                        // Show action buttons
+                        safeSetDisplay(actionButtons42, 'block');
+                        // Show placeholder for next step
+                        safeSetDisplay(step43Placeholder, 'block');
+                        
+                        // Hide the now-redundant "Start Matching to Item Master" button
+                        safeSetDisplay(startItemMasterMatchingBtn, 'none');
+                    } catch (err) {
+                        showError("Error processing Item Master results: " + err.message);
+                        console.error("Processing error details:", err);
+                    }
+                } else {
+                    showError("Error matching to Item Master: " + data.message);
+                }
+            })
+            .catch(error => {
+                safeSetDisplay(loadingOverlay, 'none');
+                showError("Error during fetch: " + error.toString());
+                console.error("Full error details:", error);
+            });
+        });
+    }
+
+    // Start matching button click handler for Item Master
+    if (startItemMasterMatchingBtn) {
+        startItemMasterMatchingBtn.addEventListener('click', function() {
+            safeSetDisplay(loadingOverlay, 'flex');
+            // Hide any previous results
+            safeSetDisplay(itemMasterTableContainer, 'none');
+            safeSetDisplay(actionButtons42, 'none');
+            safeSetDisplay(itemMasterResultsContainer, 'none');
+
+            fetch('/item-matching/match-item-master', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                safeSetDisplay(loadingOverlay, 'none');
+                
+                if (data.success) {
+                    try {
+                        // Process results
+                        processItemMasterResults(data.result);
+                        // Show the table container
+                        safeSetDisplay(itemMasterTableContainer, 'block');
+                        // Show action buttons
+                        safeSetDisplay(actionButtons42, 'block');
+                        // Show placeholder for next step
+                        safeSetDisplay(step43Placeholder, 'block');
+                    } catch (err) {
+                        showError("Error processing Item Master results: " + err.message);
+                        console.error("Processing error details:", err);
+                    }
+                } else {
+                    showError("Error matching to Item Master: " + data.message);
+                }
+            })
+            .catch(error => {
+                safeSetDisplay(loadingOverlay, 'none');
+                showError("Error during fetch: " + error.toString());
+                console.error("Full error details:", error);
+            });
+        });
+    }
+   
+
+    // Process Item Master results
+    function processItemMasterResults(results) {
+        if (!results) {
+            safeSetDisplay(noMatchesMessage42, 'block');
+            return;
+        }
+
+        // Debug the result structure
+        console.log("Item Master results structure:", results);
+        
+        // Handle different result formats
+        let itemsArray = [];
+        let totalMatches = 0;
+        let uniqueMatches = 0;
+        let falsePositiveItems = 0;
+        
+        // Handle flat array structure in results.items
+        if (typeof results === 'object' && results.items) {
+            console.log(`Found items array with ${results.items.length} items`);
+            
+            // Check if items is a flat array (as in your example)
+            if (Array.isArray(results.items)) {
+                // Just use the array directly, no flattening needed
+                itemsArray = results.items;
+                console.log(`Using flat array structure with ${itemsArray.length} items`);
+            }
+            
+            // Get stats from server response
+            totalMatches = results.total_matches || itemsArray.length;
+            uniqueMatches = results.unique_matches || new Set(itemsArray.map(item => item.item_number_infor)).size;
+            falsePositiveItems = results.false_positive_count || 0;
+        } 
+        // If it's an array directly
+        else if (Array.isArray(results)) {
+            itemsArray = results;
+            totalMatches = itemsArray.length;
+            uniqueMatches = new Set(itemsArray.map(item => item.item_number_infor)).size;
+        } else {
+            console.error("Unexpected results format:", results);
+            safeSetDisplay(noMatchesMessage42, 'block');
+            return;
+        }
+        
+        // Log final items array info
+        console.log(`Processed ${itemsArray.length} items for display`);
+        
+        // Store all items
+        allItemMasterItems = itemsArray;
+        
+        // Display statistics
+        itemMasterStats.innerHTML = `
+            <div class="summary-stats-row">
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Total Matches</h5>
+                            <div class="stat-value">${totalMatches}</div>
+                            <div class="text-muted">Total matched items</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Unique Items</h5>
+                            <div class="stat-value">${uniqueMatches}</div>
+                            <div class="text-muted">Unique Item Numbers</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">False Positive Items</h5>
+                            <div class="stat-value">${falsePositiveItems}</div>
+                            <div class="text-muted">Items should get excluded</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Show summary
+        safeSetDisplay(itemMasterResultsContainer, 'block');
+        
+        // Make sure tables and containers are visible
+        const itemsTableContainer = document.querySelector('#item-master-table-container .items-table-container');
+        if (itemsTableContainer) {
+            safeSetDisplay(itemsTableContainer, 'block');
+        } else {
+            console.warn("Could not find #item-master-table-container .items-table-container");
+        }
+        
+        // Reset sorting
+        sortField42 = null;
+        sortDirection42 = 'asc';
+        document.querySelectorAll('#items-table-4-2 th').forEach(header => {
+            header.classList.remove('sort-asc', 'sort-desc');
+        });
+        
+        // Render the table
+        renderItemMasterTable(allItemMasterItems);
+        
+        // Force display the table container after a slight delay to ensure rendering is complete
+        setTimeout(() => {
+            safeSetDisplay(itemMasterTableContainer, 'block');
+            safeSetDisplay(document.querySelector('#item-master-table-container .items-table-container'), 'block');
+            console.log("Forced display of item master table container");
+        }, 200);
+    }
+
+    // Render the Item Master table
+    function renderItemMasterTable(items) {
+        itemsTbody42.innerHTML = ''; // Clear the table
+        
+        try {
+            if (sortField42) {
+                items = [...items].sort((a, b) => {
+                    let valA = a[sortField42];
+                    let valB = b[sortField42];
+                    
+                    // Handle null, undefined, and NaN values
+                    if (valA === null || valA === undefined || (typeof valA === 'number' && isNaN(valA))) valA = '';
+                    if (valB === null || valB === undefined || (typeof valB === 'number' && isNaN(valB))) valB = '';
+                    
+                    // Handle numeric fields
+                    if (typeof valA === 'number' && typeof valB === 'number') {
+                        return sortDirection42 === 'asc' ? valA - valB : valB - valA;
+                    }
+                    
+                    // Handle string fields
+                    valA = String(valA || '').toLowerCase();
+                    valB = String(valB || '').toLowerCase();
+                    
+                    if (valA < valB) return sortDirection42 === 'asc' ? -1 : 1;
+                    if (valA > valB) return sortDirection42 === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+            
+            items.forEach((item, index) => {
+                const row = document.createElement('tr');
+                
+                // Is exact match with safeguard
+                const isExactMatch = item.same_mfg_part_num === 1;
+                const matchClass = isExactMatch ? 'match' : 'partial-match';
+                
+                // Use item.false_positive property, defaulting to false if not set
+                const isFalsePositive = item.false_positive === true;
+                
+                row.innerHTML = `
+                    <td>${item.item_number_infor || ''}</td>
+                    <td>${item.mfg_part_num_infor || 'N/A'}</td>
+                    <td>${item.Mfg_Part_Num || 'N/A'}</td>
+                    <td><span class="match-indicator ${matchClass}"></span></td>
+                    <td> <!-- False Positive checkbox moved here -->
+                        <input type="checkbox" class="false-positive-checkbox" 
+                            data-index="${index}" 
+                            data-file-row="${item.File_Row || ''}"
+                            data-item-number="${item.item_number_infor || ''}"
+                            data-infor-mfn="${item.mfg_part_num_infor || ''}"
+                            data-infor-vendor-id="${item.erp_vendor_id_infor || ''}"
+                            ${isFalsePositive ? 'checked' : ''}>
+                    </td>
+                    <td>${item.erp_vendor_id_infor || 'N/A'}</td>
+                    <td>${item.ERP_Vendor_ID || 'N/A'}</td>
+                    <td class="description-col" title="${item.description_infor || ''}">${(item.description_infor || 'N/A').substring(0, 50)}${(item.description_infor || '').length > 50 ? '...' : ''}</td>
+                    <td class="description-col" title="${item.Description || ''}">${(item.Description || 'N/A').substring(0, 50)}${(item.Description || '').length > 50 ? '...' : ''}</td>
+                    <td>${item.File_Row || 'N/A'}</td>
+                `;
+                
+                itemsTbody42.appendChild(row);
+            });
+            
+            // Add event listeners to checkboxes
+            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    console.log(`Checkbox toggled: item ${checkbox.dataset.itemNumber}, file row ${checkbox.dataset.fileRow}, is now ${checkbox.checked ? 'checked' : 'unchecked'}`);
+                });
+            });
+            
+        } catch (err) {
+            console.error("Error rendering table:", err);
+            showError("Error rendering Item Master results: " + err.message);
+        }
+    }
+
+    // Table header click for sorting - Step 4.2
+    document.querySelectorAll('#items-table-4-2 th[data-sort]').forEach(th => {
+        th.addEventListener('click', function() {
+            const field = this.dataset.sort;
+            
+            if (field === sortField42) {
+                sortDirection42 = sortDirection42 === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField42 = field;
+                sortDirection42 = 'asc';
+            }
+            
+            // Update sort indicators
+            document.querySelectorAll('#items-table-4-2 th').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+            });
+            this.classList.add(sortDirection42 === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // Re-render the table with new sort
+            renderItemMasterTable(allItemMasterItems);
+        });
+    });
+
+    // Filter input handler - Step 4.2
+    itemSearchInput42.addEventListener('input', filterItemMasterTable);
+    itemSearchType42.addEventListener('change', filterItemMasterTable);
+    
+    // Clear search button handler - Step 4.2
+    clearSearchBtn42.addEventListener('click', function() {
+        itemSearchInput42.value = '';
+        itemSearchType42.value = 'contains'; // Reset to default
+        filterItemMasterTable();
+    });
+    
+    // Function to filter Item Master table
+    function filterItemMasterTable() {
+        const searchTerm = itemSearchInput42.value.toLowerCase();
+        const searchType = itemSearchType42.value;
+        const tableRows = document.querySelectorAll('#items-tbody-4-2 tr');
+        
+        tableRows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const matchesContains = text.includes(searchTerm);
+            
+            // Show/hide based on search type
+            if (searchType === 'contains') {
+                row.style.display = matchesContains ? '' : 'none';
+            } else { // not-contains
+                row.style.display = matchesContains ? 'none' : '';
+            }
+        });
+    }
+
+    function saveFalsePositiveSelections() {
+        // Get the loading overlay directly instead of using a variable that might be out of scope
+        const loadingOverlay = document.getElementById('loading-overlay');
+        
+        // Show loading overlay with a safety check
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'flex';
+        } else {
+            console.warn('Loading overlay element not found');
+        }
+        
+        // Get all checkboxes and their status
+        const checkboxes = document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox');
+        console.log(`Found ${checkboxes.length} false-positive checkboxes in the table`);
+        
+        // Create a map of all items and their false positive status
+        const falsePositiveItems = Array.from(checkboxes).map(checkbox => {
+            const row = checkbox.closest('tr');
+            const itemNumber = row.cells[0].textContent.trim(); // Infor Item #
+            const inforMfn = row.cells[1].textContent.trim();   // Infor MFN
+            const inforVendorId = row.cells[5].textContent.trim(); // Infor Vendor ID (moved from position 4 to 5)
+            const fileRow = row.cells[9].textContent.trim();    // File Row (moved from position 8 to 9)
+            
+            return {
+                file_row: fileRow,
+                item_number: itemNumber,
+                infor_mfn: inforMfn,
+                infor_vendor_id: inforVendorId,
+                is_false_positive: checkbox.checked
+            };
+        });
+        
+        // Count how many are checked
+        const checkedCount = falsePositiveItems.filter(item => item.is_false_positive).length;
+        console.log(`${checkedCount} of ${falsePositiveItems.length} items are marked as false positive`);
+        
+        // Send updates to the backend
+        fetch('/item-matching/update-item-master-false-positives', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                false_positive_items: falsePositiveItems
+            })
+        })
+        .then(response => {
+            console.log("Response status:", response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log("Response data:", data);
+            
+            // Hide loading overlay with a safety check
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
+            
+            if (data.success) {
+                // Update the false positive count
+                const falsePositiveElement = document.querySelector('#item-master-stats .summary-stats-row .summary-stats-column:nth-child(3) .stat-value');
+                if (falsePositiveElement) {
+                    const countToShow = data.false_positive_count !== undefined ? data.false_positive_count : checkedCount;
+                    falsePositiveElement.textContent = countToShow;
+                    console.log(`Updated false positive count to ${countToShow}`);
+                }
+                
+                alert('False positive selections saved successfully');
+            } else {
+                alert('Error saving false positive selections: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error saving false positive selections:', error);
+            
+            // Hide loading overlay with a safety check
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
+            
+            alert('Error saving selections: ' + error);
+        });
     }
 });
 </script>

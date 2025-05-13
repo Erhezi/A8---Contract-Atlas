@@ -185,20 +185,21 @@
         background-color: #e6f7ff;
     }
     
-    .match-indicator {
+    .modal-match-indicator {
         display: inline-block;
         padding: 3px 6px;
         border-radius: 4px;
         font-size: 0.8rem;
         font-weight: 500;
+        text-align: center;
     }
-    
-    .match-indicator.match {
+
+    .modal-match-indicator.match {
         background-color: #d4edda;
         color: #155724;
     }
-    
-    .match-indicator.mismatch {
+
+    .modal-match-indicator.no-match {
         background-color: #f8d7da;
         color: #721c24;
     }
@@ -847,6 +848,7 @@
                                 <th data-sort="Description">Description (Upload)<span class="sort-indicator"></span></th>
                                 <th data-sort="contract_number_ccx">Contract Number (CCX)<span class="sort-indicator"></span></th>
                                 <th data-sort="manufacturer_name_ccx">Manufacturer (CCX)<span class="sort-indicator"></span></th>
+                                <th data-sort="File_Row">File Row (Upload)<span class="sort-indicator"></span></th>
                             </tr>
                         </thead>
                         <tbody id="items-tbody">
@@ -1295,7 +1297,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td>${item.mfg_part_num_ccx || 'N/A'}</td>
                         <td>${item.Mfg_Part_Num || 'N/A'}</td>
                         <td>
-                            <span class="match-indicator ${isExactMatch ? 'match' : 'mismatch'}">
+                            <span class="modal-match-indicator ${isExactMatch ? 'match' : 'no-match'}">
                                 ${isExactMatch ? 'Exact Match' : 'Partial Match'}
                             </span>
                         </td>
@@ -1759,7 +1761,7 @@ console.log("Loading low confidence items...");
             
             // Get confidence class based on score
             const scoreClass = item.weighted_score >= 0.8 ? 'high-score' : 
-                              (item.weighted_score >= 0.6 ? 'medium-score' : 'low-score');
+                            (item.weighted_score >= 0.6 ? 'medium-score' : 'low-score');
             
             // Format EA prices
             const ccxEaPrice = item.ccx_ea_price !== null ? 
@@ -1789,6 +1791,7 @@ console.log("Loading low confidence items...");
                 <td title="${item.Description || 'N/A'}">${(item.Description || 'N/A').substring(0, 50)}${(item.Description && item.Description.length > 50) ? '...' : ''}</td>
                 <td>${item.contract_number_ccx || 'N/A'}</td>
                 <td>${item.manufacturer_name_ccx || 'N/A'}</td>
+                <td>${item.File_Row || 'N/A'}</td>
             `;
             
             itemsTbody.appendChild(row);

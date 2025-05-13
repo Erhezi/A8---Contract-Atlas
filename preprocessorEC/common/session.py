@@ -153,10 +153,10 @@ def clear_deduped_results(user_id):
         session.pop(key)
         session.modified = True
 
-def store_infor_cl_matches(user_id, match_list):
+def store_infor_cl_matches(user_id, match_data):
     """Store the Infor Contract Line match results for a user."""
     key = f'infor_cl_matches_{user_id}'
-    session[key] = match_list
+    session[key] = match_data
     session.modified = True
 
 def get_infor_cl_matches(user_id):
@@ -169,6 +169,24 @@ def clear_infor_cl_matches(user_id):
     key = f'infor_cl_matches_{user_id}'
     if key in session:
         session.pop(key)
+        session.modified = True
+
+def store_infor_im_matches(user_id, match_data):
+    """Store item master matches in the session"""
+    session_key = f"infor_im_matches_{user_id}"
+    session[session_key] = match_data
+    session.modified = True
+    
+def get_infor_im_matches(user_id):
+    """Retrieve item master matches from the session"""
+    session_key = f"infor_im_matches_{user_id}"
+    return session.get(session_key, None)
+
+def clear_infor_im_matches(user_id):
+    """Clear item master matches from the session"""
+    session_key = f"infor_im_matches_{user_id}"
+    if session_key in session:
+        session.pop(session_key)
         session.modified = True
 
 # --- Workflow State ---
