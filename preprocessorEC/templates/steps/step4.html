@@ -632,18 +632,106 @@
             </div>
         </div>
 
+
         <!-- Action Buttons -->
-        <div id="action-buttons-4-2" class="action-buttons" style="display: none;">
-            <form id="complete-step-4-2-form" method="POST" action="{{ url_for('common.process_step', step_id=4) }}" style="display: inline;">
-                <input type="hidden" name="substep_completed" value="4.2">
-                <button type="submit" class="btn btn-success">Complete Item Master Matching, Proceed ...</button>
-            </form>
+        <div id="action-buttons-4-2" class="action-buttons">
+            <button id="complete-step-4-2-btn" class="btn btn-success">Complete Item Master Matching, Proceed ...</button>
         </div>
     </div>
 
     <!-- Placeholder for Step 4.3 -->
-    <div id="step-4-3-placeholder" class="substep-placeholder" style="display: none;">
-        Step 4.3: UOM/QOE Validation will appear here after completing Step 4.2.
+    <div id="step-4-3-content" style="display: none;">
+        <h3>Step 4.3: UOM/QOE Validation</h3>
+        <p>Validate UOM and QOE values against Infor Item Master configurations.</p>
+        
+        <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4">
+            <button id="start-uom-qoe-validation-btn" class="btn btn-primary">
+                Start UOM/QOE Validation
+            </button>
+        </div>
+        
+        <!-- UOM/QOE Validation Results -->
+        <div id="uom-qoe-results-container" class="result-summary" style="display: none;">
+            <h4 style="margin-top: 0; margin-bottom: 15px;">UOM/QOE Validation Results</h4>
+            <div class="summary-stats-row">
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Items Validated</h5>
+                            <div class="stat-value" id="total-items-validated">0</div>
+                            <div class="text-muted">Total items with Infor Item #</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card need-review-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">UOM Discrepancies</h5>
+                            <div class="stat-value" id="uom-discrepancies">0</div>
+                            <div class="text-muted">Items with incorrect UOM</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card need-review-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">QOE Discrepancies</h5>
+                            <div class="stat-value" id="qoe-discrepancies">0</div>
+                            <div class="text-muted">Items with incorrect QOE</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Discrepancies Table -->
+        <div id="uom-qoe-table-container" style="display: none;">
+            <div class="controls-container">
+                <div class="filter-container">
+                    <div class="search-wrapper">
+                        <select id="uom-qoe-search-type" class="search-type-select">
+                            <option value="contains">Contains</option>
+                            <option value="not-contains">Not Contains</option>
+                        </select>
+                        <input type="text" id="uom-qoe-search" class="search-input" placeholder="Filter items...">
+                        <button type="button" id="clear-uom-qoe-search-btn" class="clear-search-btn" title="Clear search">Clear</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="items-table-container">
+                <table id="uom-qoe-table" class="items-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="file_row">File Row<span class="sort-indicator"></span></th>
+                            <th data-sort="item_number">Infor Item #<span class="sort-indicator"></span></th>
+                            <th data-sort="item_description">Description<span class="sort-indicator"></span></th>
+                            <th data-sort="upload_uom">Upload UOM<span class="sort-indicator"></span></th>
+                            <th data-sort="upload_qoe">Upload QOE<span class="sort-indicator"></span></th>
+                            <th data-sort="discrepancy_type">Discrepancy Type<span class="sort-indicator"></span></th>
+                            <th>Valid UOMs/QOEs<span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="uom-qoe-tbody">
+                        <!-- Items will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="no-discrepancies-message" class="no-matches" style="display:none;">
+                <h4>No UOM/QOE discrepancies found</h4>
+                <p>All matched items have correct UOM and QOE values.</p>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div id="action-buttons-4-3" class="action-buttons" style="display: none;">
+            <button id="generate-correction-file-btn" class="btn btn-secondary me-2">Generate Correction File</button>
+            <form id="complete-step-4-3-form" method="POST" action="/process-step/4" style="display: inline;">
+                <input type="hidden" name="substep_completed" value="4.3">
+                <button type="submit" class="btn btn-success">Complete UOM/QOE Validation</button>
+            </form>
+        </div>
     </div>
 
     <!-- Loading Overlay -->
@@ -1664,6 +1752,27 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             alert('Error saving selections: ' + error);
+        });
+    }
+
+    // When Step 4.2 is completed, show Step 4.3
+    const completeStep42Btn = document.getElementById('complete-step-4-2-btn');
+    if (completeStep42Btn) {
+        completeStep42Btn.addEventListener('click', function() {
+            // Show Step 4.3 content
+            const step43Content = document.getElementById('step-4-3-content');
+            if (step43Content) {
+                safeSetDisplay(step43Content, 'block');
+                
+                // Scroll to the Step 4.3 section smoothly
+                step43Content.scrollIntoView({ behavior: 'smooth' });
+                
+                // Remove any placeholder if it exists
+                const step43Placeholder = document.getElementById('step-4-3-placeholder');
+                if (step43Placeholder) {
+                    step43Placeholder.style.display = 'none';
+                }
+            }
         });
     }
 });

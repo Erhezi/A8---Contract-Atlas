@@ -2,10 +2,22 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask import stream_with_context
 from flask_login import login_required, current_user
 # Import specific session helpers
-from ..common.session import get_temp_table_name, get_excluded_contracts, store_infor_cl_matches, get_comparison_results, store_infor_im_matches, get_infor_im_matches
-from ..common.db import match_to_infor_contract_lines, get_db_connection, match_to_item_master
+from ..common.session import (get_temp_table_name, 
+                              get_excluded_contracts, 
+                              get_infor_cl_matches,
+                              store_infor_cl_matches, 
+                              get_comparison_results, 
+                              store_infor_im_matches, 
+                              get_infor_im_matches, 
+                              store_uom_qoe_validation,
+                              get_validated_data)
+from ..common.db import match_to_infor_contract_lines, get_db_connection, match_to_item_master, get_valid_buying_uoms
 # Removed unused imports for this specific function
-from ..common.utils import three_way_contract_line_matching, three_way_item_master_matching_compute_similarity, item_catched_in_infor_im_match
+from ..common.utils import (three_way_contract_line_matching, 
+                            three_way_item_master_matching_compute_similarity, 
+                            item_catched_in_infor_im_match, 
+                            extract_item_numbers_for_validation, 
+                            analyze_uom_qoe_discrepancies)
 # from ..common.model_loader import get_sentence_transformer_model
 # import threading
 # import pandas as pd
@@ -204,6 +216,7 @@ def update_infor_cl_false_positives():
             'message': f'Error updating false positives: {str(e)}'
         })
 
+
 @item_matching_bp.route('/match-item-master', methods=['POST'])
 @login_required
 def match_item_master():
@@ -335,3 +348,69 @@ def update_item_master_false_positives():
     except Exception as e:
         current_app.logger.error(f"Error updating item master false positives: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
+
+
+@item_matching_bp.route('/validate-uom-qoe', methods=['POST'])
+@login_required
+def validate_uom_qoe():
+    """Validate UOM and QOE against Infor Item Master"""
+    user_id = current_user.id
+    
+    try:    
+        # Get the Infor CL matches and Item Master matches
+        infor_cl_matches = get_infor_cl_matches(user_id)
+        infor_im_matches = get_infor_im_matches(user_id)
+        
+        # Extract im_catched from both sources
+        im_catched_cl = infor_cl_matches.get('merged_to_review', {}).get('im_catched', []) if infor_cl_matches else []
+        im_catched_im = infor_im_matches.get('im_catched', []) if infor_im_matches else []
+        
+        # Extract item numbers for validation
+        item_numbers, im_catched_all_df = extract_item_numbers_for_validation(im_catched_cl, im_catched_im)
+        
+        # it is possible we end up with 0 match, so this could return true and we can proceed
+        if not item_numbers:
+            return jsonify({
+                'success': True, 
+                'message': 'No Item master item matched for validation.'
+            })
+        
+        # Get valid buying UOMs from database
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'success': False, 'message': 'Database connection error.'})
+            
+        try:
+            success, error_msg, valid_uoms = get_valid_buying_uoms(item_numbers, conn)
+            print(valid_uoms)   # Debugging line
+            
+            if not success:
+                return jsonify({'success': False, 'message': f'Error fetching valid UOMs: {error_msg}'})
+            
+            success, error_msg, validated_upload = get_validated_data(user_id)
+            
+            if not success:
+                return jsonify({'success': False, 'message': f'Error fetching validated data: {error_msg}'})
+                
+            # Analyze UOM/QOE discrepancies
+            analyzed_df = analyze_uom_qoe_discrepancies(valid_uoms, validated_upload, im_catched_all_df)
+            
+            # Store the results in the session
+            store_uom_qoe_validation(user_id, analyzed_df.to_dict(orient='records'))
+            
+            # Return success response with summary
+            return jsonify({
+                'success': True,
+                'result': {
+                    'analyzed_df': analyzed_df.to_dict(orient='records'),
+                }
+            })
+            
+        finally:
+            if conn:
+                conn.close()
+                current_app.logger.debug(f"DB connection closed for user {user_id} after UOM/QOE validation.")
+                
+    except Exception as e:
+        current_app.logger.exception(f"Unexpected error during UOM/QOE validation for user {user_id}: {e}")
+        return jsonify({'success': False, 'message': f'An unexpected server error occurred: {str(e)}'})

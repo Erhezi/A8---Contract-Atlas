@@ -189,6 +189,24 @@ def clear_infor_im_matches(user_id):
         session.pop(session_key)
         session.modified = True
 
+def store_uom_qoe_validation(user_id, validation_results):
+    """Store UOM/QOE validation results in session"""
+    session_key = f"uom_qoe_validation_{user_id}"
+    session[session_key] = validation_results
+    session.modified = True
+
+def get_uom_qoe_validation(user_id):
+    """Get UOM/QOE validation results from session"""
+    session_key = f"uom_qoe_validation_{user_id}"
+    return session.get(session_key, {})
+
+def clear_uom_qoe_validation(user_id):
+    """Clear UOM/QOE validation results from session"""
+    session_key = f"uom_qoe_validation_{user_id}"
+    if session_key in session:
+        session.pop(session_key)
+        session.modified = True
+
 # --- Workflow State ---
 def store_current_step(user_id, step_id):
     """Store the user's current step ID."""

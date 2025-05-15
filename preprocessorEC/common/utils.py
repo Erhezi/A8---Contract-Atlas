@@ -1233,3 +1233,115 @@ def item_catched_in_infor_im_match(items):
     im_catched = filtered_df[['File_Row', 'item_number_infor']].drop_duplicates(keep = 'first')
     
     return im_catched.values.tolist() if not im_catched.empty else []
+
+
+def extract_item_numbers_for_validation(im_catched_infor_cl, im_catched_infor_im):
+    """
+    Extract unique item numbers from contract line matches and item master matches
+    for UOM validation.
+    
+    Args:
+        im_catched_infor_cl: im_catched from Infor contract line matching
+        im_caatched_infor_im: im_catched from item master matching
+        
+    Returns:
+        item_numbers: list of unique item numbers to validate
+        im_catched_all_df: DataFrame with all item numbers collected using infor_cl and infor_im match in step4
+    """
+    item_numbers = set()
+    im_catched_all = []
+    
+    # Extract from contract line matches
+    if im_catched_infor_cl:
+        for file_row, item_number in im_catched_infor_cl:
+            item_numbers.add(item_number)
+            im_catched_all.append([file_row, item_number])
+    
+    # Extract from item master matches
+    if im_catched_infor_im:
+        for file_row, item_number in im_catched_infor_im:
+            item_numbers.add(item_number)
+            im_catched_all.append([file_row, item_number])
+    
+    if len(im_catched_all) == 0:
+        return [], pd.DataFrame()
+    
+    # Convert to DataFrame
+    im_catched_all_df = pd.DataFrame(im_catched_all, columns=['File Row', 'Item'])
+    im_catched_all_df = im_catched_all_df.drop_duplicates(keep='first')
+    # indicate the total numbers of item master item matched per file row
+    im_catched_all_df['Item'] = im_catched_all_df['Item'].astype(str).str.strip().str.upper()
+    im_catched_all_df['File Row'] = im_catched_all_df['File Row'].astype(int)
+    im_catched_all_df.loc[:, 'Matched Count'] = im_catched_all_df.groupby('File Row')['Item'].transform('count')
+    
+    return list(item_numbers), im_catched_all_df
+
+def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df):
+    """
+    Analyze UOM and QOE discrepancies between validated upload and valid UOM.
+    
+    Args:
+        valid_uom: list of dict containing valid UOM data
+        validated_upload: list of dict containing validated upload data
+    
+    Returns:
+        analyzed_df - DataFrame with discrepancies and validation results
+    """
+
+    # convert to dataframe
+    valid_uom_df = pd.DataFrame(valid_uom)
+    valid_uom_df.rename(columns={'UOMConversion': 'QOE'}, inplace=True)
+    validated_upload_df = pd.DataFrame(validated_upload)
+    # we only need some columns from the validated_upload_df
+    validated_upload_df = validated_upload_df[['File Row', 
+                                               'ERP Vendor ID', 
+                                               'Mfg Part Num',
+                                               'Vendor Part Num',
+                                               'UOM', 
+                                               'QOE',
+                                               'Description',
+                                               'Contract Number']].copy()
+
+    # make sure the join key columns are in the same format
+    valid_uom_df['Item'] = valid_uom_df['Item'].astype(str).str.strip().str.upper()
+    
+    # Merge the two DataFrames on 'File Row' and 'ItemNumber'
+    merged_df = im_catched_all_df.merge(
+        validated_upload_df,
+        on=['File Row'],
+        how='left'
+    ).merge(
+        valid_uom_df,
+        on=['Item'],
+        how = 'left',
+        suffixes=('_upload', '_im')
+    )
+
+    # Check for discrepancies in UOM and QOE
+    # UOM need to be string and QOE will be int
+    for col in ['UOM_im', 'UOM_upload']:
+        merged_df[col] = merged_df[col].astype(str).str.strip().str.upper()
+    for col in ['QOE_im', 'QOE_upload']:
+        merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype('Int64')
+    
+    merged_df['UOM Check'] = merged_df['UOM_im'] == merged_df['UOM_upload']
+    merged_df['QOE Check'] = merged_df['QOE_im'] == merged_df['QOE_uplood']
+
+    # isolate any file row with a failed check in UOM or QOE
+    failed_file_row = set(merged_df[(merged_df['UOM Check'] == False) | (merged_df['QOE Check'] == False)]['File Row'])
+    merged_df.loc[:, 'Validation'] = merged_df['File Row'].apply(lambda x: 'Failed' if x in failed_file_row else 'Passed')
+    
+    # summarize all possible UOM * QOE from valid_uom_df
+    valid_uom_df.loc[:, 'UOM and QOE'] = valid_uom_df['UOM'] + '*' + valid_uom_df['QOE'].astype(str)
+    valid_uom_df.loc[:, 'All Valid UOM*QOE'] = valid_uom_df['UOM and QOE'].apply(lambda x: ','.join(list(set(x.split(',')))))
+
+    analyzed_df = merged_df.merge(
+        valid_uom_df[['Item', 'All Valid UOM*QOE']],
+        on=['Item'],
+        how='left'
+    )
+    
+    # need some visuals debug line
+    analyzed_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'analyzed_df_debug.xlsx'), index=False)
+    
+    return analyzed_df

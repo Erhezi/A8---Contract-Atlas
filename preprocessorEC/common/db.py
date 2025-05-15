@@ -288,7 +288,7 @@ def match_to_infor_contract_lines(temp_table, conn):
     
     Args:
         temp_table: Name of the temporary table containing upload data
-        conn: Database connection (optional, will create one if None)
+        conn: Database connection
         
     Returns:
         Tuple of (success, error_message, results)
@@ -443,7 +443,7 @@ def match_to_item_master(temp_table, conn):
     
     Args:
         temp_table: Name of the temporary table containing upload data
-        conn: Database connection (optional, will create one if None)
+        conn: Database connection
         
     Returns:
         Tuple of (success, error_message, results)
@@ -540,6 +540,57 @@ def match_to_item_master(temp_table, conn):
         
     except Exception as e:
         error_msg = f"Error in match_to_item_master: {str(e)}"
+        current_app.logger.error(error_msg)
+        if conn and 'conn' in locals() and not conn.closed:
+            conn.close()
+        return False, error_msg, None
+
+
+def get_valid_buying_uoms(item_numbers, conn):
+    """
+    Get valid buying UOM for a list of item numbers
+    
+    Args:
+        item_numbers: List of item numbers
+        conn: Database connection
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Convert item numbers to a comma-separated string
+        item_numbers_str = ', '.join(f"'{item}'" for item in item_numbers)
+        
+        # Execute the query
+        query = f"""
+            SELECT 
+                    Item, 
+                    UOM, 
+                    UOMConversion, 
+                    ValidForBuying, 
+                    ItemDescription
+                FROM 
+                    [DM_MONTYNT\\dli2].MDM_ITEMUOM
+                WHERE 
+                    ([Item.Active] = 'Yes' AND ValidForBuying <> 'Not Valid') 
+                    AND Item IN ({item_numbers_str})
+        """
+        
+        cursor.execute(query)
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            results.append(dict(zip(columns, row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error in get_valid_buying_uom: {str(e)}"
         current_app.logger.error(error_msg)
         if conn and 'conn' in locals() and not conn.closed:
             conn.close()
