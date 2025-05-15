@@ -1204,3 +1204,32 @@ def make_infor_upload_stack(infor_cl_match_results):
         stacked_df = stacked_df.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number'], keep='first')
 
     return stacked_df
+
+
+def item_catched_in_infor_im_match(items):
+    """
+    Check if items are caught in Infor IM match.
+    
+    Args:
+        items: List of dictionaries containing item data
+    
+    Returns:
+        list of list [file row, item number]
+    """
+    
+    # Create a DataFrame from the item list
+    df = pd.DataFrame(items)
+    if df.empty:
+        return pd.DataFrame()
+    
+    # Filter for items with 'ItemNumber' not empty and false positive = False
+    filtered_df = df[df['item_number_infor'] != ''].copy()
+    if 'false positive' in df.columns:
+        filtered_df = df[(df['item_number_infor'] != '') & (df['false_positive'] == False)]
+    
+    if filtered_df.empty:
+        return pd.DataFrame()
+    
+    im_catched = filtered_df[['File_Row', 'item_number_infor']].drop_duplicates(keep = 'first')
+    
+    return im_catched.values.tolist() if not im_catched.empty else []

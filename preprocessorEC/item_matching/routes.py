@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from ..common.session import get_temp_table_name, get_excluded_contracts, store_infor_cl_matches, get_comparison_results, store_infor_im_matches, get_infor_im_matches
 from ..common.db import match_to_infor_contract_lines, get_db_connection, match_to_item_master
 # Removed unused imports for this specific function
-from ..common.utils import three_way_contract_line_matching, three_way_item_master_matching_compute_similarity
+from ..common.utils import three_way_contract_line_matching, three_way_item_master_matching_compute_similarity, item_catched_in_infor_im_match
 # from ..common.model_loader import get_sentence_transformer_model
 # import threading
 # import pandas as pd
@@ -241,8 +241,11 @@ def match_item_master():
                 'message': f'Error during matching: {error_msg}'
             }), 500
 
-        
-        store_infor_im_matches(user_id, item_list)  # Store the item list in session
+        # extract matched im items
+        im_catched = item_catched_in_infor_im_match(item_list['items'])
+        item_list['im_catched'] = im_catched
+        # Store the result in session for later use
+        store_infor_im_matches(user_id, item_list)
 
         current_app.logger.info(f"Successfully matched Item Master for user {user_id}. Found {len(item_list)} items.")
         return jsonify({
@@ -313,9 +316,14 @@ def update_item_master_false_positives():
         # Update the false positive count
         false_positive_count = sum(1 for item in all_items if item.get('false_positive'))
         matches['false_positive_count'] = false_positive_count
+
+        # compute im_catched
+        im_catched = item_catched_in_infor_im_match(all_items)
+        matches['im_catched'] = im_catched
         
         # Save updated matches back to session
         store_infor_im_matches(user_id, matches)
+        session.modified = True  # Mark session as modified
         
         # Return success response with updated count
         return jsonify({

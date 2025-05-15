@@ -53,7 +53,7 @@ def create_app(config_name=None, test_config=None):
         return User.get(user_id)
 
     # Import and register blueprints
-    from .auth import auth_blueprint
+    from .auth.routes import auth_blueprint
     from .common.routes import common_bp
     from .file_processing.routes import file_bp
     from .duplicate_detection.routes import duplicate_bp

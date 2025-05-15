@@ -178,20 +178,27 @@ def allowed_file(filename):
 @common_bp.route('/goto-step/<int:step_id>', methods=['GET'])
 @login_required
 def goto_step(step_id):
-    """Navigate to a specific step if allowed"""
+    """Navigate to a specific step if allowed, resetting later steps if going backward"""
     user_id = current_user.id
-    # Check if the requested step is accessible based on user's completed steps
-    completed_steps = get_completed_steps(user_id) # Use helper
-    current_step_id = get_current_step_from_session(user_id) # Use helper
-
-    # Basic logic: Allow going back to completed steps or staying on current step
-    # More complex logic might be needed depending on app rules
-    if step_id <= current_step_id or step_id in completed_steps:
-        store_current_step(user_id, step_id) # Update current step if navigating back
+    completed_steps = get_completed_steps(user_id)
+    current_step_id = get_current_step_from_session(user_id)
+    
+    # Check if the step is accessible (must be a step user has completed or current step)
+    if step_id in completed_steps or step_id == current_step_id:
+        # Going back to an earlier step - reset all steps after this one
+        if step_id < current_step_id:
+            # Remove all completed steps that are greater than the step we're going back to
+            completed_steps = [step for step in completed_steps if step <= step_id]
+            store_completed_steps(user_id, completed_steps)
+            flash(f"Navigating back to Step {step_id}. You'll need to re-complete subsequent steps.", 'info')
+        
+        # Update current step to the requested step
+        store_current_step(user_id, step_id)
         return redirect(url_for('common.dashboard'))
     else:
         flash(f"Step {step_id} is not yet accessible.", 'warning')
         return redirect(url_for('common.dashboard'))
+    
 
 @common_bp.route('/step/<int:step_id>')
 @login_required

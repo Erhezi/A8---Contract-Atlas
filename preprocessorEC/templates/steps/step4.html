@@ -437,7 +437,7 @@
         
         <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4">
             <button id="start-infor-cl-matching-btn" class="btn btn-primary">
-                Start Matching to Infor Contract Lines
+                Start Matching
             </button>
         </div>
         
@@ -562,7 +562,7 @@
 
         <!-- Action Buttons -->
         <div id="action-buttons-4-1" class="action-buttons">
-            <button id="complete-step-4-1-btn" class="btn btn-success">Complete Step 4.1</button>
+            <button id="complete-step-4-1-btn" class="btn btn-success">Complete Infor Contract Line Matching, Proceed ...</button>
         </div>
     </div>
 
@@ -636,7 +636,7 @@
         <div id="action-buttons-4-2" class="action-buttons" style="display: none;">
             <form id="complete-step-4-2-form" method="POST" action="{{ url_for('common.process_step', step_id=4) }}" style="display: inline;">
                 <input type="hidden" name="substep_completed" value="4.2">
-                <button type="submit" class="btn btn-success">Complete Step 4.2</button>
+                <button type="submit" class="btn btn-success">Complete Item Master Matching, Proceed ...</button>
             </form>
         </div>
     </div>
