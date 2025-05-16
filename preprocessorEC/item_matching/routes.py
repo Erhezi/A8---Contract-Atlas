@@ -18,7 +18,8 @@ from ..common.utils import (three_way_contract_line_matching,
                             three_way_item_master_matching_compute_similarity, 
                             item_catched_in_infor_im_match, 
                             extract_item_numbers_for_validation, 
-                            analyze_uom_qoe_discrepancies)
+                            analyze_uom_qoe_discrepancies, 
+                            recompute_uom_qoe_validation_metrics)
 # from ..common.model_loader import get_sentence_transformer_model
 # import threading
 # import pandas as pd
@@ -383,7 +384,6 @@ def validate_uom_qoe():
             
         try:
             success, error_msg, valid_uoms = get_valid_buying_uoms(item_numbers, conn)
-            print(valid_uoms)   # Debugging line
             
             if not success:
                 return jsonify({'success': False, 'message': f'Error fetching valid UOMs: {error_msg}'})
@@ -416,6 +416,78 @@ def validate_uom_qoe():
         current_app.logger.exception(f"Unexpected error during UOM/QOE validation for user {user_id}: {e}")
         return jsonify({'success': False, 'message': f'An unexpected server error occurred: {str(e)}'})
 
+
+@item_matching_bp.route('/update-uom-qoe-false-positives', methods=['POST'])
+@login_required
+def update_uom_qoe_false_positives():
+    """Update false positive flags for UOM/QOE validation results"""
+    user_id = current_user.id
+    
+    try:
+        # Parse JSON data from request
+        data = request.get_json()
+        
+        if not data or 'false_positive_items' not in data:
+            return jsonify({'success': False, 'message': 'No false positive data provided'})
+        
+        # Get the current validation results from session
+        validation_results = get_uom_qoe_validation(user_id)
+        
+        if not validation_results:
+            return jsonify({'success': False, 'message': 'No UOM/QOE validation results found in session'})
+        
+        # Get analyzed_df from validation results
+        analyzed_df = validation_results.get('analyzed_df', [])
+        
+        if not analyzed_df:
+            return jsonify({'success': False, 'message': 'No analyzed data found in validation results'})
+        
+        # Get false positive items from request
+        false_positive_items = data['false_positive_items']
+        
+        # Update false positive flags on the items
+        items_updated = 0
+        for fp_item in false_positive_items:
+            file_row = str(fp_item.get('file_row', '')).strip()
+            item_number = str(fp_item.get('item', '')).strip()
+            is_false_positive = fp_item.get('is_false_positive', False)
+            
+            # Find matching items
+            for item in analyzed_df:
+                item_file_row = str(item.get('File_Row', item.get('File Row', ''))).strip()
+                item_number_df = str(item.get('Item', '')).strip()
+                
+                if (item_file_row == file_row or item_number_df == item_number) and (file_row or item_number):
+                    # Mark the item
+                    item['False Positive'] = is_false_positive
+                    items_updated += 1
+        
+        # Update the false positive count
+        false_positive_count = sum(1 for item in analyzed_df if item.get('False Positive'))
+        validation_results['false_positive_count'] = false_positive_count
+        
+        # Recalculate other metrics if needed
+        # put analyzed_df into dataframe
+        metrics_to_update = recompute_uom_qoe_validation_metrics(analyzed_df)
+        validation_results.update(metrics_to_update)
+        
+        # Store updated results back to session
+        store_uom_qoe_validation(user_id, validation_results)
+        session.modified = True  # Mark session as modified
+        
+        # Return success response with updated count
+        return jsonify({
+            'success': True, 
+            'message': f'Updated {items_updated} items',
+            'false_positive_count': false_positive_count,
+            'all_pass_flag': validation_results.get('all_pass_flag'),
+            'total_validation_count': validation_results.get('total_validation_count'),
+            'failed_count': validation_results.get('failed_count')
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating UOM/QOE false positives: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
 
 @item_matching_bp.route('/download-uom-qoe-discrepancies', methods=['GET'])
 @login_required

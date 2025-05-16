@@ -18,8 +18,8 @@ from .session import (
     get_deduped_results,
     # Import item matching session helper if needed later
     get_infor_cl_matches,
-    get_infor_im_matches
-
+    get_infor_im_matches,
+    get_uom_qoe_validation
 )
 
 # Create the blueprint
@@ -311,6 +311,10 @@ def process_step(step_id):
             infor_im_matches = get_infor_im_matches(user_id) # Use helper
             if not infor_im_matches:
                  raise ValueError("Infor Item Master matching not completed. Please run the matching process first.")
+            
+            uom_qoe_validation = get_uom_qoe_validation(user_id)
+            if not uom_qoe_validation:  
+                 raise ValueError("UOM and QOE validation not completed. Please run the validation process first.")
             
             success = True
             flash("Step 4 (Item Master Matching) completed successfully.", "success")

@@ -1381,3 +1381,51 @@ def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df
     }
     
     return results
+
+def recompute_uom_qoe_validation_metrics(analyzed_df):
+    """
+    Recompute UOM and QOE validation metrics.
+    
+    Args:
+        analyzed_df: List of dict with analyzed UOM and QOE data
+    Returns:
+        results: Dictionary with validation metrics
+    """   
+    # Convert to DataFrame
+    analyzed_df = pd.DataFrame(analyzed_df)
+
+    if analyzed_df.empty:
+        return {
+            'false_positive_count': 0,
+            'failed_count': 0,
+            'total_validation_count': 0,
+            'all_pass_flag': True,
+            'one_to_many_warning': False
+        }
+    
+    # Recompute metrics
+    # exclude false positives
+    analyzed_df = analyzed_df[analyzed_df['False Positive'] == False].copy()
+    false_positive_count = len(analyzed_df[analyzed_df['False Positive'] == True])
+    failed_count = len(analyzed_df[analyzed_df['Validation'] == 'Failed'])
+    total_validation_count = len(analyzed_df)
+    
+    all_pass_flag = False
+    if (len(analyzed_df[analyzed_df['Validation'] == 'Failed']) == 0):
+        all_pass_flag = True
+    
+    one_to_many_warning = True
+    analyzed_df['Matched Count'] = analyzed_df.groupby('File Row')['Item'].transform('count')
+    if analyzed_df['Matched Count'].max() == 1:
+        one_to_many_warning = False
+    if len(analyzed_df) == 0:
+        one_to_many_warning = False
+    
+    results = {
+        'false_positive_count': false_positive_count,
+        'failed_count': failed_count,
+        'total_validation_count': total_validation_count,
+        'all_pass_flag': all_pass_flag,
+        'one_to_many_warning': one_to_many_warning
+    }
+    return results

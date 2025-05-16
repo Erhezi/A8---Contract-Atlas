@@ -427,6 +427,31 @@
         text-overflow: ellipsis;
     }
 
+    .summary-stats-row.four-columns {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .success-card {
+        border-left-color: #2ecc71; /* Green */
+    }
+
+    .false-positive-card {
+        border-left-color: #e74c3c; /* Red */
+    }
+
+    @media (max-width: 992px) {
+        .summary-stats-row.four-columns {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .summary-stats-row.four-columns {
+            grid-template-columns: 1fr;
+        }
+    }
+
 </style>
 
 <div class="step-content">
@@ -639,7 +664,7 @@
         </div>
     </div>
 
-    <!-- Placeholder for Step 4.3 -->
+    <!-- Step 4.3 -->
     <div id="step-4-3-content" style="display: none;">
         <h3>Step 4.3: UOM/QOE Validation</h3>
         <p>Validate UOM and QOE values against Infor Item Master configurations.</p>
@@ -653,7 +678,16 @@
         <!-- UOM/QOE Validation Results -->
         <div id="uom-qoe-results-container" class="result-summary" style="display: none;">
             <h4 style="margin-top: 0; margin-bottom: 15px;">UOM/QOE Validation Results</h4>
-            <div class="summary-stats-row">
+            <div class="summary-stats-row four-columns">
+                <div class="summary-stats-column">
+                    <div class="summary-stat-card success-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">All Pass</h5>
+                            <div class="stat-value" id="all-pass-status">Yes</div>
+                            <div class="text-muted">All validations passed</div>
+                        </div>
+                    </div>
+                </div>
                 <div class="summary-stats-column">
                     <div class="summary-stat-card">
                         <div class="card-body text-center">
@@ -666,18 +700,18 @@
                 <div class="summary-stats-column">
                     <div class="summary-stat-card need-review-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">UOM Discrepancies</h5>
+                            <h5 class="card-title">UOM/QOE Issues</h5>
                             <div class="stat-value" id="uom-discrepancies">0</div>
-                            <div class="text-muted">Items with incorrect UOM</div>
+                            <div class="text-muted">Items with discrepancies</div>
                         </div>
                     </div>
                 </div>
                 <div class="summary-stats-column">
-                    <div class="summary-stat-card need-review-card">
+                    <div class="summary-stat-card false-positive-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">QOE Discrepancies</h5>
-                            <div class="stat-value" id="qoe-discrepancies">0</div>
-                            <div class="text-muted">Items with incorrect QOE</div>
+                            <h5 class="card-title">False Positives</h5>
+                            <div class="stat-value" id="false-positive-count">0</div>
+                            <div class="text-muted">Excluded items</div>
                         </div>
                     </div>
                 </div>
@@ -690,12 +724,21 @@
                 <div class="filter-container">
                     <div class="search-wrapper">
                         <select id="uom-qoe-search-type" class="search-type-select">
-                            <option value="contains">Contains</option>
-                            <option value="not-contains">Not Contains</option>
+                            <option value="all">All Fields</option>
+                            <option value="Item">Item #</option>
+                            <option value="UOM_upload">UOM (Upload)</option>
+                            <option value="QOE_upload">QOE (Upload)</option>
+                            <option value="Validation">Validation Status</option>
+                            <option value="File_Row">File Row</option>
                         </select>
                         <input type="text" id="uom-qoe-search" class="search-input" placeholder="Filter items...">
                         <button type="button" id="clear-uom-qoe-search-btn" class="clear-search-btn" title="Clear search">Clear</button>
                     </div>
+                </div>
+                <div class="batch-controls">
+                    <button id="select-all-uom-qoe-btn" class="btn btn-sm btn-secondary">Select All</button>
+                    <button id="deselect-all-uom-qoe-btn" class="btn btn-sm btn-secondary">Deselect All</button>
+                    <button id="save-uom-qoe-selections-btn" class="btn btn-sm btn-primary">Save Selections</button>
                 </div>
             </div>
             
@@ -703,13 +746,20 @@
                 <table id="uom-qoe-table" class="items-table">
                     <thead>
                         <tr>
-                            <th data-sort="file_row">File Row<span class="sort-indicator"></span></th>
-                            <th data-sort="item_number">Infor Item #<span class="sort-indicator"></span></th>
-                            <th data-sort="item_description">Description<span class="sort-indicator"></span></th>
-                            <th data-sort="upload_uom">Upload UOM<span class="sort-indicator"></span></th>
-                            <th data-sort="upload_qoe">Upload QOE<span class="sort-indicator"></span></th>
-                            <th data-sort="discrepancy_type">Discrepancy Type<span class="sort-indicator"></span></th>
-                            <th>Valid UOMs/QOEs<span class="sort-indicator"></span></th>
+                            <th data-sort="Item">Infor Item #<span class="sort-indicator"></span></th>
+                            <th data-sort="All Valid UOM*QOE">Valid UOM*QOE Options<span class="sort-indicator"></span></th>
+                            <th data-sort="UOM_upload">UOM (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="QOE_upload">QOE (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="Validation">Validation<span class="sort-indicator"></span></th>
+                            <th data-sort="Matched Count">Matched Count<span class="sort-indicator"></span></th>
+                            <th>False Positive</th>
+                            <th data-sort="File Row">File Row<span class="sort-indicator"></span></th>
+                            <th data-sort="ItemDescription" class="description-col">Description (Infor)<span class="sort-indicator"></span></th>
+                            <th data-sort="Description" class="description-col">Description (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="Mfg Part Num">Mfg Part Num<span class="sort-indicator"></span></th>
+                            <th data-sort="Vendor Part Num">Vendor Part Num<span class="sort-indicator"></span></th>
+                            <th data-sort="ERP Vendor ID">Vendor ID<span class="sort-indicator"></span></th>
+                            <th data-sort="Contract Number">Contract Number<span class="sort-indicator"></span></th>
                         </tr>
                     </thead>
                     <tbody id="uom-qoe-tbody">
@@ -727,10 +777,14 @@
         <!-- Action Buttons -->
         <div id="action-buttons-4-3" class="action-buttons" style="display: none;">
             <button id="generate-correction-file-btn" class="btn btn-secondary me-2">Generate Correction File</button>
-            <form id="complete-step-4-3-form" method="POST" action="/process-step/4" style="display: inline;">
-                <input type="hidden" name="substep_completed" value="4.3">
-                <button type="submit" class="btn btn-success">Complete UOM/QOE Validation</button>
-            </form>
+            <!-- Complete Step Button -->
+            <div style="display: inline-block;">
+                <form method="POST" action="{{ url_for('common.process_step', step_id=4) }}">
+                    <input type="hidden" name="substep_completed" value="4.3">
+                    <input type="hidden" name="step_completed" value="true">
+                    <button type="submit" class="btn btn-success">Complete Step 4</button>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -756,7 +810,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemSearchInput = document.getElementById('item-search-4-1');
     const itemSearchType = document.getElementById('item-search-type-4-1');
     const clearSearchBtn = document.getElementById('clear-search-btn-4-1');
-    const step42Placeholder = document.getElementById('step-4-2-placeholder');
     const reviewSummaryCard = document.getElementById('review-summary-card-4-1');
 
     // Add debug logs to check if elements exist
@@ -765,7 +818,6 @@ document.addEventListener('DOMContentLoaded', function() {
         itemComparisonContainer: !!itemComparisonContainer,
         actionButtons: !!actionButtons,
         reviewSummaryCard: !!reviewSummaryCard,
-        step42Placeholder: !!step42Placeholder,
         noMatchesMessage: !!noMatchesMessage,
         itemsDetailView: !!itemsDetailView
     });
@@ -809,10 +861,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Show the comparison container
                             safeSetDisplay(itemComparisonContainer, 'block');
                             // Show action buttons
-                            safeSetDisplay(actionButtons, 'block');
-                            // Show placeholder for next step
-                            safeSetDisplay(step42Placeholder, 'block');
-                            
+                            safeSetDisplay(actionButtons, 'block');                           
                         } else {
                             showError("No result data returned from server");
                         }
@@ -1320,7 +1369,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemSearchInput42 = document.getElementById('item-search-4-2');
     const itemSearchType42 = document.getElementById('item-search-type-4-2');
     const clearSearchBtn42 = document.getElementById('clear-search-btn-4-2');
-    const step43Placeholder = document.getElementById('step-4-3-placeholder');
 
     // Items and filtering variables for Step 4.2
     let allItemMasterItems = [];
@@ -1359,8 +1407,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         safeSetDisplay(itemMasterTableContainer, 'block');
                         // Show action buttons
                         safeSetDisplay(actionButtons42, 'block');
-                        // Show placeholder for next step
-                        safeSetDisplay(step43Placeholder, 'block');
                         
                         // Hide the now-redundant "Start Matching to Item Master" button
                         safeSetDisplay(startItemMasterMatchingBtn, 'none');
@@ -1404,8 +1450,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         safeSetDisplay(itemMasterTableContainer, 'block');
                         // Show action buttons
                         safeSetDisplay(actionButtons42, 'block');
-                        // Show placeholder for next step
-                        safeSetDisplay(step43Placeholder, 'block');
                     } catch (err) {
                         showError("Error processing Item Master results: " + err.message);
                         console.error("Processing error details:", err);
@@ -1958,11 +2002,414 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // handle the transition from step 4.2 to 4.3
+    const completeStep42Btn = document.getElementById('complete-step-4-2-btn');
+    const step43Content = document.getElementById('step-4-3-content');
+    const startUomQoeValidationBtn = document.getElementById('start-uom-qoe-validation-btn');
+
+    if (completeStep42Btn) {
+        completeStep42Btn.addEventListener('click', function() {
+            // Show loading overlay
+            safeSetDisplay(loadingOverlay, 'flex');
+            
+            // Show Step 4.3
+            safeSetDisplay(step43Content, 'block');
+            
+            // Hide the "Start UOM/QOE Validation" button since we're automatically starting it
+            safeSetDisplay(startUomQoeValidationBtn, 'none');
+            
+            // Scroll to the Step 4.3 section
+            step43Content.scrollIntoView({ behavior: 'smooth' });
+            
+            // Automatically call the UOM/QOE validation API
+            fetch('/item-matching/validate-uom-qoe', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                safeSetDisplay(loadingOverlay, 'none');
+                
+                if (data.success) {
+                    try {
+                        // Process UOM/QOE validation results
+                        processUomQoeResults(data.result);
+                        
+                        // Show results container and action buttons
+                        safeSetDisplay(document.getElementById('uom-qoe-results-container'), 'block');
+                        safeSetDisplay(document.getElementById('uom-qoe-table-container'), 'block');
+                        safeSetDisplay(document.getElementById('action-buttons-4-3'), 'block');
+                    } catch (err) {
+                        showError("Error processing UOM/QOE validation results: " + err.message);
+                        console.error("Processing error details:", err);
+                    }
+                } else {
+                    showError("Error validating UOM/QOE: " + data.message);
+                }
+            })
+            .catch(error => {
+                safeSetDisplay(loadingOverlay, 'none');
+                showError("Error during UOM/QOE validation: " + error.toString());
+                console.error("Full error details:", error);
+            });
+        });
+    }
+
+    if (startUomQoeValidationBtn) {
+        startUomQoeValidationBtn.addEventListener('click', function() {
+            // Show loading overlay
+            safeSetDisplay(loadingOverlay, 'flex');
+            
+            fetch('/item-matching/validate-uom-qoe', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                safeSetDisplay(loadingOverlay, 'none');
+                
+                if (data.success) {
+                    try {
+                        // Process UOM/QOE validation results
+                        processUomQoeResults(data.result);
+                        
+                        // Show results container and action buttons
+                        safeSetDisplay(document.getElementById('uom-qoe-results-container'), 'block');
+                        safeSetDisplay(document.getElementById('uom-qoe-table-container'), 'block');
+                        safeSetDisplay(document.getElementById('action-buttons-4-3'), 'block');
+                    } catch (err) {
+                        showError("Error processing UOM/QOE validation results: " + err.message);
+                        console.error("Processing error details:", err);
+                    }
+                } else {
+                    showError("Error validating UOM/QOE: " + data.message);
+                }
+            })
+            .catch(error => {
+                safeSetDisplay(loadingOverlay, 'none');
+                showError("Error during UOM/QOE validation: " + error.toString());
+                console.error("Full error details:", error);
+            });
+        });
+    }
+
+    // function to process the UOM/QOE validation results
+    function processUomQoeResults(result) {
+        if (!result || !result.analyzed_df || result.analyzed_df.length === 0) {
+            safeSetDisplay(document.getElementById('no-discrepancies-message'), 'block');
+            safeSetDisplay(document.querySelector('#uom-qoe-table-container .items-table-container'), 'none');
+            return;
+        }
+        
+        console.log("UOM/QOE validation results:", result);
+        
+        // Update stats
+        document.getElementById('total-items-validated').textContent = result.total_validation_count || 0;
+        document.getElementById('uom-discrepancies').textContent = result.failed_count || 0;
+        document.getElementById('false-positive-count').textContent = result.false_positive_count || 0;
+        
+        // Set the "All Pass" status
+        const allPassElement = document.getElementById('all-pass-status');
+        if (allPassElement) {
+            const allPassValue = result.all_pass_flag === true ? "All Passed" : "No";
+            allPassElement.textContent = allPassValue;
+            
+            // Optionally change color based on status
+            allPassElement.style.color = result.all_pass_flag === true ? "#2ecc71" : "#e74c3c";
+        }
+        
+        // Always render the table with all items
+        renderUomQoeTable(result.analyzed_df || []);
+        
+        // Always show the table container if there are items
+        if (result.analyzed_df && result.analyzed_df.length > 0) {
+            safeSetDisplay(document.getElementById('no-discrepancies-message'), 'none');
+            safeSetDisplay(document.querySelector('#uom-qoe-table-container .items-table-container'), 'block');
+        } else {
+            safeSetDisplay(document.getElementById('no-discrepancies-message'), 'block');
+            safeSetDisplay(document.querySelector('#uom-qoe-table-container .items-table-container'), 'none');
+        }
+    }
+
+    // function to render the UOM/QOE discrepancies table
+    function renderUomQoeTable(items) {
+        const uomQoeTbody = document.getElementById('uom-qoe-tbody');
+        uomQoeTbody.innerHTML = '';
+        
+        try {
+            // Keep ALL items, regardless of validation status
+            if (items.length === 0) {
+                // If no items at all, show the no discrepancies message
+                safeSetDisplay(document.getElementById('no-discrepancies-message'), 'block');
+                safeSetDisplay(document.querySelector('#uom-qoe-table-container .items-table-container'), 'none');
+                return;
+            }
+            
+            // Show all items with all requested fields
+            items.forEach((item, index) => {
+                const row = document.createElement('tr');
+                
+                // Format valid options as a list
+                let validOptions = item["All Valid UOM*QOE"] || 'N/A';
+                
+                // Add a visual indicator for passed status
+                const validationClass = item.Validation === "Passed" ? "text-success" : "text-danger";
+                const validationStatus = item.Validation === "Passed" ? 
+                    "<span class='text-success'>✓ Valid</span>" : 
+                    "<span class='text-danger'>✗ Invalid</span>";
+                
+                // Handle the false positive value
+                const isFalsePositive = item.False_Positive === true || item["False Positive"] === true;
+                
+                row.innerHTML = `
+                    <td>${item.Item || 'N/A'}</td>
+                    <td>${validOptions}</td>
+                    <td>${item.UOM_upload || 'N/A'}</td>
+                    <td>${item.QOE_upload || 'N/A'}</td>
+                    <td>${validationStatus}</td>
+                    <td>${item["Matched Count"] || 'N/A'}</td>
+                    <td>
+                        <input type="checkbox" class="false-positive-checkbox" 
+                            data-index="${index}" 
+                            data-file-row="$${item.File_Row || item['File Row'] || ''}"
+                            data-item="${item.Item || ''}"
+                            ${isFalsePositive ? 'checked' : ''}>
+                    </td>
+                    <td>${item["File Row"] || 'N/A'}</td>
+                    <td class="description-col" title="${item.ItemDescription || ''}">${(item.ItemDescription || 'N/A').substring(0, 50)}${(item.ItemDescription || '').length > 50 ? '...' : ''}</td>
+                    <td class="description-col" title="${item.Description || ''}">${(item.Description || 'N/A').substring(0, 50)}${(item.Description || '').length > 50 ? '...' : ''}</td>
+                    <td>${item["Mfg Part Num"] || 'N/A'}</td>
+                    <td>${item["Vendor Part Num"] || 'N/A'}</td>
+                    <td>${item["ERP Vendor ID"] || 'N/A'}</td>
+                    <td>${item["Contract Number"] || 'N/A'}</td>
+                `;
+                
+                uomQoeTbody.appendChild(row);
+            });
+            
+            // Add event listeners to false positive checkboxes
+            document.querySelectorAll('#uom-qoe-tbody input.false-positive-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    console.log(`UOM/QOE checkbox toggled: item ${checkbox.dataset.item}, file row ${checkbox.dataset.fileRow}, is now ${checkbox.checked ? 'checked' : 'unchecked'}`);
+                });
+            });
+            
+            // Always display the table container when there are items
+            safeSetDisplay(document.getElementById('no-discrepancies-message'), 'none');
+            safeSetDisplay(document.querySelector('#uom-qoe-table-container .items-table-container'), 'block');
+            
+        } catch (err) {
+            console.error("Error rendering UOM/QOE table:", err);
+            showError("Error rendering UOM/QOE results: " + err.message);
+        }
+    }
+
+    // Get relevant elements for UOM/QOE controls
+    const selectAllUomQoeBtn = document.getElementById('select-all-uom-qoe-btn');
+    const deselectAllUomQoeBtn = document.getElementById('deselect-all-uom-qoe-btn');
+    const saveUomQoeSelectionsBtn = document.getElementById('save-uom-qoe-selections-btn');
+    const uomQoeSearch = document.getElementById('uom-qoe-search');
+    const uomQoeSearchType = document.getElementById('uom-qoe-search-type');
+    const clearUomQoeSearchBtn = document.getElementById('clear-uom-qoe-search-btn');
+
+    // Add event listeners for UOM/QOE controls
+    if (selectAllUomQoeBtn) {
+        selectAllUomQoeBtn.addEventListener('click', function() {
+            document.querySelectorAll('#uom-qoe-tbody input.false-positive-checkbox:not(:checked)').forEach(checkbox => {
+                checkbox.checked = true;
+                console.log(`Checked checkbox for item ${checkbox.dataset.item}, file row ${checkbox.dataset.fileRow}`);
+            });
+        });
+    }
+
+    if (deselectAllUomQoeBtn) {
+        deselectAllUomQoeBtn.addEventListener('click', function() {
+            document.querySelectorAll('#uom-qoe-tbody input.false-positive-checkbox:checked').forEach(checkbox => {
+                checkbox.checked = false;
+                console.log(`Unchecked checkbox for item ${checkbox.dataset.item}, file row ${checkbox.dataset.fileRow}`);
+            });
+        });
+    }
+
+    // Function to save UOM/QOE false positive selections
+    function saveUomQoeFalsePositiveSelections() {
+        // Show loading overlay
+        safeSetDisplay(loadingOverlay, 'flex');
+        
+        // Collect all checked false positive items
+        const falsePositiveItems = [];
+        document.querySelectorAll('#uom-qoe-tbody input.false-positive-checkbox').forEach(checkbox => {
+            falsePositiveItems.push({
+                file_row: checkbox.dataset.fileRow || '',
+                item: checkbox.dataset.item || '',
+                is_false_positive: checkbox.checked
+            });
+        });
+        
+        console.log(`Saving ${falsePositiveItems.length} UOM/QOE false positive updates`);
+        
+        // Send updates to the backend
+        fetch('/item-matching/update-uom-qoe-false-positives', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                false_positive_items: falsePositiveItems
+            })
+        })
+        .then(response => {
+            return response.json();
+        })
+        .then(data => {
+            safeSetDisplay(loadingOverlay, 'none');
+            
+            if (data.success) {
+                // Use alert() instead of showSuccess to match the other steps
+                alert('Selections saved successfully');
+                
+                // Update ALL metric cards with the new values
+                if (data.false_positive_count !== undefined) {
+                    document.getElementById('false-positive-count').textContent = data.false_positive_count;
+                }
+                if (data.total_validation_count !== undefined) {
+                    document.getElementById('total-items-validated').textContent = data.total_validation_count;
+                }
+                if (data.failed_count !== undefined) {
+                    document.getElementById('uom-discrepancies').textContent = data.failed_count;
+                }
+                if (data.all_pass_flag !== undefined) {
+                    const allPassElement = document.getElementById('all-pass-status');
+                    if (allPassElement) {
+                        const allPassValue = data.all_pass_flag === true ? "All Passed" : "No";
+                        allPassElement.textContent = allPassValue;
+                        allPassElement.style.color = data.all_pass_flag === true ? "#2ecc71" : "#e74c3c";
+                    }
+                }
+            } else {
+                alert(`Error saving selections: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            safeSetDisplay(loadingOverlay, 'none');
+            alert('Error saving selections: ' + error);
+        });
+    }
+
+    // Attach event listener to save selections button
+    if (saveUomQoeSelectionsBtn) {
+        saveUomQoeSelectionsBtn.addEventListener('click', function(e) {
+            console.log("Save UOM/QOE selections clicked");
+            e.preventDefault();
+            saveUomQoeFalsePositiveSelections();
+        });
+    }
+
+    // Add search functionality
+    if (uomQoeSearch) {
+        uomQoeSearch.addEventListener('input', filterUomQoeTable);
+    }
+
+    if (uomQoeSearchType) {
+        uomQoeSearchType.addEventListener('change', filterUomQoeTable);
+    }
+
+    if (clearUomQoeSearchBtn) {
+        clearUomQoeSearchBtn.addEventListener('click', function() {
+            uomQoeSearch.value = '';
+            filterUomQoeTable();
+        });
+    }
+
+    // Function to filter UOM/QOE table
+    function filterUomQoeTable() {
+        const searchTerm = uomQoeSearch.value.toLowerCase();
+        const searchType = uomQoeSearchType.value;
+        
+        document.querySelectorAll('#uom-qoe-tbody tr').forEach(row => {
+            if (!searchTerm) {
+                row.style.display = '';
+                return;
+            }
+            
+            let match = false;
+            if (searchType === 'all') {
+                // Search in all cells
+                const rowText = row.textContent.toLowerCase();
+                match = rowText.includes(searchTerm);
+            } else {
+                // Get the index of the column we want to search in
+                const headers = Array.from(document.querySelectorAll('#uom-qoe-table th'));
+                const columnIndex = headers.findIndex(th => th.dataset.sort === searchType);
+                
+                if (columnIndex >= 0) {
+                    const cell = row.cells[columnIndex];
+                    if (cell) {
+                        const cellText = cell.textContent.toLowerCase();
+                        match = cellText.includes(searchTerm);
+                    }
+                }
+            }
+            
+            row.style.display = match ? '' : 'none';
+        });
+    }
+
+
     // Generate Correction File button handler
     const generateCorrectionFileBtn = document.getElementById('generate-correction-file-btn');
     if (generateCorrectionFileBtn) {
         generateCorrectionFileBtn.addEventListener('click', function() {
             window.location.href = '/download-uom-qoe-discrepancies';
+        });
+    }
+
+    // handle the completion of step 4.3 and navigation to step 5
+    const completeStep43Form = document.getElementById('complete-step-4-3-form');
+
+    if (completeStep43Form) {
+        completeStep43Form.addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent default form submission
+            
+            // Make sure the form has the correct action attribute
+            if (!completeStep43Form.getAttribute('action') || 
+                completeStep43Form.getAttribute('action') !== '/process-step/4') {
+                completeStep43Form.setAttribute('action', '/process-step/4');
+            }
+            
+            // Show loading overlay
+            safeSetDisplay(loadingOverlay, 'flex');
+            
+            // Submit the form using fetch API with the correct URL
+            fetch('/process-step/4', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(new FormData(completeStep43Form))
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                safeSetDisplay(loadingOverlay, 'none');
+                
+                if (data.success) {
+                    // Show success message
+                    alert('Step 4 completed successfully!');
+                    
+                    // Redirect to step 5
+                    window.location.href = '/step/5';
+                } else {
+                    alert('Error completing step 4: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                safeSetDisplay(loadingOverlay, 'none');
+                console.error('Error:', error);
+                alert('Error completing step 4: ' + error.message);
+            });
         });
     }
 });
