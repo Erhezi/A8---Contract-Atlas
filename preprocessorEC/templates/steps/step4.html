@@ -774,51 +774,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllBtn = document.getElementById('select-all-btn-4-1');
     const deselectAllBtn = document.getElementById('deselect-all-btn-4-1');
     const saveSelectionsBtn = document.getElementById('save-selections-btn-4-1');
-
-    const selectAllBtn42 = document.getElementById('select-all-btn-4-2');
-    if (selectAllBtn42) {
-        selectAllBtn42.addEventListener('click', function() {
-            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
-                checkbox.checked = true;
-            });
-        });
-    }
-    const deselectAllBtn42 = document.getElementById('deselect-all-btn-4-2');
-    if (deselectAllBtn42) {
-        deselectAllBtn42.addEventListener('click', function() {
-            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-        });
-    }
-    const saveSelectionsBtn42 = document.getElementById('save-selections-btn-4-2');
-    if (saveSelectionsBtn42) {
-        saveSelectionsBtn42.addEventListener('click', function() {
-            saveFalsePositiveSelections();
-        });
-    }
-
-    // Items and filtering variables
-    let allItems = []; // All items from backend
-    let currentItems = []; // Items for current confidence level
-    let currentLevel = null;
-    let sortField = null;
-    let sortDirection = 'asc';
-
-
-    // Helper function to safely set display style
-    function safeSetDisplay(element, displayValue) {
-        if (element && typeof element.style !== 'undefined') {
-            element.style.display = displayValue;
-        } else {
-            // Better error message that doesn't trigger too many warnings in the console
-            if (!element) {
-                console.warn("Element not found for safeSetDisplay");
-            } else if (!element.style) {
-                console.warn("Element found but has no style property:", element);
-            }
-        }
-    }
+    
+    // Add debug logs to check if buttons exist
+    console.log("Button elements:", {
+        selectAllBtn: !!selectAllBtn,
+        deselectAllBtn: !!deselectAllBtn,
+        saveSelectionsBtn: !!saveSelectionsBtn
+    });
 
     // Start matching button click handler
     if (startInforCLMatchingBtn) {
@@ -927,10 +889,39 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Save selections button
-    saveSelectionsBtn.addEventListener('click', function() {
-        saveSelections();
-    });
+    // Save selections button - reimplement the event listener with proper error handling
+    if (saveSelectionsBtn) {
+        console.log("Adding click listener to save-selections-btn-4-1");
+        saveSelectionsBtn.addEventListener('click', function(e) {
+            console.log("Save selections clicked");
+            e.preventDefault();
+            saveSelections();
+        });
+    } else {
+        console.error("Save selections button not found - This is the issue!");
+    }
+
+    // Items and filtering variables
+    let allItems = []; // All items from backend
+    let currentItems = []; // Items for current confidence level
+    let currentLevel = null;
+    let sortField = null;
+    let sortDirection = 'asc';
+
+
+    // Helper function to safely set display style
+    function safeSetDisplay(element, displayValue) {
+        if (element && typeof element.style !== 'undefined') {
+            element.style.display = displayValue;
+        } else {
+            // Better error message that doesn't trigger too many warnings in the console
+            if (!element) {
+                console.warn("Element not found for safeSetDisplay");
+            } else if (!element.style) {
+                console.warn("Element found but has no style property:", element);
+            }
+        }
+    }
 
     // Process results from backend and categorize by confidence
     function processMatchResults(result) {
@@ -1169,6 +1160,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to save selections (for false positives in 4.1)
     function saveSelections() {
+        console.log("saveSelections function called");
         // Show loading overlay
         safeSetDisplay(loadingOverlay, 'flex');
         
@@ -1547,6 +1539,7 @@ document.addEventListener('DOMContentLoaded', function() {
         itemsTbody42.innerHTML = ''; // Clear the table
         
         try {
+            // Sort items if needed
             if (sortField42) {
                 items = [...items].sort((a, b) => {
                     let valA = a[sortField42];
@@ -1581,25 +1574,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Use item.false_positive property, defaulting to false if not set
                 const isFalsePositive = item.false_positive === true;
                 
+                // Make sure all required data is available for each cell
+                const itemNumber = item.item_number_infor || '';
+                const inforMfn = item.mfg_part_num_infor || 'N/A';
+                const uploadMfn = item.Mfg_Part_Num || 'N/A';
+                const inforVendorId = item.erp_vendor_id_infor || 'N/A';
+                const fileRow = item.File_Row || 'N/A';
+                
                 row.innerHTML = `
-                    <td>${item.item_number_infor || ''}</td>
-                    <td>${item.mfg_part_num_infor || 'N/A'}</td>
-                    <td>${item.Mfg_Part_Num || 'N/A'}</td>
+                    <td>${itemNumber}</td>
+                    <td>${inforMfn}</td>
+                    <td>${uploadMfn}</td>
                     <td><span class="match-indicator ${matchClass}"></span></td>
-                    <td> <!-- False Positive checkbox moved here -->
+                    <td> 
                         <input type="checkbox" class="false-positive-checkbox" 
                             data-index="${index}" 
-                            data-file-row="${item.File_Row || ''}"
-                            data-item-number="${item.item_number_infor || ''}"
-                            data-infor-mfn="${item.mfg_part_num_infor || ''}"
-                            data-infor-vendor-id="${item.erp_vendor_id_infor || ''}"
+                            data-file-row="${fileRow}"
+                            data-item-number="${itemNumber}"
+                            data-infor-mfn="${inforMfn}"
+                            data-infor-vendor-id="${inforVendorId}"
                             ${isFalsePositive ? 'checked' : ''}>
                     </td>
-                    <td>${item.erp_vendor_id_infor || 'N/A'}</td>
+                    <td>${inforVendorId}</td>
                     <td>${item.ERP_Vendor_ID || 'N/A'}</td>
                     <td class="description-col" title="${item.description_infor || ''}">${(item.description_infor || 'N/A').substring(0, 50)}${(item.description_infor || '').length > 50 ? '...' : ''}</td>
                     <td class="description-col" title="${item.Description || ''}">${(item.Description || 'N/A').substring(0, 50)}${(item.Description || '').length > 50 ? '...' : ''}</td>
-                    <td>${item.File_Row || 'N/A'}</td>
+                    <td>${fileRow}</td>
                 `;
                 
                 itemsTbody42.appendChild(row);
@@ -1672,6 +1672,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function saveFalsePositiveSelections() {
+        console.log("saveFalsePositiveSelections function called"); // Debug log
         // Get the loading overlay directly instead of using a variable that might be out of scope
         const loadingOverlay = document.getElementById('loading-overlay');
         
@@ -1686,21 +1687,39 @@ document.addEventListener('DOMContentLoaded', function() {
         const checkboxes = document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox');
         console.log(`Found ${checkboxes.length} false-positive checkboxes in the table`);
         
-        // Create a map of all items and their false positive status
-        const falsePositiveItems = Array.from(checkboxes).map(checkbox => {
-            const row = checkbox.closest('tr');
-            const itemNumber = row.cells[0].textContent.trim(); // Infor Item #
-            const inforMfn = row.cells[1].textContent.trim();   // Infor MFN
-            const inforVendorId = row.cells[5].textContent.trim(); // Infor Vendor ID (moved from position 4 to 5)
-            const fileRow = row.cells[9].textContent.trim();    // File Row (moved from position 8 to 9)
-            
-            return {
-                file_row: fileRow,
-                item_number: itemNumber,
-                infor_mfn: inforMfn,
-                infor_vendor_id: inforVendorId,
-                is_false_positive: checkbox.checked
-            };
+        // Create a map of all items and their false positive status with more robust cell access
+        const falsePositiveItems = [];
+        
+        checkboxes.forEach(checkbox => {
+            try {
+                const row = checkbox.closest('tr');
+                if (!row) {
+                    console.error("Could not find parent row for checkbox");
+                    return;
+                }
+                
+                // Use dataset attributes from the checkbox itself if available
+                const fileRow = checkbox.dataset.fileRow || '';
+                const itemNumber = checkbox.dataset.itemNumber || '';
+                const inforMfn = checkbox.dataset.inforMfn || '';
+                const inforVendorId = checkbox.dataset.inforVendorId || '';
+                
+                // Log what we found for debugging
+                console.log("Checkbox data:", {
+                    fileRow, itemNumber, inforMfn, inforVendorId, 
+                    checked: checkbox.checked
+                });
+                
+                falsePositiveItems.push({
+                    file_row: fileRow,
+                    item_number: itemNumber,
+                    infor_mfn: inforMfn,
+                    infor_vendor_id: inforVendorId,
+                    is_false_positive: checkbox.checked
+                });
+            } catch (err) {
+                console.error("Error processing checkbox:", err);
+            }
         });
         
         // Count how many are checked
@@ -1755,24 +1774,165 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // When Step 4.2 is completed, show Step 4.3
-    const completeStep42Btn = document.getElementById('complete-step-4-2-btn');
-    if (completeStep42Btn) {
-        completeStep42Btn.addEventListener('click', function() {
-            // Show Step 4.3 content
-            const step43Content = document.getElementById('step-4-3-content');
-            if (step43Content) {
-                safeSetDisplay(step43Content, 'block');
+    // Fix the event listeners for the buttons
+    const selectAllBtn42 = document.getElementById('select-all-btn-4-2');
+    const deselectAllBtn42 = document.getElementById('deselect-all-btn-4-2');
+    const saveSelectionsBtn42 = document.getElementById('save-selections-btn-4-2');
+    
+    // Add debug logs to check if buttons exist
+    console.log("Button elements for 4-2:", {
+        selectAllBtn42: !!selectAllBtn42,
+        deselectAllBtn42: !!deselectAllBtn42,
+        saveSelectionsBtn42: !!saveSelectionsBtn42
+    });
+    
+    if (selectAllBtn42) {
+        selectAllBtn42.addEventListener('click', function() {
+            console.log("Select all 4-2 clicked");
+            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+        });
+    }
+    
+    if (deselectAllBtn42) {
+        deselectAllBtn42.addEventListener('click', function() {
+            console.log("Deselect all 4-2 clicked");
+            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+    }
+    
+    if (saveSelectionsBtn42) {
+        console.log("Adding click listener to save-selections-btn-4-2");
+        saveSelectionsBtn42.addEventListener('click', function(e) {
+            console.log("Save selections 4-2 clicked");
+            e.preventDefault();
+            saveFalsePositiveSelections();
+        });
+    }
+
+    // Enhance the renderItemMasterTable function to ensure checkboxes have proper data attributes
+    function renderItemMasterTable(items) {
+        itemsTbody42.innerHTML = ''; // Clear the table
+        
+        try {
+            // Sort items if needed
+            // ...existing code...
+
+            items.forEach((item, index) => {
+                const row = document.createElement('tr');
                 
-                // Scroll to the Step 4.3 section smoothly
-                step43Content.scrollIntoView({ behavior: 'smooth' });
+                // Is exact match with safeguard
+                const isExactMatch = item.same_mfg_part_num === 1;
+                const matchClass = isExactMatch ? 'match' : 'partial-match';
                 
-                // Remove any placeholder if it exists
-                const step43Placeholder = document.getElementById('step-4-3-placeholder');
-                if (step43Placeholder) {
-                    step43Placeholder.style.display = 'none';
-                }
+                // Use item.false_positive property, defaulting to false if not set
+                               const isFalsePositive = item.false_positive === true;
+                
+                // Make sure all required data is available for each cell
+                const itemNumber = item.item_number_infor || '';
+                const inforMfn = item.mfg_part_num_infor || 'N/A';
+                const uploadMfn = item.Mfg_Part_Num || 'N/A';
+                const inforVendorId = item.erp_vendor_id_infor || 'N/A';
+                const fileRow = item.File_Row || 'N/A';
+                
+                row.innerHTML = `
+                    <td>${itemNumber}</td>
+                    <td>${inforMfn}</td>
+                    <td>${uploadMfn}</td>
+                    <td><span class="match-indicator ${matchClass}"></span></td>
+                    <td> 
+                        <input type="checkbox" class="false-positive-checkbox" 
+                            data-index="${index}" 
+                            data-file-row="${fileRow}"
+                            data-item-number="${itemNumber}"
+                            data-infor-mfn="${inforMfn}"
+                            data-infor-vendor-id="${inforVendorId}"
+                            ${isFalsePositive ? 'checked' : ''}>
+                    </td>
+                    <td>${inforVendorId}</td>
+                    <td>${item.ERP_Vendor_ID || 'N/A'}</td>
+                    <td class="description-col" title="${item.description_infor || ''}">${(item.description_infor || 'N/A').substring(0, 50)}${(item.description_infor || '').length > 50 ? '...' : ''}</td>
+                    <td class="description-col" title="${item.Description || ''}">${(item.Description || 'N/A').substring(0, 50)}${(item.Description || '').length > 50 ? '...' : ''}</td>
+                    <td>${fileRow}</td>
+                `;
+                
+                itemsTbody42.appendChild(row);
+            });
+            
+            // Add event listeners to checkboxes
+            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    console.log(`Checkbox toggled: item ${checkbox.dataset.itemNumber}, file row ${checkbox.dataset.fileRow}, is now ${checkbox.checked ? 'checked' : 'unchecked'}`);
+                });
+            });
+            
+        } catch (err) {
+            console.error("Error rendering table:", err);
+            showError("Error rendering Item Master results: " + err.message);
+        }
+    }
+
+    // Table header click for sorting - Step 4.2
+    document.querySelectorAll('#items-table-4-2 th[data-sort]').forEach(th => {
+        th.addEventListener('click', function() {
+            const field = this.dataset.sort;
+            
+            if (field === sortField42) {
+                sortDirection42 = sortDirection42 === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField42 = field;
+                sortDirection42 = 'asc';
             }
+            
+            // Update sort indicators
+            document.querySelectorAll('#items-table-4-2 th').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+            });
+            this.classList.add(sortDirection42 === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // Re-render the table with new sort
+            renderItemMasterTable(allItemMasterItems);
+        });
+    });
+
+    // Filter input handler - Step 4.2
+    itemSearchInput42.addEventListener('input', filterItemMasterTable);
+    itemSearchType42.addEventListener('change', filterItemMasterTable);
+    
+    // Clear search button handler - Step 4.2
+    clearSearchBtn42.addEventListener('click', function() {
+        itemSearchInput42.value = '';
+        itemSearchType42.value = 'contains'; // Reset to default
+        filterItemMasterTable();
+    });
+    
+    // Function to filter Item Master table
+    function filterItemMasterTable() {
+        const searchTerm = itemSearchInput42.value.toLowerCase();
+        const searchType = itemSearchType42.value;
+        const tableRows = document.querySelectorAll('#items-tbody-4-2 tr');
+        
+        tableRows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const matchesContains = text.includes(searchTerm);
+            
+            // Show/hide based on search type
+            if (searchType === 'contains') {
+                row.style.display = matchesContains ? '' : 'none';
+            } else { // not-contains
+                row.style.display = matchesContains ? 'none' : '';
+            }
+        });
+    }
+
+    // Generate Correction File button handler
+    const generateCorrectionFileBtn = document.getElementById('generate-correction-file-btn');
+    if (generateCorrectionFileBtn) {
+        generateCorrectionFileBtn.addEventListener('click', function() {
+            window.location.href = '/download-uom-qoe-discrepancies';
         });
     }
 });

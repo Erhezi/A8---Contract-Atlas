@@ -10,7 +10,8 @@ from ..common.session import (get_temp_table_name,
                               store_infor_im_matches, 
                               get_infor_im_matches, 
                               store_uom_qoe_validation,
-                              get_validated_data)
+                              get_validated_data,
+                              get_uom_qoe_validation)
 from ..common.db import match_to_infor_contract_lines, get_db_connection, match_to_item_master, get_valid_buying_uoms
 # Removed unused imports for this specific function
 from ..common.utils import (three_way_contract_line_matching, 
@@ -170,9 +171,9 @@ def update_infor_cl_false_positives():
             
             # Recalculate summary counts
             if 'summary' in result:
-                high_fp = sum(1 for item in result.get('high', []) if item.get('false_positive'))
-                medium_fp = sum(1 for item in result.get('medium', []) if item.get('false_positive'))
-                low_fp = sum(1 for item in result.get('low', []) if item.get('false_positive'))
+                high_fp = sum(1 for item in result.get('high', []) if item.get('False Positive'))
+                medium_fp = sum(1 for item in result.get('medium', []) if item.get('False Positive'))
+                low_fp = sum(1 for item in result.get('low', []) if item.get('False Positive'))
                 
                 # Update false positive counts
                 result['summary']['high']['false_positives'] = high_fp
@@ -387,23 +388,23 @@ def validate_uom_qoe():
             if not success:
                 return jsonify({'success': False, 'message': f'Error fetching valid UOMs: {error_msg}'})
             
-            success, error_msg, validated_upload = get_validated_data(user_id)
+            validated_upload = get_validated_data(user_id)
             
-            if not success:
+            if not validated_upload:
                 return jsonify({'success': False, 'message': f'Error fetching validated data: {error_msg}'})
                 
             # Analyze UOM/QOE discrepancies
-            analyzed_df = analyze_uom_qoe_discrepancies(valid_uoms, validated_upload, im_catched_all_df)
+            results = analyze_uom_qoe_discrepancies(valid_uoms, validated_upload, im_catched_all_df)
             
             # Store the results in the session
-            store_uom_qoe_validation(user_id, analyzed_df.to_dict(orient='records'))
+            store_uom_qoe_validation(user_id, results)
+            session.modified = True  # Mark session as modified
             
             # Return success response with summary
             return jsonify({
                 'success': True,
-                'result': {
-                    'analyzed_df': analyzed_df.to_dict(orient='records'),
-                }
+                'result': results,
+                'message': f'Validation completed. Found {results['failed_count']} discrepancies.'
             })
             
         finally:
@@ -414,3 +415,68 @@ def validate_uom_qoe():
     except Exception as e:
         current_app.logger.exception(f"Unexpected error during UOM/QOE validation for user {user_id}: {e}")
         return jsonify({'success': False, 'message': f'An unexpected server error occurred: {str(e)}'})
+
+
+@item_matching_bp.route('/download-uom-qoe-discrepancies', methods=['GET'])
+@login_required
+def download_uom_qoe_discrepancies():
+    """Download the UOM/QOE discrepancies as an Excel file"""
+    user_id = current_user.id
+    
+    try:
+        # Get the validation results from session
+        validation_results = get_uom_qoe_validation(user_id)
+        
+        if not validation_results:
+            flash("No validation results found. Please run the validation first.", "warning")
+            return redirect(url_for('main.steps', step=4))
+        
+        # Convert to DataFrame
+        import pandas as pd
+        import io
+        from flask import send_file
+        
+        df = pd.DataFrame(validation_results)
+        
+        # Filter to show only rows with discrepancies
+        discrepancies = df[(df['UOM_upload'] != df['UOM_im']) | (df['QOE_upload'] != df['QOE_im'])]
+        
+        if discrepancies.empty:
+            flash("No discrepancies found in the validation results.", "info")
+            return redirect(url_for('main.steps', step=4))
+        
+        # Select relevant columns for the report
+        report_cols = [
+            'File Row', 'Item', 'Description', 'UOM_upload', 'UOM_im', 
+            'QOE_upload', 'QOE_im', 'All Valid UOM*QOE'
+        ]
+        report_df = discrepancies[report_cols].copy()
+        
+        # Rename columns for clarity
+        report_df.columns = [
+            'File Row', 'Item Number', 'Description', 'Upload UOM', 'Valid UOM', 
+            'Upload QOE', 'Valid QOE', 'All Valid UOM/QOE Combinations'
+        ]
+        
+        # Generate Excel file
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            report_df.to_excel(writer, sheet_name='UOM_QOE_Discrepancies', index=False)
+        output.seek(0)
+        
+        # Generate a filename with timestamp
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        filename = f"UOM_QOE_Discrepancies_{timestamp}.xlsx"
+        
+        return send_file(
+            output, 
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        current_app.logger.error(f"Error generating UOM/QOE discrepancies file: {str(e)}")
+        flash(f"Error generating discrepancies file: {str(e)}", "error")
+        return redirect(url_for('main.steps', step=4))

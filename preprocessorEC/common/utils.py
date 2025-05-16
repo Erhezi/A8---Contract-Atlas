@@ -1325,23 +1325,59 @@ def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df
         merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype('Int64')
     
     merged_df['UOM Check'] = merged_df['UOM_im'] == merged_df['UOM_upload']
-    merged_df['QOE Check'] = merged_df['QOE_im'] == merged_df['QOE_uplood']
+    merged_df['QOE Check'] = merged_df['QOE_im'] == merged_df['QOE_upload']
 
-    # isolate any file row with a failed check in UOM or QOE
-    failed_file_row = set(merged_df[(merged_df['UOM Check'] == False) | (merged_df['QOE Check'] == False)]['File Row'])
-    merged_df.loc[:, 'Validation'] = merged_df['File Row'].apply(lambda x: 'Failed' if x in failed_file_row else 'Passed')
+    # isolate any file row with a passed check in UOM or QOE
+    passed_file_row = set(merged_df[(merged_df['UOM Check'] == True) & (merged_df['QOE Check'] == True)]['File Row'])
+    merged_df.loc[:, 'Validation'] = merged_df['File Row'].apply(lambda x: 'Passed' if x in passed_file_row else 'Failed')
     
     # summarize all possible UOM * QOE from valid_uom_df
-    valid_uom_df.loc[:, 'UOM and QOE'] = valid_uom_df['UOM'] + '*' + valid_uom_df['QOE'].astype(str)
-    valid_uom_df.loc[:, 'All Valid UOM*QOE'] = valid_uom_df['UOM and QOE'].apply(lambda x: ','.join(list(set(x.split(',')))))
+    valid_uom_df.loc[:, 'UOM and QOE'] = valid_uom_df['UOM'] + '*' + valid_uom_df['QOE'].astype(int).astype(str)
+    valid_uom_df.sort_values(by=['Item', 'QOE'], ascending=[True, True], inplace=True)
+    valid_uom_df.loc[:, 'All Valid UOM*QOE'] = valid_uom_df.groupby(['Item'])['UOM and QOE'].transform(lambda x: ','.join(x))
 
     analyzed_df = merged_df.merge(
         valid_uom_df[['Item', 'All Valid UOM*QOE']],
         on=['Item'],
         how='left'
     )
+
+    analyzed_df = analyzed_df[['File Row',  
+                               'Mfg Part Num',
+                               'Vendor Part Num',
+                               'UOM_upload', 
+                               'QOE_upload',
+                               'Description',
+                               'Contract Number',
+                               'ERP Vendor ID',
+                               'Item',
+                               'All Valid UOM*QOE',
+                               'ItemDescription',
+                               'Validation',
+                               'Matched Count']].copy()
     
-    # need some visuals debug line
-    analyzed_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'analyzed_df_debug.xlsx'), index=False)
+    analyzed_df.loc[:, 'False Positive'] = False
+    analyzed_df = analyzed_df.drop_duplicates(keep = 'first')
+
+    all_pass_flag = False
+    if len(analyzed_df) == 0:
+        all_pass_flag = True
+    if (len(analyzed_df[analyzed_df['Validation'] == 'Failed']) == 0):
+        all_pass_flag = True
     
-    return analyzed_df
+    one_to_many_warning = True
+    if analyzed_df['Matched Count'].max() == 1:
+        one_to_many_warning = False
+    if len(analyzed_df) == 0:
+        one_to_many_warning = False
+
+    results = {
+        'analyzed_df': analyzed_df.to_dict(orient='records'),
+        'false_positive_count': 0,
+        'failed_count': len(analyzed_df[analyzed_df['Validation'] == 'Failed']),
+        'total_validation_count': len(analyzed_df),
+        'all_pass_flag': all_pass_flag,
+        'one_to_many_warning': one_to_many_warning
+    }
+    
+    return results
