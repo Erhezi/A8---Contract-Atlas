@@ -1532,6 +1532,8 @@ document.addEventListener('DOMContentLoaded', function() {
             safeSetDisplay(document.querySelector('#item-master-table-container .items-table-container'), 'block');
             console.log("Forced display of item master table container");
         }, 200);
+
+        attachSort42Listeners();
     }
 
     // Render the Item Master table
@@ -1618,28 +1620,85 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Table header click for sorting - Step 4.2
-    document.querySelectorAll('#items-table-4-2 th[data-sort]').forEach(th => {
-        th.addEventListener('click', function() {
-            const field = this.dataset.sort;
+    function attachSort42Listeners() {
+        document.querySelectorAll('#items-table-4-2 th[data-sort]').forEach(th => {
+            // Remove existing event listeners by cloning and replacing
+            const newTh = th.cloneNode(true);
+            th.parentNode.replaceChild(newTh, th);
             
-            if (field === sortField42) {
-                sortDirection42 = sortDirection42 === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortField42 = field;
-                sortDirection42 = 'asc';
-            }
-            
-            // Update sort indicators
-            document.querySelectorAll('#items-table-4-2 th').forEach(header => {
-                header.classList.remove('sort-asc', 'sort-desc');
+            // Add fresh event listener
+            newTh.addEventListener('click', function() {
+                console.log("Sort clicked on", this.dataset.sort);
+                
+                // Get the sort field from the data attribute
+                const field = this.dataset.sort;
+                
+                // Update sort direction
+                if (field === sortField42) {
+                    sortDirection42 = sortDirection42 === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortField42 = field;
+                    sortDirection42 = 'asc';
+                }
+                
+                // Update sort indicators
+                document.querySelectorAll('#items-table-4-2 th').forEach(header => {
+                    header.classList.remove('sort-asc', 'sort-desc');
+                });
+                this.classList.add(sortDirection42 === 'asc' ? 'sort-asc' : 'sort-desc');
+                
+                // Execute the sort and re-render
+                const sortedItems = [...allItemMasterItems].sort((a, b) => {
+                    let valA = a[field];
+                    let valB = b[field];
+                    
+                    // Handle null/undefined values
+                    if (valA === null || valA === undefined) valA = '';
+                    if (valB === null || valB === undefined) valB = '';
+                    
+                    // Handle numeric values
+                    if (!isNaN(parseFloat(valA)) && !isNaN(parseFloat(valB))) {
+                        return sortDirection42 === 'asc' ? 
+                            parseFloat(valA) - parseFloat(valB) : 
+                            parseFloat(valB) - parseFloat(valA);
+                    }
+                    
+                    // Handle string values
+                    valA = String(valA).toLowerCase();
+                    valB = String(valB).toLowerCase();
+                    
+                    if (valA < valB) return sortDirection42 === 'asc' ? -1 : 1;
+                    if (valA > valB) return sortDirection42 === 'asc' ? 1 : -1;
+                    return 0;
+                });
+                
+                // Render with sorted items
+                renderItemMasterTable(sortedItems);
             });
-            this.classList.add(sortDirection42 === 'asc' ? 'sort-asc' : 'sort-desc');
-            
-            // Re-render the table with new sort
-            renderItemMasterTable(allItemMasterItems);
         });
-    });
+    }
+
+    // Extract the sort handler to a named function
+    function handleSort42Click() {
+        const field = this.dataset.sort;
+        
+        if (field === sortField42) {
+            sortDirection42 = sortDirection42 === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortField42 = field;
+            sortDirection42 = 'asc';
+        }
+        
+        // Update sort indicators
+        document.querySelectorAll('#items-table-4-2 th').forEach(header => {
+            header.classList.remove('sort-asc', 'sort-desc');
+        });
+        this.classList.add(sortDirection42 === 'asc' ? 'sort-asc' : 'sort-desc');
+        
+        // Re-render the table with new sort
+        renderItemMasterTable(allItemMasterItems);
+    }
+
 
     // Filter input handler - Step 4.2
     itemSearchInput42.addEventListener('input', filterItemMasterTable);
@@ -1774,18 +1833,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Fix the event listeners for the buttons
+    // Button handlers for Step 4.2
     const selectAllBtn42 = document.getElementById('select-all-btn-4-2');
     const deselectAllBtn42 = document.getElementById('deselect-all-btn-4-2');
     const saveSelectionsBtn42 = document.getElementById('save-selections-btn-4-2');
-    
-    // Add debug logs to check if buttons exist
-    console.log("Button elements for 4-2:", {
-        selectAllBtn42: !!selectAllBtn42,
-        deselectAllBtn42: !!deselectAllBtn42,
-        saveSelectionsBtn42: !!saveSelectionsBtn42
-    });
-    
+       
     if (selectAllBtn42) {
         selectAllBtn42.addEventListener('click', function() {
             console.log("Select all 4-2 clicked");
@@ -1818,8 +1870,6 @@ document.addEventListener('DOMContentLoaded', function() {
         itemsTbody42.innerHTML = ''; // Clear the table
         
         try {
-            // Sort items if needed
-            // ...existing code...
 
             items.forEach((item, index) => {
                 const row = document.createElement('tr');
@@ -1868,35 +1918,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log(`Checkbox toggled: item ${checkbox.dataset.itemNumber}, file row ${checkbox.dataset.fileRow}, is now ${checkbox.checked ? 'checked' : 'unchecked'}`);
                 });
             });
+
+            attachSort42Listeners();
             
         } catch (err) {
             console.error("Error rendering table:", err);
             showError("Error rendering Item Master results: " + err.message);
         }
     }
-
-    // Table header click for sorting - Step 4.2
-    document.querySelectorAll('#items-table-4-2 th[data-sort]').forEach(th => {
-        th.addEventListener('click', function() {
-            const field = this.dataset.sort;
-            
-            if (field === sortField42) {
-                sortDirection42 = sortDirection42 === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortField42 = field;
-                sortDirection42 = 'asc';
-            }
-            
-            // Update sort indicators
-            document.querySelectorAll('#items-table-4-2 th').forEach(header => {
-                header.classList.remove('sort-asc', 'sort-desc');
-            });
-            this.classList.add(sortDirection42 === 'asc' ? 'sort-asc' : 'sort-desc');
-            
-            // Re-render the table with new sort
-            renderItemMasterTable(allItemMasterItems);
-        });
-    });
 
     // Filter input handler - Step 4.2
     itemSearchInput42.addEventListener('input', filterItemMasterTable);
@@ -1905,9 +1934,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear search button handler - Step 4.2
     clearSearchBtn42.addEventListener('click', function() {
         itemSearchInput42.value = '';
-        itemSearchType42.value = 'contains'; // Reset to default
+        itemSearchType42.value = 'contains';
         filterItemMasterTable();
     });
+
     
     // Function to filter Item Master table
     function filterItemMasterTable() {
