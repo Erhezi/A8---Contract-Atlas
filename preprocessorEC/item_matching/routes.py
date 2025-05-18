@@ -489,10 +489,11 @@ def update_uom_qoe_false_positives():
         current_app.logger.error(f"Error updating UOM/QOE false positives: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
+
 @item_matching_bp.route('/download-uom-qoe-discrepancies', methods=['GET'])
 @login_required
 def download_uom_qoe_discrepancies():
-    """Download the UOM/QOE discrepancies as an Excel file"""
+    """Download the UOM/QOE validation report as an Excel file"""
     user_id = current_user.id
     
     try:
@@ -501,45 +502,72 @@ def download_uom_qoe_discrepancies():
         
         if not validation_results:
             flash("No validation results found. Please run the validation first.", "warning")
-            return redirect(url_for('main.steps', step=4))
+            return redirect(url_for('common.goto_step', step=4))
         
+        # Get analyzed_df from validation results
+        analyzed_df = validation_results.get('analyzed_df', [])
+        
+        if not analyzed_df:
+            flash("No validation data found. Please run the validation first.", "warning")
+            return redirect(url_for('common.goto_step', step=4))
+            
         # Convert to DataFrame
         import pandas as pd
         import io
         from flask import send_file
         
-        df = pd.DataFrame(validation_results)
-        
-        # Filter to show only rows with discrepancies
-        discrepancies = df[(df['UOM_upload'] != df['UOM_im']) | (df['QOE_upload'] != df['QOE_im'])]
-        
-        if discrepancies.empty:
-            flash("No discrepancies found in the validation results.", "info")
-            return redirect(url_for('main.steps', step=4))
+        df = pd.DataFrame(analyzed_df)
+        print(df.columns)  # Debugging line
         
         # Select relevant columns for the report
         report_cols = [
-            'File Row', 'Item', 'Description', 'UOM_upload', 'UOM_im', 
-            'QOE_upload', 'QOE_im', 'All Valid UOM*QOE'
+            'Item', 'All Valid UOM*QOE', 'UOM_upload', 'UOM_im', 'Validation',
+            'Matched Count', 'False Positive', 'File Row', 'ItemDescription',
+            'Description', 'Mfg Part Num', 'Vendor Part Num', 'ERP Vendor ID',
+            'Contract Number'
         ]
-        report_df = discrepancies[report_cols].copy()
+        # Only include columns that actually exist in the dataframe
+        report_cols = [col for col in report_cols if col in df.columns]
+        
+        report_df = df[report_cols].copy()
         
         # Rename columns for clarity
-        report_df.columns = [
-            'File Row', 'Item Number', 'Description', 'Upload UOM', 'Valid UOM', 
-            'Upload QOE', 'Valid QOE', 'All Valid UOM/QOE Combinations'
-        ]
+        column_mapping = {
+            'Item': 'Infor Item #',
+            'UOM_upload': 'UOM (Upload)',
+            'QOE_upload': 'QOE (Upload)',
+            'Validation': 'Validation Result',
+            'Matched Count': 'Matched Item Count',
+            'File Row': 'File Row (Upload)',
+            'Description': 'Description (Upload)',
+            'ItemDescription': 'Description (Infor)',
+            'Mfg Part Num': 'Mfg Part Num (Upload)',
+            'Vendor Part Num': 'Vendor Part Num (Upload)',
+            'ERP Vendor ID': 'Vendor ID (Upload)',
+            'Contract Number': 'Contract Number (Upload)',
+        }
+        # Only rename columns that exist in report_df
+        rename_dict = {old: new for old, new in column_mapping.items() if old in report_df.columns}
+        report_df = report_df.rename(columns=rename_dict)
         
         # Generate Excel file
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            report_df.to_excel(writer, sheet_name='UOM_QOE_Discrepancies', index=False)
+        
+        try:
+            # Try with xlsxwriter first
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                report_df.to_excel(writer, sheet_name='UOM_QOE_Validation', index=False)
+        except ImportError:
+            # Fall back to openpyxl if xlsxwriter is not available
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                report_df.to_excel(writer, sheet_name='UOM_QOE_Validation', index=False)
+                
         output.seek(0)
         
         # Generate a filename with timestamp
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"UOM_QOE_Discrepancies_{timestamp}.xlsx"
+        filename = f"UOM_QOE_Validation_Report_{timestamp}.xlsx"
         
         return send_file(
             output, 
@@ -549,6 +577,6 @@ def download_uom_qoe_discrepancies():
         )
         
     except Exception as e:
-        current_app.logger.error(f"Error generating UOM/QOE discrepancies file: {str(e)}")
-        flash(f"Error generating discrepancies file: {str(e)}", "error")
-        return redirect(url_for('main.steps', step=4))
+        current_app.logger.error(f"Error generating UOM/QOE validation report: {str(e)}")
+        flash(f"Error generating validation report: {str(e)}", "error")
+        return redirect(url_for('common.goto_step', step=4))

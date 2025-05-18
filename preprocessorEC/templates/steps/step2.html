@@ -1350,11 +1350,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const itemComparisonContainer = document.getElementById('item-comparison-container');
         if (itemComparisonContainer) {
             itemComparisonContainer.style.display = 'block';
-            
             // Scroll to the item comparison section
-            itemComparisonContainer.scrollIntoView({
-                behavior: 'smooth'
-            });
+            itemComparisonContainer.scrollIntoView({behavior: 'smooth'});
         }
 
         
@@ -1536,7 +1533,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.log("Loading medium confidence items...");
                         loadConfidenceItems('medium');
                     } else if (data.summary.low && data.summary.low.total > 0) {
-console.log("Loading low confidence items...");
+                        console.log("Loading low confidence items...");
                         loadConfidenceItems('low');
                     } else {
                         console.warn("No items found in any confidence level");

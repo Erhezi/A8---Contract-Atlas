@@ -80,8 +80,18 @@ class User(UserMixin):
     
     @classmethod
     def check_password(cls, username, password):
-        """Check user password"""
+        """Check user password
+        
+        Returns:
+            tuple: (success, message)
+                - success (bool): True if login successful, False otherwise
+                - message (str): Message explaining the result
+        """
         user = cls.get_by_username(username)
-        if user and user.password_hash:
-            return check_password_hash(user.password_hash, password)
-        return False
+        if not user:
+            return False, "User does not exist"
+        if not user.password_hash:
+            return False, "Password not set for user"
+        if check_password_hash(user.password_hash, password):
+            return True, "Login successful"
+        return False, "Incorrect password"

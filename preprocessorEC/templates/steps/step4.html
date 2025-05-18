@@ -1,15 +1,22 @@
 <!-- Step 4: Matching to Infor -->
 <style>
     /* Styles adapted from step2.html for item-level comparison */
+    .text-muted {
+        color: #6c757d;
+        font-size: 0.8rem;
+        margin-top: 4px;
+    }
+    
     .step-content {
         margin-bottom: 20px;
     }
+
     .items-table-container {
         margin-top: 20px;
         overflow-x: auto;
         overflow-y: auto; /* Add vertical scrolling */
         max-width: 100%;
-        max-height: 700px; /* Limit table height */
+        max-height: 600px; /* Limit table height */
         border: 1px solid #eee;
         display: none; /* Hidden initially */
     }
@@ -370,18 +377,6 @@
         margin-top: 0px;
     }
 
-    .need-review-card {
-        border-left-color: #9b59b6; /* Purple */
-    }
-
-    .no-review-card {
-        border-left-color: #2ecc71; /* Green */
-    }
-
-    .item-master-card {
-        border-left-color: #3498db; /* Blue */
-    }
-
 
     .items-table th {
         background-color: #f5f5f5;
@@ -435,10 +430,6 @@
         border-left-color: #2ecc71; /* Green */
     }
 
-    .false-positive-card {
-        border-left-color: #e74c3c; /* Red */
-    }
-
     @media (max-width: 992px) {
         .summary-stats-row.four-columns {
             grid-template-columns: repeat(2, 1fr);
@@ -450,6 +441,40 @@
         .summary-stats-row.four-columns {
             grid-template-columns: 1fr;
         }
+    }
+
+    #step-4-2-content {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #e0e0e0;
+    }
+
+    #step-4-3-content {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #e0e0e0;
+    }
+
+    .bg-success-light {
+        background-color: rgba(46, 204, 113, 0.2);
+        padding: 4px 8px;
+        border-radius: 4px;
+        display: inline-block;
+        width: 70%;
+        text-align: left;
+        color: #218c53;
+        font-weight: bold;
+    }
+
+    .bg-danger-light {
+        background-color: rgba(231, 76, 60, 0.2);
+        padding: 4px 8px;
+        border-radius: 4px;
+        display: inline-block;
+        width: 70%;
+        text-align: left;
+        color: #c0392b;
+        font-weight: bold;
     }
 
 </style>
@@ -638,6 +663,7 @@
                             <th data-sort="Mfg_Part_Num">Mfg Part Num (Upload)<span class="sort-indicator"></span></th>
                             <th data-sort="same_mfg_part_num">Exact MFN Match<span class="sort-indicator"></span></th>
                             <th>False Positive</th>
+                            <th data-sort="vendor_id_match">Vendor ID Match<span class="sort-indicator"></span></th>
                             <th data-sort="erp_vendor_id_infor">Vendor ID (Infor)<span class="sort-indicator"></span></th>
                             <th data-sort="ERP_Vendor_ID">Vendor ID (Upload)<span class="sort-indicator"></span></th>
                             <th data-sort="description_infor" class="description-col">Description (Infor)<span class="sort-indicator"></span></th>
@@ -750,16 +776,16 @@
                             <th data-sort="All Valid UOM*QOE">Valid UOM*QOE Options<span class="sort-indicator"></span></th>
                             <th data-sort="UOM_upload">UOM (Upload)<span class="sort-indicator"></span></th>
                             <th data-sort="QOE_upload">QOE (Upload)<span class="sort-indicator"></span></th>
-                            <th data-sort="Validation">Validation<span class="sort-indicator"></span></th>
-                            <th data-sort="Matched Count">Matched Count<span class="sort-indicator"></span></th>
+                            <th data-sort="Validation">Validation Result<span class="sort-indicator"></span></th>
+                            <th data-sort="Matched Count">Matched Item Count<span class="sort-indicator"></span></th>
                             <th>False Positive</th>
-                            <th data-sort="File Row">File Row<span class="sort-indicator"></span></th>
+                            <th data-sort="File Row">File Row (Upload)<span class="sort-indicator"></span></th>
                             <th data-sort="ItemDescription" class="description-col">Description (Infor)<span class="sort-indicator"></span></th>
                             <th data-sort="Description" class="description-col">Description (Upload)<span class="sort-indicator"></span></th>
-                            <th data-sort="Mfg Part Num">Mfg Part Num<span class="sort-indicator"></span></th>
-                            <th data-sort="Vendor Part Num">Vendor Part Num<span class="sort-indicator"></span></th>
-                            <th data-sort="ERP Vendor ID">Vendor ID<span class="sort-indicator"></span></th>
-                            <th data-sort="Contract Number">Contract Number<span class="sort-indicator"></span></th>
+                            <th data-sort="Mfg Part Num">Mfg Part Num (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="Vendor Part Num">Vendor Part Num (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="ERP Vendor ID">Vendor ID (Upload)<span class="sort-indicator"></span></th>
+                            <th data-sort="Contract Number">Contract Number (Upload)<span class="sort-indicator"></span></th>
                         </tr>
                     </thead>
                     <tbody id="uom-qoe-tbody">
@@ -776,7 +802,7 @@
 
         <!-- Action Buttons -->
         <div id="action-buttons-4-3" class="action-buttons" style="display: none;">
-            <button id="generate-correction-file-btn" class="btn btn-secondary me-2">Generate Correction File</button>
+            <button id="generate-validation-result-file-btn" class="btn btn-secondary me-2">Export Validation Report</button>
             <!-- Complete Step Button -->
             <div style="display: inline-block;">
                 <form method="POST" action="{{ url_for('common.process_step', step_id=4) }}">
@@ -861,7 +887,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Show the comparison container
                             safeSetDisplay(itemComparisonContainer, 'block');
                             // Show action buttons
-                            safeSetDisplay(actionButtons, 'block');                           
+                            safeSetDisplay(actionButtons, 'block');
+                            // smoothly scroll to the top of the comparison container
+                            itemComparisonContainer.scrollIntoView({ behavior: 'smooth' });
                         } else {
                             showError("No result data returned from server");
                         }
@@ -1388,9 +1416,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Show Step 4.2 but keep Step 4.1 visible
             safeSetDisplay(document.getElementById('step-4-2-content'), 'block');
             
-            // Optional: Scroll to the Step 4.2 section smoothly
-            document.getElementById('step-4-2-content').scrollIntoView({ behavior: 'smooth' });
-            
             // Directly call the Item Master matching endpoint (skip the "Start Matching" button)
             fetch('/item-matching/match-item-master', {
                 method: 'POST'
@@ -1410,6 +1435,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // Hide the now-redundant "Start Matching to Item Master" button
                         safeSetDisplay(startItemMasterMatchingBtn, 'none');
+
+                        // smoothly scroll to the itemmaster table container
+                        itemMasterTableContainer.scrollIntoView({ behavior: 'smooth' });
                     } catch (err) {
                         showError("Error processing Item Master results: " + err.message);
                         console.error("Processing error details:", err);
@@ -1590,6 +1618,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 items = [...items].sort((a, b) => {
                     let valA = a[sortField42];
                     let valB = b[sortField42];
+
+                    // special handling for vendor_id_match
+                    if (sortField42 === 'vendor_id_match') {
+                        valA = a.vendor_id_match === true ? 1 : 0;
+                        valB = b.vendor_id_match === true ? 1 : 0;
+                    }
                     
                     // Handle null, undefined, and NaN values
                     if (valA === null || valA === undefined || (typeof valA === 'number' && isNaN(valA))) valA = '';
@@ -1613,9 +1647,18 @@ document.addEventListener('DOMContentLoaded', function() {
             items.forEach((item, index) => {
                 const row = document.createElement('tr');
                 
-                // Is exact match with safeguard
+                // Is exact match with safeguard for MFN
                 const isExactMatch = item.same_mfg_part_num === 1;
                 const matchClass = isExactMatch ? 'match' : 'partial-match';
+                
+                // Check for exact vendor ID match
+                const inforVendorId = item.erp_vendor_id_infor || '';
+                const uploadVendorId = item.ERP_Vendor_ID || '';
+                const isVendorIdMatch = inforVendorId && uploadVendorId && 
+                                    inforVendorId.toString() === uploadVendorId.toString();
+                const vendorMatchClass = isVendorIdMatch ? 'match' : 'no-match';
+                
+                item.vendor_id_match = isVendorIdMatch;
                 
                 // Use item.false_positive property, defaulting to false if not set
                 const isFalsePositive = item.false_positive === true;
@@ -1624,7 +1667,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const itemNumber = item.item_number_infor || '';
                 const inforMfn = item.mfg_part_num_infor || 'N/A';
                 const uploadMfn = item.Mfg_Part_Num || 'N/A';
-                const inforVendorId = item.erp_vendor_id_infor || 'N/A';
                 const fileRow = item.File_Row || 'N/A';
                 
                 row.innerHTML = `
@@ -1641,6 +1683,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             data-infor-vendor-id="${inforVendorId}"
                             ${isFalsePositive ? 'checked' : ''}>
                     </td>
+                    <td><span class="match-indicator ${vendorMatchClass}"></span></td>
                     <td>${inforVendorId}</td>
                     <td>${item.ERP_Vendor_ID || 'N/A'}</td>
                     <td class="description-col" title="${item.description_infor || ''}">${(item.description_infor || 'N/A').substring(0, 50)}${(item.description_infor || '').length > 50 ? '...' : ''}</td>
@@ -1909,67 +1952,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Enhance the renderItemMasterTable function to ensure checkboxes have proper data attributes
-    function renderItemMasterTable(items) {
-        itemsTbody42.innerHTML = ''; // Clear the table
-        
-        try {
-
-            items.forEach((item, index) => {
-                const row = document.createElement('tr');
-                
-                // Is exact match with safeguard
-                const isExactMatch = item.same_mfg_part_num === 1;
-                const matchClass = isExactMatch ? 'match' : 'partial-match';
-                
-                // Use item.false_positive property, defaulting to false if not set
-                               const isFalsePositive = item.false_positive === true;
-                
-                // Make sure all required data is available for each cell
-                const itemNumber = item.item_number_infor || '';
-                const inforMfn = item.mfg_part_num_infor || 'N/A';
-                const uploadMfn = item.Mfg_Part_Num || 'N/A';
-                const inforVendorId = item.erp_vendor_id_infor || 'N/A';
-                const fileRow = item.File_Row || 'N/A';
-                
-                row.innerHTML = `
-                    <td>${itemNumber}</td>
-                    <td>${inforMfn}</td>
-                    <td>${uploadMfn}</td>
-                    <td><span class="match-indicator ${matchClass}"></span></td>
-                    <td> 
-                        <input type="checkbox" class="false-positive-checkbox" 
-                            data-index="${index}" 
-                            data-file-row="${fileRow}"
-                            data-item-number="${itemNumber}"
-                            data-infor-mfn="${inforMfn}"
-                            data-infor-vendor-id="${inforVendorId}"
-                            ${isFalsePositive ? 'checked' : ''}>
-                    </td>
-                    <td>${inforVendorId}</td>
-                    <td>${item.ERP_Vendor_ID || 'N/A'}</td>
-                    <td class="description-col" title="${item.description_infor || ''}">${(item.description_infor || 'N/A').substring(0, 50)}${(item.description_infor || '').length > 50 ? '...' : ''}</td>
-                    <td class="description-col" title="${item.Description || ''}">${(item.Description || 'N/A').substring(0, 50)}${(item.Description || '').length > 50 ? '...' : ''}</td>
-                    <td>${fileRow}</td>
-                `;
-                
-                itemsTbody42.appendChild(row);
-            });
-            
-            // Add event listeners to checkboxes
-            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    console.log(`Checkbox toggled: item ${checkbox.dataset.itemNumber}, file row ${checkbox.dataset.fileRow}, is now ${checkbox.checked ? 'checked' : 'unchecked'}`);
-                });
-            });
-
-            attachSort42Listeners();
-            
-        } catch (err) {
-            console.error("Error rendering table:", err);
-            showError("Error rendering Item Master results: " + err.message);
-        }
-    }
 
     // Filter input handler - Step 4.2
     itemSearchInput42.addEventListener('input', filterItemMasterTable);
@@ -2018,9 +2000,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Hide the "Start UOM/QOE Validation" button since we're automatically starting it
             safeSetDisplay(startUomQoeValidationBtn, 'none');
             
-            // Scroll to the Step 4.3 section
-            step43Content.scrollIntoView({ behavior: 'smooth' });
-            
             // Automatically call the UOM/QOE validation API
             fetch('/item-matching/validate-uom-qoe', {
                 method: 'POST'
@@ -2038,6 +2017,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         safeSetDisplay(document.getElementById('uom-qoe-results-container'), 'block');
                         safeSetDisplay(document.getElementById('uom-qoe-table-container'), 'block');
                         safeSetDisplay(document.getElementById('action-buttons-4-3'), 'block');
+                         // smoothly scroll to the uom-qoe table container
+                        document.getElementById('uom-qoe-table-container').scrollIntoView({ behavior: 'smooth' });
                     } catch (err) {
                         showError("Error processing UOM/QOE validation results: " + err.message);
                         console.error("Processing error details:", err);
@@ -2091,6 +2072,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Variables for UOM/QOE table sorting
+    let allUomQoeItems = [];
+    let sortFieldUomQoe = null;
+    let sortDirectionUomQoe = 'asc';
+
     // function to process the UOM/QOE validation results
     function processUomQoeResults(result) {
         if (!result || !result.analyzed_df || result.analyzed_df.length === 0) {
@@ -2099,7 +2085,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        console.log("UOM/QOE validation results:", result);
+        allUomQoeItems = result.analyzed_df || [];
         
         // Update stats
         document.getElementById('total-items-validated').textContent = result.total_validation_count || 0;
@@ -2109,24 +2095,68 @@ document.addEventListener('DOMContentLoaded', function() {
         // Set the "All Pass" status
         const allPassElement = document.getElementById('all-pass-status');
         if (allPassElement) {
-            const allPassValue = result.all_pass_flag === true ? "All Passed" : "No";
+            const allPassValue = result.all_pass_flag === true ? "All Passed" : "With Issues";
             allPassElement.textContent = allPassValue;
             
-            // Optionally change color based on status
+            // Change text color based on status
             allPassElement.style.color = result.all_pass_flag === true ? "#2ecc71" : "#e74c3c";
+            
+            // Also change the card's border color based on status
+            const allPassCard = document.querySelector('.summary-stats-row.four-columns .summary-stats-column:first-child .summary-stat-card');
+            if (allPassCard) {
+                if (result.all_pass_flag === true) {
+                    allPassCard.className = 'summary-stat-card success-card';  // Green border
+                } else {
+                    allPassCard.className = 'summary-stat-card false-positive-card';  // Red border
+                }
+            }
         }
         
         // Always render the table with all items
-        renderUomQoeTable(result.analyzed_df || []);
+        renderUomQoeTable(allUomQoeItems);
         
         // Always show the table container if there are items
-        if (result.analyzed_df && result.analyzed_df.length > 0) {
+        if (allUomQoeItems.length > 0) {
             safeSetDisplay(document.getElementById('no-discrepancies-message'), 'none');
             safeSetDisplay(document.querySelector('#uom-qoe-table-container .items-table-container'), 'block');
+            
+            // Attach sort listeners
+            attachUomQoeSortListeners();
         } else {
             safeSetDisplay(document.getElementById('no-discrepancies-message'), 'block');
             safeSetDisplay(document.querySelector('#uom-qoe-table-container .items-table-container'), 'none');
         }
+    }
+
+    // Function to attach sort listeners
+    function attachUomQoeSortListeners() {
+        document.querySelectorAll('#uom-qoe-table th[data-sort]').forEach(th => {
+            // Remove existing event listeners
+            const newTh = th.cloneNode(true);
+            th.parentNode.replaceChild(newTh, th);
+            
+            // Add fresh event listener
+            newTh.addEventListener('click', function() {
+                const field = this.dataset.sort;
+                
+                // Update sort direction
+                if (field === sortFieldUomQoe) {
+                    sortDirectionUomQoe = sortDirectionUomQoe === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortFieldUomQoe = field;
+                    sortDirectionUomQoe = 'asc';
+                }
+                
+                // Update sort indicators
+                document.querySelectorAll('#uom-qoe-table th').forEach(header => {
+                    header.classList.remove('sort-asc', 'sort-desc');
+                });
+                this.classList.add(sortDirectionUomQoe === 'asc' ? 'sort-asc' : 'sort-desc');
+                
+                // Re-render the table with the current sort
+                renderUomQoeTable(allUomQoeItems);
+            });
+        });
     }
 
     // function to render the UOM/QOE discrepancies table
@@ -2143,6 +2173,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            // Sort items if needed
+            if (sortFieldUomQoe) {
+                items = [...items].sort((a, b) => {
+                    let valA = a[sortFieldUomQoe];
+                    let valB = b[sortFieldUomQoe];
+                    
+                    // Handle null, undefined, and NaN values
+                    if (valA === null || valA === undefined || (typeof valA === 'number' && isNaN(valA))) valA = '';
+                    if (valB === null || valB === undefined || (typeof valB === 'number' && isNaN(valB))) valB = '';
+                    
+                    // Handle numeric fields
+                    if (!isNaN(parseFloat(valA)) && !isNaN(parseFloat(valB))) {
+                        return sortDirectionUomQoe === 'asc' ? 
+                            parseFloat(valA) - parseFloat(valB) : 
+                            parseFloat(valB) - parseFloat(valA);
+                    }
+                    
+                    // Handle string fields
+                    valA = String(valA || '').toLowerCase();
+                    valB = String(valB || '').toLowerCase();
+                    
+                    if (valA < valB) return sortDirectionUomQoe === 'asc' ? -1 : 1;
+                    if (valA > valB) return sortDirectionUomQoe === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
             // Show all items with all requested fields
             items.forEach((item, index) => {
                 const row = document.createElement('tr');
@@ -2151,10 +2208,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 let validOptions = item["All Valid UOM*QOE"] || 'N/A';
                 
                 // Add a visual indicator for passed status
-                const validationClass = item.Validation === "Passed" ? "text-success" : "text-danger";
+                const validationClass = item.Validation === "Passed" ? "bg-success-light" : "bg-danger-light";
                 const validationStatus = item.Validation === "Passed" ? 
-                    "<span class='text-success'>✓ Valid</span>" : 
-                    "<span class='text-danger'>✗ Invalid</span>";
+                    `<div class='${validationClass}'>✓ Valid</div>` : 
+                    `<div class='${validationClass}'>✗ Invalid</div>`;
                 
                 // Handle the false positive value
                 const isFalsePositive = item.False_Positive === true || item["False Positive"] === true;
@@ -2201,6 +2258,8 @@ document.addEventListener('DOMContentLoaded', function() {
             showError("Error rendering UOM/QOE results: " + err.message);
         }
     }
+
+
 
     // Get relevant elements for UOM/QOE controls
     const selectAllUomQoeBtn = document.getElementById('select-all-uom-qoe-btn');
@@ -2355,12 +2414,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     // Generate Correction File button handler
-    const generateCorrectionFileBtn = document.getElementById('generate-correction-file-btn');
-    if (generateCorrectionFileBtn) {
-        generateCorrectionFileBtn.addEventListener('click', function() {
-            window.location.href = '/download-uom-qoe-discrepancies';
+    const generateValidationResultFileBtn = document.getElementById('generate-validation-result-file-btn');
+    if (generateValidationResultFileBtn) {
+        generateValidationResultFileBtn.addEventListener('click', function() {
+            // Use a more robust approach for file downloads
+            safeSetDisplay(loadingOverlay, 'flex'); // Show loading indicator
+            
+            // Create a form and submit it (more reliable than window.location.href)
+            const form = document.createElement('form');
+            form.method = 'GET';
+            form.action = '/item-matching/download-uom-qoe-discrepancies'; // Fixed path with prefix
+            document.body.appendChild(form);
+            
+            form.submit();
+            
+            // Hide loading overlay after a delay to give time for download to start
+            setTimeout(() => {
+                safeSetDisplay(loadingOverlay, 'none');
+            }, 1000);
         });
     }
+
 
     // handle the completion of step 4.3 and navigation to step 5
     const completeStep43Form = document.getElementById('complete-step-4-3-form');

@@ -447,9 +447,12 @@
                 <h4><i class="icon">✓</i> PASS!</h4>
                 <p>All validation checks have passed successfully.</p>
             </div>
-            <form method="POST" action="{{ url_for('common.process_step', step_id=1) }}">
-                <button type="submit" class="btn btn-success">Complete Step 1</button>
-            </form>
+            <div class="action-buttons" style="margin-top: 10px; text-align: right;">
+                <form method="POST" action="{{ url_for('common.process_step', step_id=1) }}">
+                    <input type="hidden" name="step_completed" value="true">
+                    <button type="submit" class="btn btn-success">Complete Step 1</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -588,6 +591,9 @@
                     
                     // Show mapping container with a message about auto-matching
                     document.getElementById('mapping-container').style.display = 'block';
+
+                    // scroll smoothly to the mapping container
+                    document.getElementById('mapping-container').scrollIntoView({ behavior: 'smooth' });
                     
                     // Add notification about auto-matching
                     const mappingForm = document.getElementById('mapping-form');
@@ -745,6 +751,9 @@
                         });
                     }
                 }
+
+                // Scroll to validation container
+                document.getElementById('validation-container').scrollIntoView({ behavior: 'smooth' });
             })
             .catch(error => {
                 mappingBtn.disabled = false;

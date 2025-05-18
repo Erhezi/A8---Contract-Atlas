@@ -32,10 +32,9 @@ def login():
             return render_template('login.html')
         
         # Try to authenticate
-        user = User.get_by_username(username)
-        print(user.password_hash) # Debugging line
-        print(password) # Debugging line
-        if user and check_password_hash(user.password_hash, password):
+        success, message = User.check_password(username, password)
+        if success:
+            user = User.get_by_username(username)
             login_user(user)
 
             user_id = user.id
@@ -56,7 +55,7 @@ def login():
                 return redirect(next_page)
             return redirect(url_for('common.dashboard'))
         else:
-            flash('Invalid login credentials', 'danger')
+            flash(message, 'danger')
             
     return render_template('login.html')
 
