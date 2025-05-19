@@ -207,6 +207,24 @@ def clear_uom_qoe_validation(user_id):
         session.pop(session_key)
         session.modified = True
 
+def store_change_simulation_results(user_id, results):
+    """Store change simulation results in session for a specific user."""
+    key = f'change_simulation_results_{user_id}'
+    session[key] = results
+    session.modified = True
+
+def get_change_simulation_results(user_id):
+    """Get change simulation results from session for a specific user."""
+    key = f'change_simulation_results_{user_id}'
+    return session.get(key)
+
+def clear_change_simulation_results(user_id):
+    """Clear change simulation results for a specific user."""
+    key = f'change_simulation_results_{user_id}'
+    if key in session:
+        session.pop(key)
+        session.modified = True
+
 # --- Workflow State ---
 def store_current_step(user_id, step_id):
     """Store the user's current step ID."""

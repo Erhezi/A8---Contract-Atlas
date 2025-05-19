@@ -15,8 +15,7 @@ from .session import (
     get_validated_data, get_column_mapping,
     get_contract_duplicates, get_comparison_results,
     update_true_duplicates_count, get_contracts_with_true_duplicates,
-    get_deduped_results,
-    # Import item matching session helper if needed later
+    get_deduped_results, store_deduplication_results,
     get_infor_cl_matches,
     get_infor_im_matches,
     get_uom_qoe_validation
@@ -282,6 +281,21 @@ def process_step(step_id):
                 if 3 not in completed_steps:
                     completed_steps.append(3)
                     store_completed_steps(user_id, completed_steps) # Save updated list
+                # need to store default info to deduplications_results_{user_id}
+                to_upload_count = len(validated_data)
+                step3_results = {
+                    'policy': {"custom_directions": [],
+                               "custom_fields": [],
+                               "type": "no_duplicates"},
+                    'stacked_data': [],
+                    'summary': {
+                        "duplicates_removed": 0,
+                        "kept_ccx": 0,
+                        "kept_uploaded": to_upload_count,
+                        "total_items": to_upload_count,
+                        "unique_duplicates": to_upload_count}
+                }
+                store_deduplication_results(user_id, step3_results) # Use helper
                 next_step_id = 4 # Skip to step 4
                 flash("Step 3 (Duplication Resolution) automatically completed.", "info")
 
@@ -303,6 +317,11 @@ def process_step(step_id):
 
         elif step_id == 4:
             # Step 4: Item Master Matching completion check
+            # check if validated data exists
+            validated_data = get_validated_data(user_id) # Use helper
+            if not validated_data:
+                raise ValueError("No validated data available. Please complete Step 1 first.")
+            
             # Check if matching results exist in session
             infor_cl_matches = get_infor_cl_matches(user_id) # Use helper
             if not infor_cl_matches:

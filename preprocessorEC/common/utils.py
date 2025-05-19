@@ -1124,63 +1124,64 @@ def three_way_item_master_matching_compute_similarity(merged_df):
     return result
 
 
-def make_infor_upload_stack(infor_cl_match_results):
+def make_infor_upload_stack(merged_df):
     """
     Create a stacked DataFrame from Infor CL match results.
     
     Args:
-        infor_cl_match_results: List of dictionaries containing Infor CL match results
+        merged_df: List of dictionaries containing Infor CL match results
     
     Returns:
         DataFrame with stacked Infor CL data
     """
-    
+     
     infor_cl_data, upload_cl_data = [], []
     p_cnt = 0
-    for group in infor_cl_match_results:
-        items = group.get('items', [])
-        for item in items:
-            infor_row = {
-                'Source Contract Type': 'Not Applicable',
-                'Contract Number': item.get('contract_number_infor', ''),
-                'Reduced Mfg Part Num': item.get('reduced_mfg_part_num_infor', ''),
-                'Mfg Part Num': item.get('mfg_part_num_infor', ''),
-                'Vendor Part Num': item.get('vendor_part_num_infor', ''),
-                'Buyer Part Num': item.get('item_number_infor', ''),
-                'Description': item.get('description_infor', ''),
-                'UOM': item.get('uom_infor', ''),
-                'QOE': item.get('qoe_infor', ''),
-                'Contract Price': item.get('price_infor', ''),
-                'EA Price': '', # need calculation, it will be the price_infor / qoe_infor, will deal with it later
-                'Effective Date': item.get('effective_date_infor', ''),
-                'Expiration Date': item.get('expiration_date_infor', ''),
-                'Dataset': 'Infor',
-                'File Row': item.get('File_Row', ''),
-                'Pair ID': 'ti' + str(p_cnt), # Unique identifier for the pair
-                'ItemNumber': item.get('item_number_infor', ''),
-                'Contract ERP ID': item.get('erp_contract_id_infor', '') # same contract number sometimes can be put under two different vendor, thus two contract objects
-            }
-            tp_row = {
-                'Source Contract Type': item.get('Source_Contract_Type', ''),
-                'Contract Number': item.get('Contract_Number', ''),
-                'Reduced Mfg Part Num': item.get('Reduced_Mfg_Part_Num', ''),
-                'Mfg Part Num': item.get('Mfg_Part_Num', ''),
-                'Vendor Part Num': item.get('Vendor_Part_Num', ''),
-                'Buyer Part Num': item.get('Buyer_Part_Num', ''),
-                'Description': item.get('Description', ''),
-                'UOM': item.get('UOM', ''),
-                'QOE': item.get('QOE', ''),
-                'Contract Price': item.get('Contract_Price', ''),
-                'EA Price': '', # need calculation, will deal with it later
-                'Effective Date': item.get('Effective_Date', ''),
-                'Expiration Date': item.get('Expiration_Date', ''),
-                'Dataset': 'TP',
-                'File Row': item.get('File_Row', ''),
-                'Pair ID': 'ti' + str(p_cnt) # Unique identifier for the pair
-            }
-            infor_cl_data.append(infor_row)
-            upload_cl_data.append(tp_row)
-            p_cnt += 1
+    for item in merged_df:
+        if item.get('False Positive') == True:
+            # skip the false positive
+            continue
+        infor_row = {
+            'Source Contract Type': 'Not Applicable',
+            'Contract Number': item.get('contract_number_infor', ''),
+            'Reduced Mfg Part Num': item.get('reduced_mfg_part_num_infor', ''),
+            'Mfg Part Num': item.get('mfg_part_num_infor', ''),
+            'Vendor Part Num': item.get('vendor_part_num_infor', ''),
+            'Buyer Part Num': item.get('item_number_infor', ''),
+            'Description': item.get('description_infor', ''),
+            'UOM': item.get('uom_infor', ''),
+            'QOE': item.get('qoe_infor', ''),
+            'Contract Price': item.get('price_infor', ''),
+            'EA Price': '', # need calculation, it will be the price_infor / qoe_infor, will deal with it later
+            'Effective Date': item.get('effective_date_infor', ''),
+            'Expiration Date': item.get('expiration_date_infor', ''),
+            'Dataset': 'Infor',
+            'File Row': item.get('File_Row', ''),
+            'Pair ID': 'ti' + str(p_cnt), # Unique identifier for the pair
+            'ItemNumber': item.get('item_number_infor', ''),
+            'Contract ERP ID': item.get('erp_contract_id_infor', '') # same contract number sometimes can be put under two different vendor, thus two contract objects
+        }
+        tp_row = {
+            'Source Contract Type': item.get('Source_Contract_Type', ''),
+            'Contract Number': item.get('Contract_Number', ''),
+            'Reduced Mfg Part Num': item.get('Reduced_Mfg_Part_Num', ''),
+            'Mfg Part Num': item.get('Mfg_Part_Num', ''),
+            'Vendor Part Num': item.get('Vendor_Part_Num', ''),
+            'Buyer Part Num': item.get('Buyer_Part_Num', ''),
+            'Description': item.get('Description', ''),
+            'UOM': item.get('UOM', ''),
+            'QOE': item.get('QOE', ''),
+            'Contract Price': item.get('Contract_Price', ''),
+            'EA Price': '', # need calculation, will deal with it later
+            'Effective Date': item.get('Effective_Date', ''),
+            'Expiration Date': item.get('Expiration_Date', ''),
+            'Dataset': 'TP',
+            'File Row': item.get('File_Row', ''),
+            'Pair ID': 'ti' + str(p_cnt) # Unique identifier for the pair
+        }
+        infor_cl_data.append(infor_row)
+        upload_cl_data.append(tp_row)
+        p_cnt += 1
         
     infor_df = pd.DataFrame(infor_cl_data) if infor_cl_data else pd.DataFrame()
     upload_df = pd.DataFrame(upload_cl_data) if upload_cl_data else pd.DataFrame()
@@ -1429,3 +1430,14 @@ def recompute_uom_qoe_validation_metrics(analyzed_df):
         'one_to_many_warning': one_to_many_warning
     }
     return results
+
+
+def change_simulation():
+    """
+    Placeholder function for change simulation.
+    
+    Returns:
+        None
+    """
+    # Placeholder for change simulation logic
+    pass

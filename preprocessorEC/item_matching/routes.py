@@ -81,7 +81,7 @@ def match_infor_cl():
         comparison_results = get_comparison_results(user_id)
         # get the excluded contracts from session
         excluded_contracts = get_excluded_contracts(user_id)
-        # if stacked_data is None, meaning after review we end up having no duplicates in step2, this is fine, we will simply proceed
+        # if stacked_data is [], meaning after review we end up having no duplicates in step2, this is fine, we will simply proceed
         # run three way matching
         print("calling three way matching ...")
         merged_df = three_way_contract_line_matching(comparison_results, contract_list, excluded_contracts)
@@ -121,16 +121,12 @@ def update_infor_cl_false_positives():
         
         # Get the false positive updates
         false_positive_items = data.get('false_positive_items', [])
-        print(f"Received false positive items: {false_positive_items}") # Debugging line
         
         if not false_positive_items:
             return jsonify({
                 'success': False,
                 'message': 'No false positive updates provided.'
             })
-        
-        # Get the stored infor_cl_matches from session
-        from ..common.session import get_infor_cl_matches, store_infor_cl_matches
         
         # Retrieve current matches
         infor_cl_matches = get_infor_cl_matches(user_id)
