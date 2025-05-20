@@ -368,8 +368,18 @@ def validate_uom_qoe():
         
         # it is possible we end up with 0 match, so this could return true and we can proceed
         if not item_numbers:
+            results = {
+                'failed_count': 0,
+                'all_pass_flag': True,
+                'total_validation_count': 0,
+                'false_positive_count': 0,
+                'analyzed_df': []
+            }
+            store_uom_qoe_validation(user_id, results)
+            session.modified = True
             return jsonify({
                 'success': True, 
+                'result': results,
                 'message': 'No Item master item matched for validation.'
             })
         

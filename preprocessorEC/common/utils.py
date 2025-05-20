@@ -1221,15 +1221,14 @@ def item_catched_in_infor_im_match(items):
     # Create a DataFrame from the item list
     df = pd.DataFrame(items)
     if df.empty:
-        return pd.DataFrame()
-    
+        return []
     # Filter for items with 'ItemNumber' not empty and false positive = False
     filtered_df = df[df['item_number_infor'] != ''].copy()
     if 'false positive' in df.columns:
         filtered_df = df[(df['item_number_infor'] != '') & (df['false_positive'] == False)]
     
     if filtered_df.empty:
-        return pd.DataFrame()
+        return []
     
     im_catched = filtered_df[['File_Row', 'item_number_infor']].drop_duplicates(keep = 'first')
     

@@ -49,14 +49,14 @@ def show_changes():
     # The stacked data should be the deduplicated results from step3
     stacked_df_a = pd.DataFrame(deduped_results.get('stacked_data', []))
 
-    # the merged data should be the infor_cl_matching results from step4, transform to make it match stacked_df format
-    stacked_df_b = make_infor_upload_stack(merged_results.get('merged_df', []))
+    # # the merged data should be the infor_cl_matching results from step4, transform to make it match stacked_df format
+    # stacked_df_b = make_infor_upload_stack(merged_results.get('merged_df', []))
 
-    # output to temp_files dir for debugging
-    validated_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"validated_data_{user_id}.xlsx"), index=False)
-    stacked_df_a.to_excel(os.path.join(current_app.root_path, "temp_files", f"stacked_data_a_{user_id}.xlsx"), index=False)
-    stacked_df_b.to_excel(os.path.join(current_app.root_path, "temp_files", f"merged_data_b_{user_id}.xlsx"), index=False)
-    
+    # # output to temp_files dir for debugging
+    # validated_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"validated_data_{user_id}.xlsx"), index=False)
+    # stacked_df_a.to_excel(os.path.join(current_app.root_path, "temp_files", f"stacked_data_a_{user_id}.xlsx"), index=False)
+    # stacked_df_b.to_excel(os.path.join(current_app.root_path, "temp_files", f"merged_data_b_{user_id}.xlsx"), index=False)
+
     # Basic validation of the DataFrames
     if validated_df.empty:
         flash("Validated data is empty.", "danger")
@@ -79,8 +79,7 @@ def show_changes():
         'message': "Changes loaded successfully. Processing simulation...",
         'result': {
             'validated_count': len(validated_df),
-            'stacked_count': len(stacked_df_a),
-            'merged_count': len(stacked_df_b),
+            'stacked_count': len(stacked_df_a)
             # Add more details about the changes as needed
         }
     })

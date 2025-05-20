@@ -1496,15 +1496,7 @@ document.addEventListener('DOMContentLoaded', function() {
    
 
     // Process Item Master results
-    function processItemMasterResults(results) {
-        if (!results) {
-            safeSetDisplay(noMatchesMessage42, 'block');
-            return;
-        }
-
-        // Debug the result structure
-        console.log("Item Master results structure:", results);
-        
+    function processItemMasterResults(results) {      
         // Handle different result formats
         let itemsArray = [];
         let totalMatches = 0;
@@ -1537,12 +1529,17 @@ document.addEventListener('DOMContentLoaded', function() {
             safeSetDisplay(noMatchesMessage42, 'block');
             return;
         }
-        
-        // Log final items array info
-        console.log(`Processed ${itemsArray.length} items for display`);
-        
         // Store all items
         allItemMasterItems = itemsArray;
+
+        if (!results || !results.items || results.items.length === 0) {
+        // Show the no matches message
+        safeSetDisplay(noMatchesMessage42, 'block');
+        // Hide the table container
+        safeSetDisplay(itemMasterTableContainer.querySelector('.items-table-container'), 'none');
+        // Still show the results container for stats
+        safeSetDisplay(itemMasterResultsContainer, 'block');
+        }
         
         // Display statistics
         itemMasterStats.innerHTML = `
