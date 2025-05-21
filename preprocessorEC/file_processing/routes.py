@@ -23,6 +23,14 @@ file_bp = Blueprint('file_processing', __name__,
                    url_prefix='/file-processing',
                    template_folder='templates')
 
+
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', {'xlsx', 'xls', 'csv'})
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+
 @file_bp.route('/upload-file', methods=['POST'])
 @login_required
 def upload_file():
@@ -36,7 +44,7 @@ def upload_file():
     if file.filename == '':
         return jsonify({'success': False, 'message': 'No selected file'})
     
-    if file:
+    if file and allowed_file(file.filename):
         # Ensure upload directory exists
         upload_dir = os.path.join(current_app.static_folder, 'uploads')
         os.makedirs(upload_dir, exist_ok=True)
@@ -162,6 +170,7 @@ def validate_file_route():
         
             # Validate the file
             valid_df, error_df, has_errors = validate_file(df, column_mapping, valid_vid, duplicate_mode)
+        
         finally:
             if conn:
                 conn.close()
@@ -194,7 +203,7 @@ def validate_file_route():
             # Replace the entire table tag, not just part of it
             html_content = re.sub(r'<table[^>]*>', '', html_content)
             html_content = html_content.replace('</table>', '')
-            error_table = f'<div class="table-responsive-container"><table id="error_table" class="table table-striped table-bordered">{html_content}</table></div>'
+            error_table = f'<table id="error_table" class="table table-striped table-bordered">{html_content}</table>'
             
             return jsonify({
                 'success': False, 
@@ -212,6 +221,7 @@ def validate_file_route():
         clear_error_file_path(user_id) # Use helper to clear any previous error file path
         total_rows = len(valid_df)
         store_validated_data(user_id, valid_df.to_dict('records')) # Use helper, store as records (list of dicts)
+        session.modified = True  # Mark session as modified
         
         return jsonify({
             'success': True,

@@ -1,9 +1,105 @@
+<!-- Step 5 - Change Simulation-->
+<style>
+    #results-container {
+        margin-top: 20px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        display: none;
+    }
+    .loader {
+        display: none;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #3498db;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 2s linear infinite;
+        margin: 20px auto;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    /* Adding action buttons styling to match step 3 */
+    .action-buttons {
+        margin-top: 10px;
+        text-align: right;
+    }
+</style>
+
 <!-- Change Simulation Content -->
-<div class="step-content">
-    <p>Review the simulated changes before applying.</p>
-    <div class="simulation-results">
-        <form method="POST" action="{{ url_for('change_simulation.show_changes') }}">
-            <button type="submit" class="btn btn-primary">Show Changes</button>
+<div class="step-content">   
+    <p>Click "View Changes" to simulate the changes to be applied to CCX contract(s) when we upload your file.</p>
+    
+    <!-- Removed unnecessary row/col structure to match step3 styling -->
+    <button id="view-changes-btn" class="btn btn-primary">View Changes</button>
+    <div class="loader" id="loading-spinner"></div>
+
+    <div id="results-container" class="mb-4">
+        <h4>Changes to be made</h4>
+        <div id="simulation-results">
+            <!-- Results will be dynamically populated here -->
+        </div>
+    </div>
+    
+    <!-- Added action-buttons class for right alignment -->
+    <div class="action-buttons">
+        <form method="POST" action="{{ url_for('common.process_step', step_id=5) }}">
+            <button type="submit" class="btn btn-success">Complete Step 5</button>
         </form>
     </div>
 </div>
+
+<script>
+    document.getElementById('view-changes-btn').addEventListener('click', function() {
+        // Show loading spinner
+        document.getElementById('loading-spinner').style.display = 'block';
+        document.getElementById('results-container').style.display = 'none';
+        
+        // Make AJAX request to show_changes endpoint
+        fetch('/change-simulation/show-changes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Hide loading spinner
+            document.getElementById('loading-spinner').style.display = 'none';
+            
+            // Display results container
+            document.getElementById('results-container').style.display = 'block';
+            
+            const resultsDiv = document.getElementById('simulation-results');
+            
+            if (data.success) {
+                // Format and display the results
+                let html = '<div class="alert alert-success">Changes loaded successfully</div>';
+                html += '<div class="card mb-3"><div class="card-body">';
+                html += `<p>Number of validated records: <strong>${data.result.validated_count}</strong></p>`;
+                html += `<p>Number of records to be processed: <strong>${data.result.stacked_count}</strong></p>`;
+                html += '</div></div>';
+                
+                resultsDiv.innerHTML = html;
+            } else {
+                // Display error message
+                resultsDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+            }
+        })
+        .catch(error => {
+            // Hide loading spinner
+            document.getElementById('loading-spinner').style.display = 'none';
+            
+            // Display error
+            document.getElementById('results-container').style.display = 'block';
+            document.getElementById('simulation-results').innerHTML = 
+                '<div class="alert alert-danger">An error occurred while processing your request. Please try again.</div>';
+            console.error('Error:', error);
+        });
+    });
+</script>

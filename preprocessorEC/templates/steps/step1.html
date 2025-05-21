@@ -15,250 +15,274 @@
         box-sizing: border-box;
     }
 
-/* For mobile responsiveness */
-@media (max-width: 991px) {
-    .col-md-6 {
-        flex: 0 0 100%;
-        max-width: 100%;
+    /* For mobile responsiveness */
+    @media (max-width: 991px) {
+        .col-md-6 {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
     }
-}
 
-/* Style for input-group elements */
-.input-group {
-    display: flex;
-    width: 100%;
-}
+    /* Style for input-group elements */
+    .input-group {
+        display: flex;
+        width: 100%;
+    }
 
-.input-group-prepend {
-    display: flex;
-}
+    .input-group-prepend {
+        display: flex;
+    }
 
-.input-group-text {
-    display: flex;
-    align-items: center;
-    padding: 0.375rem 0.75rem;
-    margin-bottom: 0;
-    font-weight: 400;
-    line-height: 1.5;
-    color: #495057;
-    text-align: center;
-    white-space: nowrap;
-    background-color: #e9ecef;
-    border: 1px solid #ced4da;
-    border-radius: 0.25rem 0 0 0.25rem;
-}
+    .input-group-text {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin-bottom: 0;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        text-align: center;
+        white-space: nowrap;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem 0 0 0.25rem;
+    }
 
-.input-group select.form-control {
-    flex: 1 1 auto;
-    width: 1%;
-    min-width: 0;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-}
+    .input-group select.form-control {
+        flex: 1 1 auto;
+        width: 1%;
+        min-width: 0;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
 
-/* Bootstrap Input Group Styles */
-.input-group {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  width: 100%;
-}
+    /* Bootstrap Input Group Styles */
+    .input-group {
+        position: relative;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        width: 100%;
+    }
 
-.custom-file {
-  position: relative;
-  display: flex;
-  flex: 1 1 auto;
-  width: 1%;
-  min-width: 0;
-  margin-bottom: 0;
-}
+    .custom-file {
+        position: relative;
+        display: flex;
+        flex: 1 1 auto;
+        width: 1%;
+        min-width: 0;
+        margin-bottom: 0;
+    }
 
-.custom-file-input {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  height: calc(1.5em + 0.75rem + 2px);
-  margin: 0;
-  opacity: 0;
-}
+    .custom-file-input {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        height: calc(1.5em + 0.75rem + 2px);
+        margin: 0;
+        opacity: 0;
+    }
 
-.custom-file-label {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  height: calc(1.5em + 0.75rem + 2px);
-  padding: 0.375rem 0.75rem;
-  font-weight: 400;
-  line-height: 1.5;
-  color: #495057;
-  background-color: #fff;
-  border: 1px solid #ced4da;
-  border-radius: 0.25rem;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+    .custom-file-label {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        height: calc(1.5em + 0.75rem + 2px);
+        padding: 0.375rem 0.75rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 
-.input-group-append {
-  display: flex;
-  margin-left: -1px;
-}
+    .input-group-append {
+        display: flex;
+        margin-left: -1px;
+    }
 
-.input-group > .input-group-append > .btn {
-  display: flex;
-  align-items: center;
-  padding: 0.375rem 0.75rem;
-  margin-bottom: 0;
-  font-size: 1rem;
-  font-weight: 400;
-  line-height: 1.5;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
+    .input-group > .input-group-append > .btn {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin-bottom: 0;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
 
-/* Fix for height inconsistency */
-.custom-file,
-.custom-file-input,
-.custom-file-label,
-.input-group-append > .btn {
-  height: calc(1.5em + 0.75rem + 2px);
-}
+    /* Fix for height inconsistency */
+    .custom-file,
+    .custom-file-input,
+    .custom-file-label,
+    .input-group-append > .btn {
+        height: calc(1.5em + 0.75rem + 2px);
+    }
 
-/* Additional fixes for alignment */
-.input-group {
-    align-items: stretch;
-}
+    /* Additional fixes for alignment */
+    .input-group {
+        align-items: stretch;
+    }
 
-.custom-file-label {
-    display: flex;
-    align-items: center;
-    line-height: 1.2;
-    padding-top: 0.375rem;
-    padding-bottom: 0.375rem;
-}
+    .custom-file-label {
+        display: flex;
+        align-items: center;
+        line-height: 1.2;
+        padding-top: 0.375rem;
+        padding-bottom: 0.375rem;
+    }
 
-/* Ensure the label text is vertically centered with buttons */
-.custom-file-label::after {
-    height: 100%;
-    display: flex;
-    align-items: center;
-}
+    /* Ensure the label text is vertically centered with buttons */
+    .custom-file-label::after {
+        height: 100%;
+        display: flex;
+        align-items: center;
+    }
 
-.input-group-append .btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+    .input-group-append .btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-/* Ensure consistent heights */
-.input-group > .form-control,
-.input-group > .custom-file,
-.input-group > .custom-file .custom-file-input,
-.input-group > .custom-file .custom-file-label,
-.input-group > .input-group-append > .btn {
-    height: calc(1.5em + 0.75rem + 2px);
-    line-height: 1.5;
-}
+    /* Ensure consistent heights */
+    .input-group > .form-control,
+    .input-group > .custom-file,
+    .input-group > .custom-file .custom-file-input,
+    .input-group > .custom-file .custom-file-label,
+    .input-group > .input-group-append > .btn {
+        height: calc(1.5em + 0.75rem + 2px);
+        line-height: 1.5;
+    }
 
-/* More targeted fixes for height inconsistency */
-#upload-form .input-group {
-    align-items: center;
-}
+    /* More targeted fixes for height inconsistency */
+    #upload-form .input-group {
+        align-items: center;
+    }
 
-#upload-form .custom-file {
-    height: 36px; /* Reduced from 38px */
-}
+    #upload-form .custom-file {
+        height: 36px; 
+    }
 
-#upload-form .custom-file-input {
-    height: 36px; /* Reduced from 38px */
-}
+    #upload-form .custom-file-input {
+        height: 36px; 
+    }
 
-#upload-form .custom-file-label {
-    height: 36px; /* Reduced from 38px */
-    padding: 0.3rem 0.75rem; /* Slightly reduced padding */
-    padding-right: 2.5rem; /* Add extra padding on the right side */
-    margin-right: 1px; /* Add a small margin to prevent overlap */
-    display: flex;
-    align-items: center;
-    line-height: 1.5;
-    margin-bottom: 0;
-}
+    #upload-form .custom-file-label {
+        height: 36px; 
+        padding: 0.3rem 0.75rem; 
+        padding-right: 2.5rem; 
+        margin-right: 1px; 
+        display: flex;
+        align-items: center;
+        line-height: 1.5;
+        margin-bottom: 0;
+    }
 
-#upload-form .input-group-append .btn {
-    height: 36px; /* Reduced from 38px */
-    padding: 0.3rem 0.75rem; /* Slightly reduced padding */
-    margin-top: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1.5;
-}
+    #upload-form .input-group-append .btn {
+        height: 36px; 
+        padding: 0.3rem 0.75rem; 
+        margin-top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.5;
+    }
 
-/* Override the global btn styles */
-#upload-form .btn {
-    margin-top: 0;
-    padding: 0.3rem 0.75rem; /* Slightly reduced padding */
-    box-sizing: border-box;
-}
+    /* Override the global btn styles */
+    #upload-form .btn {
+        margin-top: 0;
+        padding: 0.3rem 0.75rem;
+        box-sizing: border-box;
+    }
 
-/* Remove any unwanted margins */
-#upload-form .input-group > * {
-    margin-bottom: 0;
-    vertical-align: middle;
-}
+    /* Remove any unwanted margins */
+    #upload-form .input-group > * {
+        margin-bottom: 0;
+        vertical-align: middle;
+    }
 
-/* Ensure consistent border styling */
-#upload-form .input-group * {
-    box-sizing: border-box;
-}
+    /* Ensure consistent border styling */
+    #upload-form .input-group * {
+        box-sizing: border-box;
+    }
 
-/* Style updates for buttons */
-#upload-form .btn-outline-secondary {
-    color: #6c757d;
-    border-color: #6c757d;
-    background-color: transparent;
-    transition: all 0.3s ease;
-}
+    /* Style updates for buttons */
+    #upload-form .btn-outline-secondary {
+        color: #6c757d;
+        border-color: #6c757d;
+        background-color: transparent;
+        transition: all 0.3s ease;
+    }
 
-/* Specific style for the Browse button */
-#upload-form #file-browsing-btn {
-    border: 1px solid #ced4da;  /* Changed to lighter grey */
-    color: #495057;  /* Changed to darker grey */
-    background-color: #f8f9fa;  /* Light grey background */
-}
+    /* Specific style for the Browse button */
+    #upload-form #file-browsing-btn {
+        border: 1px solid #ced4da;
+        color: #495057;
+        background-color: #f8f9fa;
+    }
 
-/* Remove hover effect for Browse button */
-#upload-form #file-browsing-btn:hover {
-    color: #495057;
-    background-color: #f8f9fa;
-    border-color: #ced4da;
-}
+    /* Remove hover effect for Browse button */
+    #upload-form #file-browsing-btn:hover {
+        color: #495057;
+        background-color: #f8f9fa;
+        border-color: #ced4da;
+    }
 
-#upload-form #file-upload-btn {
-    color: #fff;
-    background-color: #6c757d;  /* Changed to grey */
-    border-color: #6c757d;      /* Changed to grey */
-    transition: all 0.3s ease;
-}
+    #upload-form #file-upload-btn {
+        color: #fff;
+        background-color: #6c757d;
+        border-color: #6c757d;
+        transition: all 0.3s ease;
+    }
 
-/* Remove hover effect for Upload button */
-#upload-form #file-upload-btn:hover {
-    background-color: #6c757d;
-    border-color: #6c757d;
-}
+    /* Remove hover effect for Upload button */
+    #upload-form #file-upload-btn:hover {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
 
-/* Blue button style for when file is selected */
-#upload-form #file-upload-btn.file-selected {
-    background-color: #3498db;
-    border-color: #3498db;
-}
+    /* Blue button style for when file is selected */
+    #upload-form #file-upload-btn.file-selected {
+        background-color: #3498db;
+        border-color: #3498db;
+    }
+
+        /* Make all text in error table smaller */
+    #error-table-container table {
+        font-size: 0.8rem !important;
+    }
+    
+    /* Set max width for Description column and prevent wrapping */
+    #error-table-container table th:contains('Description'),
+    #error-table-container table td:nth-child(4),
+    #error-table-container table th:contains('Contract Number'),
+    #error-table-container table td:nth-child(9) {
+        max-width: 300px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    
+    /* Ensure table headers are also styled consistently */
+    #error-table-container table th {
+        font-size: 0.8rem !important;
+        white-space: nowrap !important;
+        text-align: left !important;
+    }
+    
 </style>
 
 
@@ -433,9 +457,7 @@
 
         <div id="error-display" style="display:none;">
             <h4>Validation Errors</h4>
-            <div class="table-responsive-container">
-                <div id="error-table-container"></div>
-            </div>
+            <div id="error-table-container"></div>
             <div class="button-group" style="margin-top: 15px;">
                 <a id="download-error-link" href="{{ url_for('file_processing.download_error_file') }}" class="btn btn-warning">Download Error Report</a>
                 <a href="{{ url_for('common.dashboard', restart=1) }}" class="btn btn-secondary">Start Over</a>
@@ -736,8 +758,60 @@
                     document.getElementById('error-table-container').innerHTML = data.error_table;
                     const table = document.querySelector('#error-table-container table');
                     if (table) {
-                        table.style.width = 'max-content';
-                        table.style.minwidth = '100%';
+                        // Ensure table has appropriate styling
+                        table.style.width = 'auto';
+                        table.style.minWidth = '100%';
+                        table.style.fontSize = '0.8rem'; 
+                        
+                        // Find and style the Description column
+                        const headers = table.querySelectorAll('th');
+                        let descriptionIndex = -1;
+                        
+                        // Find which column is the Description column
+                        headers.forEach((header, index) => {
+    if (header.textContent.includes('Description') || header.textContent.includes('Contract Number')) {
+                            header.style.maxWidth = '300px';
+                            header.style.whiteSpace = 'nowrap';
+                            header.style.overflow = 'hidden';
+                            header.style.textOverflow = 'ellipsis';
+                            
+                            // Keep track of Description index specifically
+                            if (header.textContent.includes('Description')) {
+                                descriptionIndex = index;
+                            }
+                            
+                            // Add handling for Contract Number column
+                            if (header.textContent.includes('Contract Number')) {
+                                const contractCells = table.querySelectorAll(`td:nth-child(${index + 1})`);
+                                contractCells.forEach(cell => {
+                                    cell.style.maxWidth = '300px';
+                                    cell.style.whiteSpace = 'nowrap';
+                                    cell.style.overflow = 'hidden';
+                                    cell.style.textOverflow = 'ellipsis';
+                                });
+                            }
+                        }
+                        // Make all headers consistent
+                        header.style.fontSize = '0.8rem';
+                        header.style.whiteSpace = 'nowrap';
+                    });
+                        
+                        // Style all cells in the Description column
+                        if (descriptionIndex !== -1) {
+                            const descriptionCells = table.querySelectorAll(`td:nth-child(${descriptionIndex + 1})`);
+                            descriptionCells.forEach(cell => {
+                                cell.style.maxWidth = '200px';
+                                cell.style.whiteSpace = 'nowrap';
+                                cell.style.overflow = 'hidden';
+                                cell.style.textOverflow = 'ellipsis';
+                            });
+                        }
+                        
+                        // Ensure horizontal scrolling works properly
+                        const innerContainer = document.getElementById('error-table-container');
+                        innerContainer.style.overflowX = 'auto';
+                        innerContainer.style.overflowY = 'auto';
+                        innerContainer.style.maxHeight = '500px';
                     }
                     document.getElementById('error-display').style.display = 'block';
                     document.getElementById('success-display').style.display = 'none';

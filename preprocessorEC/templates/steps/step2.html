@@ -31,7 +31,12 @@
         border-left-color: #e74c3c;
         opacity: 0.7;
     }
-    
+
+    .contract-cards .no-results {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+        
     .card-header {
         display: flex;
         justify-content: space-between;
@@ -1006,8 +1011,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="no-results">
                     <h4>No matching contracts found on CCX</h4>
                     <p>Mostly there is no duplication for your uploaded items on CCX, we can skip step2 and 3.</p>
+                    <div class="action-buttons" style="margin-top: 20px; text-align: center;">
+                        <form method="POST" action="{{ url_for('common.process_step', step_id=4) }}">
+                            <input type="hidden" name="skip_steps" value="2,3">
+                            <input type="hidden" name="step_completed" value="true">
+                            <button type="submit" class="btn btn-success">Skip to Step 4</button>
+                        </form>
+                    </div>
                 </div>
             `;
+            
+            // Also show the "review actions" container since we need to provide a way to proceed
+            document.querySelector('.review-actions').style.display = 'none';
+            document.querySelector('.contracts-status-section').style.display = 'none';
             return;
         }
         
@@ -1161,7 +1177,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 includedContracts = data.included_contracts;
                 excludedContracts = data.excluded_contracts;
                 
-                // Update the UI
                 const card = document.querySelector(`.contract-card[data-contract-number="${contractNum}"]`);
                 if (card) {
                     const isExcluded = excludedContracts.includes(contractNum);
@@ -1206,6 +1221,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!allContracts.length) return;
         
+        // If search term is empty, show all contracts regardless of search type
+        if (!searchTerm.trim()) {
+            displayContracts(allContracts);
+            return;
+        }
+        
         // Filter contracts by search term and type
         const filteredContracts = allContracts.filter(contract => {
             // Check if contract info contains search term
@@ -1227,40 +1248,6 @@ document.addEventListener('DOMContentLoaded', function() {
         displayContracts(filteredContracts);
     }
     
-    function toggleContractInclusion(contractNum, currentlyExcluded) {
-        // Show loading
-        loadingOverlaySpinner.style.display = 'flex';
-        
-        fetch('/duplicate-detection/include-exclude-contract', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contract_num: contractNum,
-                include: currentlyExcluded // If currently excluded, include it now
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            loadingOverlaySpinner.style.display = 'none';
-            
-            if (data.success) {
-                // Update local tracking
-                includedContracts = data.included_contracts;
-                excludedContracts = data.excluded_contracts;
-                
-                // Refresh display
-                displayContracts(allContracts);
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            loadingOverlaySpinner.style.display = 'none';
-            alert('Error: ' + error);
-        });
-    }
     
     function showContractDetails(contractNum) {
         // Show loading

@@ -145,6 +145,7 @@ def prepare_dataframe(df, column_mapping):
 
     # Create copies for validation and results
     result_df = mapped_df[required_fields[:3] + ['Buyer Part Num'] + required_fields[3:] + ['Reduced Mfg Part Num', 'Original UOM', 'File Row']].copy()
+    columns_to_save_to_session = result_df.columns.tolist()
     error_df = result_df.copy()
     
     # Add error columns
@@ -159,7 +160,7 @@ def prepare_dataframe(df, column_mapping):
     error_df['Warning-Potential Duplicates'] = ''
     error_df['Has Error'] = False
     
-    return error_df, result_df, missing_fields, required_fields
+    return error_df, columns_to_save_to_session, missing_fields, required_fields
 
 # Add a new validation function for Source Contract Type
 def validate_source_contract_type(error_df):
@@ -190,39 +191,50 @@ def validate_required_fields(error_df, required_fields):
         error_df.loc[missing_mask, 'Has Error'] = True
     return error_df
 
+def parse_date_safely(date_str):
+    if pd.isna(date_str) or str(date_str).strip() == '':
+        return pd.NaT
+        
+    date_str = str(date_str).strip()
+    
+    # Try multiple formats
+    for fmt in [None, '%m/%d/%Y', '%Y-%m-%d', '%Y-%m-%d %H:%M:%S']:
+        try:
+            if fmt is None:
+                return pd.to_datetime(date_str)
+            else:
+                return pd.to_datetime(date_str, format=fmt)
+        except:
+            continue
+    return pd.NaT
+
 def validate_dates(error_df):
     """Validate date fields format and logic"""
     today_dt = datetime.now().date()
 
     # Convert date strings to datetime objects
-    error_df['Effective_Date_Dt'] = pd.to_datetime(error_df['Effective Date'], errors='coerce')
-    error_df['Expiration_Date_Dt'] = pd.to_datetime(error_df['Expiration Date'], errors='coerce')
+    error_df['Effective_Date_Dt'] = error_df['Effective Date'].apply(parse_date_safely)
+    error_df['Expiration_Date_Dt'] = error_df['Expiration Date'].apply(parse_date_safely)
 
-    # Create YYYY-MM-DD string versions for the output
-    error_df['Effective Date'] = error_df['Effective_Date_Dt'].dt.strftime('%Y-%m-%d')
-    error_df['Expiration Date'] = error_df['Expiration_Date_Dt'].dt.strftime('%Y-%m-%d')
+    # Only update strings for valid conversions
+    error_df.loc[:, 'Effective Date'] = error_df['Effective_Date_Dt'].dt.strftime('%Y-%m-%d')
+    error_df.loc[:, 'Expiration Date'] = error_df['Expiration_Date_Dt'].dt.strftime('%Y-%m-%d')
 
     # Mark rows with unparseable dates
-    eff_date_mask = error_df['Effective_Date_Dt'].isna() & ~(error_df['Effective Date'].isna() | (error_df['Effective Date'].str.strip() == ''))
-    error_df.loc[eff_date_mask, 'Error-Invalid Date'] = 'Invalid Effective Date format'
-    error_df.loc[eff_date_mask, 'Has Error'] = True
+    empty_date_mask = (error_df['Effective_Date_Dt'].isna() | error_df['Expiration_Date_Dt'].isna())
+    error_df.loc[empty_date_mask, 'Error-Invalid Date'] = 'Invalid Date format'
+    error_df.loc[empty_date_mask, 'Has Error'] = True
 
-    exp_date_mask = error_df['Expiration_Date_Dt'].isna() & ~(error_df['Expiration Date'].isna() | (error_df['Expiration Date'].str.strip() == ''))
-    error_df.loc[exp_date_mask, 'Error-Invalid Date'] = 'Invalid Expiration Date format'
-    error_df.loc[exp_date_mask, 'Has Error'] = True
-
-    # Skip validation for already marked error rows
-    valid_dates_mask = (~error_df['Effective_Date_Dt'].isna()) & (~error_df['Expiration_Date_Dt'].isna())
-
-    # Validate expiration date >= today and >= effective date
-    invalid_exp_mask = valid_dates_mask & (
+    # Validate expiration date >= today and > effective date
+    invalid_exp_mask = ~empty_date_mask & (
         (error_df['Expiration_Date_Dt'].dt.date < today_dt) | 
-        (error_df['Expiration_Date_Dt'] < error_df['Effective_Date_Dt'])
+        (error_df['Expiration_Date_Dt'] <= error_df['Effective_Date_Dt'])
     )
     error_df.loc[invalid_exp_mask, 'Error-Invalid Date'] = 'Expiration Date must be >= Effective Date and today'
     error_df.loc[invalid_exp_mask, 'Has Error'] = True
     
     return error_df
+
 
 def convert_price(price_str):
     """Convert price string to float"""
@@ -360,8 +372,12 @@ def check_duplicates(error_df, duplicate_mode):
     return error_df, duplicate_info, duplicate_keys
 
 
-def finalize_validation(error_df, result_df):
+def finalize_validation(error_df, columns_to_save_to_session):
     """Drop temporary columns and check for errors"""
+    # take price parsed and qoe parsed and save to original
+    error_df['Contract Price'] = error_df['Price_Parsed']
+    error_df['QOE'] = error_df['QOE_Parsed']
+
     # Drop temporary columns used for validation
     temp_columns = ['Effective_Date_Dt', 'Expiration_Date_Dt', 
                    'Price_Parsed', 'QOE_Parsed', 'Dup Count']
@@ -371,12 +387,12 @@ def finalize_validation(error_df, result_df):
     if columns_to_drop:
         error_df.drop(columns_to_drop, axis=1, inplace=True)
 
-    # fillna
-    error_df.fillna('', inplace=True)
-    result_df.fillna('', inplace=True)
+    error_df['Buyer Part Num'] = error_df['Buyer Part Num'].fillna('')
 
     # Check if there are any errors
     has_errors = error_df['Has Error'].any()
+
+    result_df = error_df[columns_to_save_to_session].copy()
     
     return result_df, error_df, has_errors
 
@@ -386,7 +402,7 @@ def validate_file(df, column_mapping, valid_vids = None, duplicate_mode='default
     Returns: (result_df, error_df, has_errors)
     """
     # Prepare dataframe for validation
-    error_df, result_df, missing_fields, required_fields = prepare_dataframe(df, column_mapping)
+    error_df, columns_to_save_to_session, missing_fields, required_fields = prepare_dataframe(df, column_mapping)
     
     # Check for missing required fields in column mapping
     if missing_fields:
@@ -404,12 +420,12 @@ def validate_file(df, column_mapping, valid_vids = None, duplicate_mode='default
     error_df, duplicate_info, duplicate_keys = check_duplicates(error_df, duplicate_mode)
     
     # Finalize and return results
-    return finalize_validation(error_df, result_df)
+    return finalize_validation(error_df, columns_to_save_to_session)
 
 def save_error_file(error_df, user_id, original_filename):
     """Save error file with user-specific filename and return the filename"""
     # Create user-specific directory
-    user_dir = os.path.join('temp_files', f'user_{user_id}')
+    user_dir = os.path.join(current_app.root_path, 'temp_files', f'user_{user_id}')
     os.makedirs(os.path.join(current_app.root_path, user_dir), exist_ok=True)
     
     # Generate unique filename with timestamp
@@ -1431,12 +1447,42 @@ def recompute_uom_qoe_validation_metrics(analyzed_df):
     return results
 
 
-def change_simulation():
+def change_simulation_stage1(validated_df, stacked_df):
     """
-    Placeholder function for change simulation.
+    join validated_df and stacked_df to get insight on how we should make changes in system
+
+    Args:
+        validated_df: DataFrame with validated data
+        stacked_df: DataFrame with stacked data
     
     Returns:
         None
     """
-    # Placeholder for change simulation logic
-    pass
+    # merge dataframe to have the indicator information aligned
+    df_m = validated_df.merge(stacked_df,
+                              on = ['File Row'],
+                              how = 'left',
+                              suffixes = ('_a', '_b'),
+                              indicator = True)
+    
+    # fill na on b side to soak a side informations
+    for col in ['Source Contract Type', 'Contract Number', 'Reduced Mfg Part Num', 'Mfg Part Num', 
+                'Vendor Part Num', 'Buyer Part Num', 'Description', 'UOM', 'QOE', 
+                'Contract Price', 'Effective Date', 'Expiration Date']:
+        if col + '_b' in df_m.columns:
+            df_m[col + '_b'] = df_m[col + '_b'].fillna(df_m[col + '_a'])
+
+    # calculate EA price
+    df_m['EA Price'] = df_m['Contract Price_b']/df_m['QOE_b']
+    # fill for other columns
+    df_m['Dataset'] = df_m['Dataset'].fillna('TP')
+    df_m['Rank'] = df_m['Rank'].fillna(1)
+    df_m['Keep'] = df_m['Keep'].fillna(True)
+    
+    # mark for same contract number (make sure they are upper cased and stripped)
+    df_m['Contract Number_a'] = df_m['Contract Number_a'].astype(str).str.strip().str.upper()
+    df_m['Contract Number_b'] = df_m['Contract Number_b'].astype(str).str.strip().str.upper()
+    df_m['Same Contract Number'] = df_m['Contract Number_a']== df_m['Contract Number_b']
+    
+    return df_m
+    
