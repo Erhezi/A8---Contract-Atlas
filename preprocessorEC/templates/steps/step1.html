@@ -282,6 +282,18 @@
         white-space: nowrap !important;
         text-align: left !important;
     }
+
+    /* Add this to your existing style section */
+    .compact-label .required-indicator {
+        color: #dc3545;  /* Bootstrap's danger red */
+        font-weight: bold;
+    }
+    
+    /* Style for the footer required field text */
+    p small .required-indicator {
+        color: #dc3545;
+        font-weight: bold;
+    }
     
 </style>
 
@@ -317,13 +329,13 @@
                 <div class="row form-row">
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Manufacturer Part Number*:</label>
+                            <label class="compact-label">Manufacturer Part Number<span class="required-indicator"> *</span>:</label>
                             <select name="Mfg Part Num" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Vendor Part Number*:</label>
+                            <label class="compact-label">Vendor Part Number<span class="required-indicator"> **</span>:</label>
                             <select name="Vendor Part Num" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
@@ -340,7 +352,7 @@
                     </div>
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Description*:</label>
+                            <label class="compact-label">Description<span class="required-indicator"> *</span>:</label>
                             <select name="Description" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
@@ -349,13 +361,13 @@
                 <div class="row form-row">
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Contract Price*:</label>
+                            <label class="compact-label">Contract Price<span class="required-indicator"> *</span>:</label>
                             <select name="Contract Price" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Unit of Measure (UOM)*:</label>
+                            <label class="compact-label">Unit of Measure (UOM)<span class="required-indicator"> *</span>:</label>
                             <select name="UOM" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
@@ -364,13 +376,13 @@
                 <div class="row form-row">
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Quantity of Each (QOE)*:</label>
+                            <label class="compact-label">Quantity of Each (QOE)<span class="required-indicator"> *</span>:</label>
                             <select name="QOE" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Effective Date*:</label>
+                            <label class="compact-label">Effective Date<span class="required-indicator"> *</span>:</label>
                             <select name="Effective Date" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
@@ -379,13 +391,13 @@
                 <div class="row form-row">
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Expiration Date*:</label>
+                            <label class="compact-label">Expiration Date<span class="required-indicator"> *</span>:</label>
                             <select name="Expiration Date" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Contract Number*:</label>
+                            <label class="compact-label">Contract Number<span class="required-indicator"> *</span>:</label>
                             <select name="Contract Number" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
@@ -394,13 +406,13 @@
                 <div class="row form-row">
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">ERP Vendor ID*:</label>
+                            <label class="compact-label">ERP Vendor ID<span class="required-indicator"> *</span>:</label>
                             <select name="ERP Vendor ID" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group compact-group">
-                            <label class="compact-label">Source Contract Type*:</label>
+                            <label class="compact-label">Source Contract Type<span class="required-indicator"> *</span>:</label>
                             <select name="Source Contract Type" class="form-control form-control-sm required-field column-mapping-select"></select>
                         </div>
                     </div>
@@ -412,7 +424,8 @@
                     </div>
                 </div>
             </div>
-            <p><small>* Required fields</small></p>
+            <p><small><span class="required-indicator">*</span> Required fields</small></p>
+            <p><small><span class="required-indicator">**</span> Required field unless running under distributor mode</small></p>
             <button type="submit" class="btn btn-primary mb-4">Validate</button>
             <div class="form-group mt-5" style="margin-top: 20px;">
                 <div class="input-group mb-3">
@@ -422,11 +435,11 @@
                     <select class="form-control" name="duplicate_mode" id="duplicate_mode">
                         <option value="default" selected>Default (Reduced Mfg Part Num)</option>
                         <option value="explicit">Explicit (Mfg Part Num + UOM)</option>
-                        <option value="distributor">Distributor (ERP Vendor ID + Mfg Part Num + UOM)</option>
+                        <option value="distributor">Distributor (ERP Vendor ID + Mfg Part Num + UOM + Contract Number)</option>
                     </select>
                 </div>
                 <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
-                    <small>Before checking, everything is converted into upper case with leading/trailing white-space(s) trimmed. Use explicit mode only after you have first reviewed all your potential duplicates and you are sure they should be identified by their explicit manufacturer part number and UOM. The distributor mode is intended for running pre-checker on Medline local contract(s).</small>
+                    <small>Before checking, everything is converted into upper case with leading/trailing white-space(s) trimmed. Use explicit mode only after you have first reviewed all your potential duplicates and you are sure they should be identified by their explicit manufacturer part number and UOM. The distributor mode is intended for running pre-checker on distributor (e.g. Medline) contract(s) only.</small>
                 </div>
             </div>
         </form>

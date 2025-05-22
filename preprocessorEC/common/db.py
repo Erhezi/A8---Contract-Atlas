@@ -30,6 +30,35 @@ def db_transaction():
         if conn:
             conn.close()
 
+def fix_encoding(text):
+    """Fix text encoding issues and handle special characters safely"""
+    if not isinstance(text, str):
+        return text
+    
+    try:
+        # First try direct normalization - this works for most cases
+        import unicodedata
+        normalized = unicodedata.normalize('NFKD', text)
+        
+        # Replace problematic characters
+        char_map = {
+            '\u201e': '"',  # double low-9 quotation mark
+            '\u201c': '"',  # left double quotation mark
+            '\u201d': '"',  # right double quotation mark
+            '\u2018': "'",  # left single quotation mark
+            '\u2019': "'",  # right single quotation mark
+            '\u2013': '-',  # en dash
+            '\u2014': '--', # em dash
+        }
+        
+        for char, replacement in char_map.items():
+            normalized = normalized.replace(char, replacement)
+            
+        return normalized
+    except:
+        # Fallback - just return the original text
+        return text
+
 def get_vendor_supplier_mapping(conn):
     """Get the vendor-supplier mapping from the database"""
     try:
@@ -42,7 +71,8 @@ def get_vendor_supplier_mapping(conn):
         columns = [column[0] for column in cursor.description]
         results = []
         for row in rows:
-            results.append(dict(zip(columns, row)))
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
         return results
     except Exception as e:
         print(f"Database error: {str(e)}")
@@ -186,6 +216,7 @@ def find_duplicates_with_ccx(temp_table, conn):
             temp.ERP_Vendor_ID,
             temp.Reduced_Mfg_Part_Num,
             temp.Source_Contract_Type,
+            temp.Total_Contract_Line_Count,
             temp.File_Row,
             CASE WHEN ccx.MANUFACTURER_PART_NUMBER = temp.Mfg_Part_Num THEN 1 ELSE 0 END AS same_mfg_part_num
         FROM 
@@ -212,7 +243,7 @@ def find_duplicates_with_ccx(temp_table, conn):
                     PRICE, 
                     ITEM_PRICE_START_DATE, 
                     ITEM_PRICE_END_DATE,
-                    VENDOR_PART_NUMBER,
+                    IIF(VENDOR_PART_NUMBER = '<<N/A>>', '', VENDOR_PART_NUMBER) AS VENDOR_PART_NUMBER,
                     VENDOR_ERP_NUMBER, 
                     VENDOR_NAME, 
                     PART_DESCRIPTION
@@ -224,7 +255,12 @@ def find_duplicates_with_ccx(temp_table, conn):
                     AND ITEM_PRICE_END_DATE > LAST_UPDATE_DATE
             ) as ccx
         INNER JOIN 
-            {temp_table} as temp
+            (
+                SELECT *,
+                    count(1) over (partition by Contract_Number order by Contract_Number) as Total_Contract_Line_Count
+                FROM
+                    {temp_table}
+            ) as temp
         ON 
             UPPER(CAST(ccx.REDUCED_MANUFACTURER_PART_NUMBER AS VARCHAR(100))) = UPPER(CAST(temp.Reduced_Mfg_Part_Num AS VARCHAR(100)))
         INNER JOIN
@@ -246,7 +282,8 @@ def find_duplicates_with_ccx(temp_table, conn):
         columns = [column[0] for column in cursor.description]
         results = []
         for row in rows:
-            results.append(dict(zip(columns, row)))
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
         
         # Group by contract number (CCX side)
         contract_summary = {}
@@ -332,6 +369,7 @@ def match_to_infor_contract_lines(temp_table, conn):
                 temp.ERP_Vendor_ID,
                 temp.Reduced_Mfg_Part_Num,
                 temp.Source_Contract_Type,
+                temp.Total_Contract_Line_Count,
                 temp.File_Row,
                 CASE WHEN infor.ManufacturerNumber = temp.Mfg_Part_Num THEN 1 ELSE 0 END AS same_mfg_part_num
             FROM 
@@ -378,7 +416,12 @@ def match_to_infor_contract_lines(temp_table, conn):
                         AND ExpirationDate >= getdate()
                 ) as infor
             INNER JOIN 
-                {temp_table} as temp
+                ( 
+                SELECT *, 
+                    count(1) over (partition by Contract_Number order by Contract_Number) as Total_Contract_Line_Count 
+                FROM
+                    {temp_table}
+                ) as temp
             ON 
                 upper(CAST(infor.ReducedManufacturerNumber AS VARCHAR(100))) = upper(CAST(temp.Reduced_Mfg_Part_Num AS VARCHAR(100)))
             INNER JOIN
@@ -400,7 +443,8 @@ def match_to_infor_contract_lines(temp_table, conn):
         columns = [column[0] for column in cursor.description]
         results = []
         for row in rows:
-            results.append(dict(zip(columns, row)))
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
         
         # Group by contract number (Infor side)
         contract_summary = {}
@@ -453,7 +497,7 @@ def match_to_item_master(temp_table, conn):
         
         # Execute the matching query
         match_query = f"""
-            SELECT 
+            SELECT DISTINCT
                 vendoritem.Item as item_number_infor,
                 vendoritem.ItemDescription as description_infor,
                 vendoritem.Manufacturer as erp_manufacturer_id_infor,
@@ -527,7 +571,8 @@ def match_to_item_master(temp_table, conn):
         columns = [column[0] for column in cursor.description]
         results = []
         for row in rows:
-            results.append(dict(zip(columns, row)))
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
         
         # Group by item number (Item Master side)
         item_list = {}
@@ -585,7 +630,8 @@ def get_valid_buying_uoms(item_numbers, conn):
         columns = [column[0] for column in cursor.description]
         results = []
         for row in rows:
-            results.append(dict(zip(columns, row)))
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
         
         return True, "", results
         

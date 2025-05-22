@@ -180,12 +180,29 @@ def validate_source_contract_type(error_df):
     standardize_map = {'gpo': 'GPO', 'local': 'Local'}
     valid_mask = ~invalid_mask
     error_df.loc[valid_mask, 'Source Contract Type'] = error_df.loc[valid_mask, 'Source Contract Type'].str.lower().map(standardize_map)
-    
+
+    # per contract number should only have one type of source contract type
+    contract_types = error_df.groupby('Contract Number')['Source Contract Type'].unique()
+    invalid_contracts = contract_types[contract_types.apply(len) > 1]
+    if len(invalid_contracts) > 0:
+        # For each invalid contract, mark all its rows
+        for contract in invalid_contracts.index:
+            # Create mask for all rows with this contract
+            contract_mask = error_df['Contract Number'] == contract
+            
+            # Add error message
+            error_df.loc[contract_mask, 'Error-Invalid Source Contract Type'] = f'Contract has multiple source types'
+            error_df.loc[contract_mask, 'Has Error'] = True
+  
     return error_df
 
-def validate_required_fields(error_df, required_fields):
+def validate_required_fields(error_df, required_fields, duplicate_mode):
     """Check that all required fields have values"""
-    for field in required_fields:
+    forgiven_fields = []
+    if duplicate_mode == 'distributor':
+        forgiven_fields = ['Vendor Part Num']
+
+    for field in set(required_fields).difference(set(forgiven_fields)):
         missing_mask = error_df[field].isna() | (error_df[field].str.strip() == '')
         error_df.loc[missing_mask, 'Error-Missing Field'] = 'Missing Data'
         error_df.loc[missing_mask, 'Has Error'] = True
@@ -351,8 +368,8 @@ def check_duplicates(error_df, duplicate_mode):
         # Use default keys: Reduced Mfg Part Num
         duplicate_keys = ['Reduced Mfg Part Num']
     elif duplicate_mode == 'distributor':
-        # Use distributor keys: ERP Vendor ID + Mfg Part Num + UOM
-        duplicate_keys = ['ERP Vendor ID', 'Mfg Part Num', 'UOM']
+        # Use distributor keys: ERP Vendor ID + Mfg Part Num + UOM + Contract Number
+        duplicate_keys = ['ERP Vendor ID', 'Mfg Part Num', 'UOM', 'Contract Number']
     else:
         # Use explicit keys: Mfg Part Num + UOM
         duplicate_keys = ['Mfg Part Num', 'UOM']
@@ -409,7 +426,7 @@ def validate_file(df, column_mapping, valid_vids = None, duplicate_mode='default
         return None, None, f"Required field(s) {', '.join(missing_fields)} not found"
     
     # Run validation steps
-    error_df = validate_required_fields(error_df, required_fields)
+    error_df = validate_required_fields(error_df, required_fields, duplicate_mode)
     error_df = validate_source_contract_type(error_df)  # Add new validation step
     error_df = validate_dates(error_df)
     error_df = validate_prices(error_df)
@@ -874,6 +891,7 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
         ccx_row = {
             'Source Contract Type': item.get('source_contract_type_ccx', ''),
             'Contract Number': item.get('contract_number_ccx', ''),
+            'Total Contract Line Count': item.get('total_line_count_ccx', ''),
             'Reduced Mfg Part Num': item.get('reduced_mfg_part_num_ccx', ''),
             'Mfg Part Num': item.get('mfg_part_num_ccx', ''),
             'Vendor Part Num': item.get('vendor_part_num_ccx', ''),
@@ -895,6 +913,7 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
         upload_row = {
             'Source Contract Type': item.get('Source_Contract_Type', ''),
             'Contract Number': item.get('Contract_Number', ''),
+            'Total Contract Line Count': item.get('Total_Contract_Line_Count', ''),
             'Reduced Mfg Part Num': item.get('Reduced_Mfg_Part_Num', ''),
             'Mfg Part Num': item.get('Mfg_Part_Num', ''),
             'Vendor Part Num': item.get('Vendor_Part_Num', ''),
@@ -1160,6 +1179,7 @@ def make_infor_upload_stack(merged_df):
         infor_row = {
             'Source Contract Type': 'Not Applicable',
             'Contract Number': item.get('contract_number_infor', ''),
+            'Total Contract Line Count': item.get('total_line_count_infor', ''),
             'Reduced Mfg Part Num': item.get('reduced_mfg_part_num_infor', ''),
             'Mfg Part Num': item.get('mfg_part_num_infor', ''),
             'Vendor Part Num': item.get('vendor_part_num_infor', ''),
@@ -1180,6 +1200,7 @@ def make_infor_upload_stack(merged_df):
         tp_row = {
             'Source Contract Type': item.get('Source_Contract_Type', ''),
             'Contract Number': item.get('Contract_Number', ''),
+            'Total Contract Line Count': item.get('Total_Contract_Line_Count', ''),
             'Reduced Mfg Part Num': item.get('Reduced_Mfg_Part_Num', ''),
             'Mfg Part Num': item.get('Mfg_Part_Num', ''),
             'Vendor Part Num': item.get('Vendor_Part_Num', ''),
@@ -1458,6 +1479,8 @@ def change_simulation_stage1(validated_df, stacked_df):
     Returns:
         None
     """
+    # count line count for validated_df per contract number
+    validated_df['Total Contract Line Count'] = validated_df.groupby('Contract Number')['File Row'].transform('count')
     # merge dataframe to have the indicator information aligned
     df_m = validated_df.merge(stacked_df,
                               on = ['File Row'],
@@ -1465,24 +1488,37 @@ def change_simulation_stage1(validated_df, stacked_df):
                               suffixes = ('_a', '_b'),
                               indicator = True)
     
-    # fill na on b side to soak a side informations
-    for col in ['Source Contract Type', 'Contract Number', 'Reduced Mfg Part Num', 'Mfg Part Num', 
-                'Vendor Part Num', 'Buyer Part Num', 'Description', 'UOM', 'QOE', 
-                'Contract Price', 'Effective Date', 'Expiration Date']:
-        if col + '_b' in df_m.columns:
-            df_m[col + '_b'] = df_m[col + '_b'].fillna(df_m[col + '_a'])
+    # # fill na on b side to soak a side informations
+    # for col in ['Source Contract Type', 'Contract Number', 'Total Contract Line Count',
+    #             'Reduced Mfg Part Num', 'Mfg Part Num', 
+    #             'Vendor Part Num', 'Buyer Part Num', 'Description', 'UOM', 'QOE', 
+    #             'Contract Price', 'Effective Date', 'Expiration Date']:
+    #     if col + '_b' in df_m.columns:
+    #         df_m[col + '_b'] = df_m[col + '_b'].fillna(df_m[col + '_a'])
 
-    # calculate EA price
-    df_m['EA Price'] = df_m['Contract Price_b']/df_m['QOE_b']
-    # fill for other columns
-    df_m['Dataset'] = df_m['Dataset'].fillna('TP')
-    df_m['Rank'] = df_m['Rank'].fillna(1)
-    df_m['Keep'] = df_m['Keep'].fillna(True)
+    # # calculate EA price
+    # df_m['EA Price'] = df_m['Contract Price_b']/df_m['QOE_b']
+    # # fill for other columns
+    # df_m['Dataset'] = df_m['Dataset'].fillna('TP')
+    # df_m['Rank'] = df_m['Rank'].fillna(1)
+    # df_m['Keep'] = df_m['Keep'].fillna(True)
+    # df_m['Keep'] = df_m['Keep'].infer_objects(copy = False)
     
     # mark for same contract number (make sure they are upper cased and stripped)
     df_m['Contract Number_a'] = df_m['Contract Number_a'].astype(str).str.strip().str.upper()
-    df_m['Contract Number_b'] = df_m['Contract Number_b'].astype(str).str.strip().str.upper()
+    df_m['Contract Number_b'] = df_m['Contract Number_b'].fillna('').astype(str).str.strip().str.upper()
     df_m['Same Contract Number'] = df_m['Contract Number_a']== df_m['Contract Number_b']
+    df_m['Total Contract Line Count_b'] = df_m['Total Contract Line Count_b'].fillna(0).astype(int)
+
+    # group by contract pairs to get the count of overlappings
+    df_cross = df_m.groupby(['_merge', 
+                             'Contract Number_a', 
+                             'Contract Number_b',
+                             'Total Contract Line Count_a',
+                             'Total Contract Line Count_b'],
+                             observed = True).agg({'File Row': 'nunique'}).reset_index()
+    df_cross.rename(columns = {'File Row': 'Overlapping Count'}, inplace = True)
+    df_cross.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross.xlsx'), index = False)
     
     return df_m
     
