@@ -5,6 +5,8 @@
 # Allow these specific directories and file types
 !preprocessorEC/
 !preprocessorEC/**/*.py
+!preprocessorEC/data/
+!preprocessorEC/data/**/*.*
 !preprocessorEC/auth/
 !preprocessorEC/auth/**/*.py
 !preprocessorEC/common/
