@@ -17,6 +17,9 @@
 !preprocessorEC/item_matching/**/*.py
 !preprocessorEC/change_simulation/
 !preprocessorEC/change_simulation/**/*.py
+!preprocessorEC/static/
+!preprocessorEC/static/css/
+!preprocessorEC/static/css/**/*.css
 !preprocessorEC/templates/
 !preprocessorEC/templates/**/*.html
 !preprocessorEC/templates/steps/
