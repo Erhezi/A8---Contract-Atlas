@@ -9,6 +9,9 @@ import unicodedata
 from flask import current_app
 from werkzeug.utils import secure_filename
 from scipy.spatial.distance import cosine
+import networkx as nx
+import plotly.graph_objects as go
+import json
 
 # Global model cache
 _MODEL_CACHE = {}
@@ -1511,14 +1514,337 @@ def change_simulation_stage1(validated_df, stacked_df):
     df_m['Total Contract Line Count_b'] = df_m['Total Contract Line Count_b'].fillna(0).astype(int)
 
     # group by contract pairs to get the count of overlappings
-    df_cross = df_m.groupby(['_merge', 
+    df_cross = df_m[df_m['Dataset'] == 'CCX'].groupby(['_merge', 
                              'Contract Number_a', 
                              'Contract Number_b',
                              'Total Contract Line Count_a',
                              'Total Contract Line Count_b'],
                              observed = True).agg({'File Row': 'nunique'}).reset_index()
     df_cross.rename(columns = {'File Row': 'Overlapping Count'}, inplace = True)
-    df_cross.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross.xlsx'), index = False)
+    df_cross.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross.xlsx'), index = False) #debug
+
+    # add label to df_m to denote if we should Add, delete, or update record based on current understanding
+    # create: merge = left_only or ((Keep = True) and (Same Contract Number = False))
+    create = (df_m['_merge'] == 'left_only') | ((df_m['Keep'] == True) & (df_m['Same Contract Number'] == False))
+    df_m.loc[create, 'Create'] = 'Create'
+    # update: merge = both and Same Contract Number = True and keep = True
+    update = (df_m['_merge'] == 'both') & (df_m['Same Contract Number'] == True) & (df_m['Keep'] == False)
+    df_m.loc[update, 'Update'] = 'Update'
+    # delete: merge = both and Same Contract Number = True and keep = False
+    delete = (df_m['_merge'] == 'both') & (df_m['Same Contract Number'] == False) & (df_m['Keep'] == False)
+    df_m.loc[delete, 'Delete'] = 'Delete'
+
+    df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index = False) #debug
     
-    return df_m
+    return df_m, df_cross
+
+
+def generate_network_graph(network_df):
+    """
+    Generate a network graph from the network DataFrame using Plotly
+    Returns JSON string suitable for frontend consumption
+    """
+    if network_df.empty:
+        return None
     
+    # Prepare node sizes from total line counts
+    df_a = network_df[['Contract Number_a', 'Total Contract Line Count_a']].rename(
+        columns={'Contract Number_a': 'contract', 'Total Contract Line Count_a': 'total'}
+    )
+    df_b = network_df[['Contract Number_b', 'Total Contract Line Count_b']].rename(
+        columns={'Contract Number_b': 'contract', 'Total Contract Line Count_b': 'total'}
+    )
+    
+    # Filter out empty Contract Number_b values
+    df_b = df_b[df_b['contract'].notna() & (df_b['contract'] != '')]
+    
+    df_nodes = pd.concat([df_a, df_b]).drop_duplicates('contract')
+    
+    # Clean and convert node sizes, handling NaN and invalid values
+    df_nodes['total'] = pd.to_numeric(df_nodes['total'], errors='coerce').fillna(1)
+    df_nodes = df_nodes[df_nodes['total'] > 0]
+    
+    node_sizes_map = dict(zip(df_nodes['contract'], df_nodes['total']))
+
+    # Track which contracts are contract_a for coloring
+    a_contracts = set(network_df['Contract Number_a'])
+    
+    # Build edge list (exclude self-links and empty Contract Number_b)
+    edges = [
+        (row['Contract Number_a'], row['Contract Number_b'], row['Overlapping Count'])
+        for _, row in network_df.iterrows()
+        if (pd.notna(row['Contract Number_b']) and 
+            row['Contract Number_b'] != '' and
+            row['Contract Number_a'] != row['Contract Number_b'] and 
+            row['Overlapping Count'] > 0)
+    ]
+
+    # Create graph and explicitly add ALL nodes (including isolated ones)
+    G = nx.Graph()
+    
+    # Add all contract nodes first (this ensures isolated nodes are included)
+    for node in node_sizes_map.keys():
+        G.add_node(node)
+    
+    # Then add edges (this won't affect isolated nodes)
+    for u, v, w in edges:
+        if u in node_sizes_map and v in node_sizes_map:  # Ensure both nodes exist
+            G.add_edge(u, v, weight=w)
+
+    # Circular layout for nodes
+    pos = nx.circular_layout(G)
+
+    # Scale node sizes to a 10–40 range with better NaN handling
+    sizes = list(node_sizes_map.values())
+    if len(sizes) > 1:
+        # Ensure all sizes are valid numbers
+        valid_sizes = [s for s in sizes if not pd.isna(s) and s > 0]
+        if valid_sizes:
+            min_size, max_size = np.log(min(valid_sizes)), np.log(max(valid_sizes))
+            marker_sizes = {}
+            for n in G.nodes():
+                node_total = node_sizes_map.get(n, 1)
+                if pd.isna(node_total) or node_total <= 0:
+                    node_total = 1  # Default size for invalid values
+                
+                if max_size > min_size:
+                    scaled_size = 10 + (np.log(node_total) - min_size) / (max_size - min_size) * 30
+                else:
+                    scaled_size = 25  # Default size when all nodes are the same size
+                
+                # Ensure the final size is a valid number
+                marker_sizes[n] = max(10, min(40, scaled_size)) if not pd.isna(scaled_size) else 25
+        else:
+            marker_sizes = {n: 25 for n in G.nodes()}
+    else:
+        marker_sizes = {n: 25 for n in G.nodes()}
+
+    # Edge traces
+    edge_traces = []
+    mid_x, mid_y, mid_text = [], [], []
+    edge_hover_texts = []
+
+    if len(network_df) > 0:
+        # Clean overlapping counts
+        overlap_counts = pd.to_numeric(network_df['Overlapping Count'], errors='coerce').fillna(0)
+        overlap_counts = overlap_counts[overlap_counts >= 0]  # Remove negative values
+        
+        if len(overlap_counts) > 0:
+            min_weight, max_weight = min(overlap_counts), max(overlap_counts)
+            
+            for u, v, d in G.edges(data=True):
+                x0, y0 = pos[u]
+                x1, y1 = pos[v]
+                w = d['weight']
+                
+                # Calculate line width safely
+                if max_weight > min_weight and not pd.isna(w) and w >= 0:
+                    line_width = 1 + (w - min_weight) / (max_weight - min_weight) * 20
+                else:
+                    line_width = 5
+                
+                edge_traces.append(go.Scatter(
+                    x=[x0, x1], y=[y0, y1],
+                    mode='lines',
+                    line=dict(width=max(1, min(21, line_width)), color='#888'),
+                    hoverinfo='skip'
+                ))
+                
+                mid_x.append((x0 + x1) / 2)
+                mid_y.append((y0 + y1) / 2)
+                mid_text.append(str(int(w)) if not pd.isna(w) else '0')
+                edge_hover_texts.append(f"{u} ↔ {v}<br>Overlap: {int(w) if not pd.isna(w) else 0}")
+
+    # Edge weight labels
+    label_trace = go.Scatter(
+        x=mid_x, y=mid_y,
+        mode='markers+text',
+        text=mid_text,
+        textfont=dict(size=12, color='black', family='Arial'),
+        texttemplate='%{text}',
+        textposition='middle center',
+        marker=dict(size=20, color='rgba(255, 255, 255, 0.8)', line=dict(width=0)),
+        hoverinfo='text',
+        hovertext=edge_hover_texts
+    )
+
+    # Self-loop arcs with better error handling
+    self_map = {}
+    try:
+        for _, row in network_df[network_df['Contract Number_a'] == network_df['Contract Number_b']].iterrows():
+            overlap = pd.to_numeric(row['Overlapping Count'], errors='coerce')
+            if not pd.isna(overlap) and overlap > 0:
+                self_map[row['Contract Number_a']] = int(overlap)
+    except Exception as e:
+        print(f"Error processing self-loops: {e}")
+
+    # Color nodes: green for contract_a, skyblue for others
+    node_colors = []
+    for n in G.nodes():
+        if n in a_contracts:
+            if n in self_map:
+                # Self-looping contract_a nodes: translucent teal (mix of green and blue)
+                node_colors.append('rgba(30, 180, 140, 0.8)')  # Teal with transparency
+            else:
+                # Non-self-looping contract_a nodes: translucent green
+                node_colors.append('rgba(46, 160, 44, 0.7)')  # Green with transparency
+        else:
+            # Contract_b nodes: skyblue (no change)
+            node_colors.append('skyblue')
+
+    # Node trace with safe size values
+    safe_marker_sizes = [marker_sizes.get(n, 25) for n in G.nodes()]
+    safe_node_sizes = [int(node_sizes_map.get(n, 1)) for n in G.nodes()]
+
+    node_trace = go.Scatter(
+        x=[pos[n][0] for n in G.nodes()],
+        y=[pos[n][1] for n in G.nodes()],
+        mode='markers+text',
+        text=list(G.nodes()),
+        textposition='bottom center',
+        marker=dict(
+            size=safe_marker_sizes,
+            color=node_colors,
+            line=dict(width=2, color='#333')
+        ),
+        hoverinfo='text',
+        hovertext=[f"{n}<br>Total lines: {safe_node_sizes[i]}" for i, n in enumerate(G.nodes())]
+    )
+
+
+    self_total_map = {}
+    for n in self_map.keys():
+        # Find the corresponding row in network_df for this contract
+        self_loop_row = network_df[(network_df['Contract Number_a'] == n) & 
+                                (network_df['Contract Number_b'] == n)]
+        if not self_loop_row.empty:
+            # Use Total Contract Line Count_b for the denominator
+            total_b = pd.to_numeric(self_loop_row.iloc[0]['Total Contract Line Count_b'], errors='coerce')
+            self_total_map[n] = max(1, int(total_b)) if not pd.isna(total_b) else 1
+        else:
+            # Fallback to Contract A total if B is not found
+            total_a = node_sizes_map.get(n, 1)
+            self_total_map[n] = max(1, int(total_a)) if not pd.isna(total_a) else 1
+
+    arc_traces = []
+    ring_mid_x, ring_mid_y, ring_mid_text = [], [], []
+    ring_hover_texts = []
+
+    for n, overlap in self_map.items():
+        total = self_total_map[n]
+        
+        ratio = min(1.0, overlap / total) if total > 0 else 0
+        arc_angle = ratio * 2 * np.pi
+        
+        node_size = marker_sizes.get(n, 25)
+        
+        # Calculate radius based on node size with proper scaling
+        # Convert marker size to data coordinates (marker size is in pixels)
+        # Since your node sizes range from 10-40, we want rings to be slightly larger
+        base_radius = node_size / 200  # Convert pixel size to data coordinates
+        min_radius = 0.12
+        radius_buffer = base_radius * 0.15  # 15% larger than node
+        
+        # Ensure minimum radius and scale appropriately
+        radius = max(min_radius, base_radius + radius_buffer)
+        
+        # Alternative simpler approach - directly scale with node size
+        # radius = max(0.12, node_size / 800 + 0.03)
+        
+        theta = np.linspace(0, arc_angle, 100)
+        x_center, y_center = pos[n]
+        arc_x = x_center + radius * np.cos(theta)
+        arc_y = y_center + radius * np.sin(theta)
+            
+        arc_traces.append(go.Scatter(
+            x=arc_x, y=arc_y,
+            mode='lines',
+            line=dict(width=2, color='rgba(46, 160, 44, 0.6)'),
+            hoverinfo='skip'
+        ))
+        
+        if ratio > 0.5:
+            label_angle = arc_angle / 2
+        else:
+            label_angle = arc_angle * 0.9 if arc_angle > 0 else 0
+            
+        label_radius = radius * 1.3
+        label_x = x_center + label_radius * np.cos(label_angle)
+        label_y = y_center + label_radius * np.sin(label_angle)
+        
+        ring_mid_x.append(label_x)
+        ring_mid_y.append(label_y)
+        ring_mid_text.append(f"{overlap}/{total}")
+        ring_hover_texts.append(f"{n} self-overlap: {overlap}/{total} ({ratio:.0%})")
+
+    # Ring label background and text
+    ring_background_trace = go.Scatter(
+        x=ring_mid_x, y=ring_mid_y,
+        mode='markers',
+        marker=dict(size=25, color='rgba(255, 255, 255, 0.7)', line=dict(width=0)),
+        hoverinfo='skip'
+    )
+
+    ring_label_trace = go.Scatter(
+        x=ring_mid_x, y=ring_mid_y,
+        mode='text',
+        text=ring_mid_text,
+        textfont=dict(size=10, color='#2ca02c'),
+        hoverinfo='text',
+        hovertext=ring_hover_texts
+    )
+
+    # Create figure
+    fig_data = edge_traces + arc_traces + [label_trace, ring_background_trace, ring_label_trace, node_trace]
+    
+    layout = go.Layout(
+        title='',
+        hovermode='closest',
+        margin=dict(l=15, r=15, t=30, b=80),
+        annotations=[
+            dict(
+                text="Green nodes: Contract A<br>Blue nodes: Contract B<br>Light green arcs: Self-overlaps proportional to total lines<br>Numbers show overlap/total ratio",
+                showarrow=False,
+                xref="paper", yref="paper",
+                x=0.5, y=-0.18,
+                font=dict(size=10),
+                bgcolor="rgba(255, 255, 255, 0.8)",
+                borderpad=4,
+                align="center"
+            )
+        ],
+        xaxis=dict(
+            showgrid=False, 
+            zeroline=False, 
+            showticklabels=False,
+            scaleanchor="y",
+            scaleratio=1
+        ),
+        yaxis=dict(
+            showgrid=False, 
+            zeroline=False, 
+            showticklabels=False
+        ),
+        showlegend=False,
+        plot_bgcolor='rgba(245, 245, 252, 1)'
+    )
+
+    # Return JSON string
+    return json.dumps({
+        'data': fig_data,
+        'layout': layout
+    }, cls=PlotlyJSONEncoder)
+
+class PlotlyJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for Plotly objects"""
+    def default(self, obj):
+        import numpy as np
+        if hasattr(obj, 'to_plotly_json'):
+            return obj.to_plotly_json()
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        return json.JSONEncoder.default(self, obj)

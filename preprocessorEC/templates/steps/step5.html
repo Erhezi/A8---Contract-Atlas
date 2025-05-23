@@ -27,13 +27,59 @@
         margin-top: 10px;
         text-align: right;
     }
+    
+    /* Network graph container styling */
+    #network-graph-container {
+        margin-top: 20px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background-color: #f9f9f9;
+    }
+    
+    /* Create a flex container for side-by-side graphs */
+    .graph-container-flex {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: space-between;
+        margin-bottom: 15px;
+    }
+    
+    /* Style for each individual graph */
+    .graph-wrapper {
+        flex: 1;
+        min-width: 300px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background-color: white;
+        padding: 10px;
+    }
+    
+    .graph-title {
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    
+    .network-graph {
+        width: 100%;
+        height: 500px;
+        border: 1px solid #eee;
+        border-radius: 5px;
+    }
+    
+    @media (max-width: 992px) {
+        .graph-wrapper {
+            flex: 100%;
+        }
+    }
 </style>
 
 <!-- Change Simulation Content -->
 <div class="step-content">   
     <p>Click "View Changes" to simulate the changes to be applied to CCX contract(s) when we upload your file.</p>
     
-    <!-- Removed unnecessary row/col structure to match step3 styling -->
     <button id="view-changes-btn" class="btn btn-primary">View Changes</button>
     <div class="loader" id="loading-spinner"></div>
 
@@ -42,15 +88,37 @@
         <div id="simulation-results">
             <!-- Results will be dynamically populated here -->
         </div>
+        
+        <!-- Network Graph Container -->
+        <div id="network-graph-container" style="display: none;">
+            <h5>Contract Overlap Networks</h5>
+            
+            <!-- Two graphs side by side -->
+            <div class="graph-container-flex">
+                <!-- Left graph -->
+                <div class="graph-wrapper">
+                    <div class="graph-title">Original Network</div>
+                    <div id="network-graph-left" class="network-graph"></div>
+                </div>
+                
+                <!-- Right graph -->
+                <div class="graph-wrapper">
+                    <div class="graph-title">Modified Network</div>
+                    <div id="network-graph-right" class="network-graph"></div>
+                </div>
+            </div>
+        </div>
     </div>
     
-    <!-- Added action-buttons class for right alignment -->
     <div class="action-buttons">
         <form method="POST" action="{{ url_for('common.process_step', step_id=5) }}">
             <button type="submit" class="btn btn-success">Complete Step 5</button>
         </form>
     </div>
 </div>
+
+<!-- Add Plotly.js CDN -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
 <script>
     document.getElementById('view-changes-btn').addEventListener('click', function() {
@@ -86,9 +154,41 @@
                 html += '</div></div>';
                 
                 resultsDiv.innerHTML = html;
+                
+                // Display network graphs if available
+                if (data.result.graph_data) {
+                    document.getElementById('network-graph-container').style.display = 'block';
+                    
+                    // Parse the graph data from JSON
+                    const graphData = JSON.parse(data.result.graph_data);
+                    
+                    // Create the left Plotly graph
+                    Plotly.newPlot('network-graph-left', graphData.data, graphData.layout, {
+                        responsive: true,
+                        displayModeBar: true,
+                        modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
+                        displaylogo: false
+                    });
+                    
+                    // Create the right Plotly graph (using same data for now as placeholder)
+                    // Modify the layout slightly to differentiate
+                    const rightLayout = JSON.parse(JSON.stringify(graphData.layout)); // Deep copy
+                    rightLayout.title = '';
+                    
+                    Plotly.newPlot('network-graph-right', graphData.data, rightLayout, {
+                        responsive: true,
+                        displayModeBar: true,
+                        modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
+                        displaylogo: false
+                    });
+                } else {
+                    // Hide graph container if no data
+                    document.getElementById('network-graph-container').style.display = 'none';
+                }
             } else {
                 // Display error message
                 resultsDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+                document.getElementById('network-graph-container').style.display = 'none';
             }
         })
         .catch(error => {
@@ -99,6 +199,7 @@
             document.getElementById('results-container').style.display = 'block';
             document.getElementById('simulation-results').innerHTML = 
                 '<div class="alert alert-danger">An error occurred while processing your request. Please try again.</div>';
+            document.getElementById('network-graph-container').style.display = 'none';
             console.error('Error:', error);
         });
     });

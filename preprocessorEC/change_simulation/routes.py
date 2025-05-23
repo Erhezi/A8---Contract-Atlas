@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, flash, current_app, redirect, url_for
 from flask_login import login_required, current_user
 from ..common.session import get_validated_data, get_deduped_results, get_infor_cl_matches
-from ..common.utils import make_infor_upload_stack, change_simulation_stage1
+from ..common.utils import make_infor_upload_stack, change_simulation_stage1, generate_network_graph
 import os
 import json
 import pandas as pd
@@ -53,8 +53,8 @@ def show_changes():
     # stacked_df_b = make_infor_upload_stack(merged_results.get('merged_df', []))
 
     # output to temp_files dir for debugging
-    validated_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"validated_data_{user_id}.xlsx"), index=False)
-    stacked_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"stacked_data_{user_id}.xlsx"), index=False)
+    # validated_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"validated_data_{user_id}.xlsx"), index=False)
+    # stacked_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"stacked_data_{user_id}.xlsx"), index=False)
     # stacked_df_b.to_excel(os.path.join(current_app.root_path, "temp_files", f"merged_data_{user_id}.xlsx"), index=False)
 
     # Basic validation of the DataFrames
@@ -66,8 +66,9 @@ def show_changes():
         }), 400
     
     # we can have stacked_df or merged_df empty, not a big deal
-    change_simulation_df = change_simulation_stage1(validated_df, stacked_df)
-    change_simulation_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"change_simulation_{user_id}.xlsx"), index=False)
+    change_simulation_df, network_df = change_simulation_stage1(validated_df, stacked_df)
+    
+    graph_json = generate_network_graph(network_df)
     
     # Store simulation results in the session if needed
     # session.store_simulation_results(user_id, simulation_results)
@@ -78,7 +79,8 @@ def show_changes():
         'message': "Changes loaded successfully. Processing simulation...",
         'result': {
             'validated_count': len(validated_df),
-            'stacked_count': len(stacked_df)
+            'stacked_count': len(stacked_df),
+            'graph_data': graph_json
             # Add more details about the changes as needed
         }
     })
