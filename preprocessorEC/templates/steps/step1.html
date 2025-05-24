@@ -417,8 +417,14 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="row form-row">
+                    <div class="col-md-6">
+                        <div class="form-group compact-group">
+                            <label class="compact-label">Intended Action<span class="required-indicator"> *</span>:</label>
+                            <select name="Intended Action" class="form-control form-control-sm required-field column-mapping-select"></select>
+                        </div>
+                    </div>
                     <div class="col-md-6">
                         <!-- Empty column for alignment purposes -->
                     </div>
@@ -552,8 +558,9 @@
                         'Effective Date': ['effective date', 'start date', 'valid from', 'start', 'begin date'],
                         'Expiration Date': ['expiration date', 'exp date', 'end date', 'valid until', 'termination date'],
                         'Contract Number': ['contract number', 'contract num', 'contract #', 'contract id', 'agreement number'],
-                        'ERP Vendor ID': ['erp vendor id', 'vendor id', 'supplier id', 'erp supplier', 'vendor code'],
-                        'Source Contract Type': ['contract source type', 'source contract type', 'contract source', 'source type', 'contract type', 'agreement type', 'agreement source', 'gpo type', 'source', 'gpo or local']
+                        'ERP Vendor ID': ['erp vendor id', 'vendorid', 'vendor erp id', 'erp id', 'vendor id', 'supplier id', 'erp supplier', 'vendor code'],
+                        'Source Contract Type': ['contract source type', 'source contract type', 'contract source', 'source type', 'contract type', 'agreement type', 'agreement source', 'gpo type', 'source', 'gpo or local'],
+                        'Intended Action': ['intended action', 'action', 'intended use', 'action type', 'what to do', 'intention', 'update/delete', 'insert/delete', 'upsert/delete', 'upsert or delete']
                     };
                     
                     // Normalize headers to lowercase for matching

@@ -103,7 +103,7 @@ def prepare_dataframe(df, column_mapping):
     required_fields = [
         'Mfg Part Num', 'Vendor Part Num', 'Description', 
         'Contract Price', 'UOM', 'QOE', 'Effective Date', 'Expiration Date', 
-        'Contract Number', 'ERP Vendor ID', 'Source Contract Type'
+        'Contract Number', 'ERP Vendor ID', 'Source Contract Type', 'Intended Action'
     ]
     
     # Create a copy of the dataframe with standard field names
@@ -160,10 +160,34 @@ def prepare_dataframe(df, column_mapping):
     error_df['Error-EA QOE NOT 1'] = ''
     error_df['Error-Invalid Vendor'] = '' 
     error_df['Error-Invalid Source Contract Type'] = ''
+    error_df['Error-Invalid Intended Action'] = ''
     error_df['Warning-Potential Duplicates'] = ''
     error_df['Has Error'] = False
     
     return error_df, columns_to_save_to_session, missing_fields, required_fields
+
+# add a new validation function for Intended Action
+def validate_intended_action(error_df):
+    """Validate that Intended Action is either 'Upsert' or 'Delete' (case-insensitive)"""
+    # First standardize values (convert to title case)
+    error_df['Intended Action'] = error_df['Intended Action'].str.strip()
+    
+    # Create mask for invalid values
+    valid_values = ['upsert', 'delete']
+    invalid_mask = ~error_df['Intended Action'].str.lower().isin(valid_values)
+    
+    # Mark errors
+    error_df.loc[invalid_mask, 'Error-Invalid Intended Action'] = 'Intended Action must be Upsert or Delete'
+    error_df.loc[invalid_mask, 'Has Error'] = True
+    
+    # Standardize valid values
+    standardize_map = {'upsert': 'Upsert', 
+                       'delete': 'Delete'}
+    valid_mask = ~invalid_mask
+    error_df.loc[valid_mask, 'Intended Action'] = error_df.loc[valid_mask, 'Intended Action'].str.lower().map(standardize_map)
+
+    return error_df
+
 
 # Add a new validation function for Source Contract Type
 def validate_source_contract_type(error_df):
@@ -431,6 +455,7 @@ def validate_file(df, column_mapping, valid_vids = None, duplicate_mode='default
     # Run validation steps
     error_df = validate_required_fields(error_df, required_fields, duplicate_mode)
     error_df = validate_source_contract_type(error_df)  # Add new validation step
+    error_df = validate_intended_action(error_df)  # Add new validation step
     error_df = validate_dates(error_df)
     error_df = validate_prices(error_df)
     error_df = validate_qoe(error_df)

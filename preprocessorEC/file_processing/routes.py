@@ -108,7 +108,7 @@ def map_columns():
     required_fields = ['Mfg Part Num', 'Vendor Part Num', 'Description', 
                        'Contract Price', 'UOM', 'QOE', 
                        'Effective Date', 'Expiration Date', 'Contract Number', 'ERP Vendor ID',
-                       'Source Contract Type']
+                       'Source Contract Type', 'Intended Action']
     
     missing_fields = [field for field in required_fields if field not in column_mapping and field != 'Buyer Part Num']
     
