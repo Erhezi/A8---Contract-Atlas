@@ -168,21 +168,21 @@ def prepare_dataframe(df, column_mapping):
 
 # add a new validation function for Intended Action
 def validate_intended_action(error_df):
-    """Validate that Intended Action is either 'Upsert' or 'Delete' (case-insensitive)"""
+    """Validate that Intended Action is either 'Upsert' or 'Expire' (case-insensitive)"""
     # First standardize values (convert to title case)
     error_df['Intended Action'] = error_df['Intended Action'].str.strip()
     
     # Create mask for invalid values
-    valid_values = ['upsert', 'delete']
+    valid_values = ['upsert', 'expire']
     invalid_mask = ~error_df['Intended Action'].str.lower().isin(valid_values)
     
     # Mark errors
-    error_df.loc[invalid_mask, 'Error-Invalid Intended Action'] = 'Intended Action must be Upsert or Delete'
+    error_df.loc[invalid_mask, 'Error-Invalid Intended Action'] = 'Intended Action must be Upsert or Expire'
     error_df.loc[invalid_mask, 'Has Error'] = True
     
     # Standardize valid values
     standardize_map = {'upsert': 'Upsert', 
-                       'delete': 'Delete'}
+                       'expire': 'Expire'}
     valid_mask = ~invalid_mask
     error_df.loc[valid_mask, 'Intended Action'] = error_df.loc[valid_mask, 'Intended Action'].str.lower().map(standardize_map)
 
@@ -269,12 +269,13 @@ def validate_dates(error_df):
     error_df.loc[empty_date_mask, 'Error-Invalid Date'] = 'Invalid Date format'
     error_df.loc[empty_date_mask, 'Has Error'] = True
 
-    # Validate expiration date >= today and > effective date
+    # Validate expiration date > effective date
+    # and expiration date >= today
     invalid_exp_mask = ~empty_date_mask & (
         (error_df['Expiration_Date_Dt'].dt.date < today_dt) | 
         (error_df['Expiration_Date_Dt'] <= error_df['Effective_Date_Dt'])
     )
-    error_df.loc[invalid_exp_mask, 'Error-Invalid Date'] = 'Expiration Date must be >= Effective Date and today'
+    error_df.loc[invalid_exp_mask, 'Error-Invalid Date'] = 'Expiration Date must be > Effective Date and >= today'
     error_df.loc[invalid_exp_mask, 'Has Error'] = True
     
     return error_df
@@ -432,6 +433,7 @@ def finalize_validation(error_df, columns_to_save_to_session):
         error_df.drop(columns_to_drop, axis=1, inplace=True)
 
     error_df['Buyer Part Num'] = error_df['Buyer Part Num'].fillna('')
+    error_df['Vendor Part Num'] = error_df['Vendor Part Num'].fillna('')
 
     # Check if there are any errors
     has_errors = error_df['Has Error'].any()
@@ -931,6 +933,7 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             'EA Price': item.get('ccx_ea_price', ''),
             'Effective Date': item.get('effective_date_ccx', ''),
             'Expiration Date': item.get('expiration_date_ccx', ''),
+            'ERP Vendor ID': item.get('erp_vendor_id_ccx', ''),
             'Dataset': 'CCX',
             'File Row': item.get('File_Row', ''),  # Group identifier
             'Pair ID': 'tc' + str(i) # Unique identifier for the pair
@@ -953,6 +956,7 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
             'EA Price': item.get('upload_ea_price', ''),
             'Effective Date': item.get('Effective_Date', ''),
             'Expiration Date': item.get('Expiration_Date', ''),
+            'ERP Vendor ID': item.get('ERP_Vendor_ID', ''),
             'Dataset': 'TP',
             'File Row': item.get('File_Row', ''),  # Group identifier
             'Pair ID': 'tc' + str(i) # Unique identifier for the pair
@@ -980,6 +984,10 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     stacked_df['Mfg Part Num'] = stacked_df['Mfg Part Num'].astype(str).str.strip().str.upper()
     stacked_df['Contract Number'] = stacked_df['Contract Number'].astype(str).str.strip().str.upper()
     stacked_df['File Row'] = stacked_df['File Row'].astype(int) 
+
+    # make sure vendor part number and buyer part number are kept as string nan are filled as empty string
+    stacked_df['Vendor Part Num'] = stacked_df['Vendor Part Num'].fillna('').str.upper().str.strip()
+    stacked_df['Buyer Part Num'] = stacked_df['Buyer Part Num'].fillna('').str.upper().str.strip()
 
     # dedup the stacked_df so the TP copy only appear once
     # this requires that if the input file (upload TP file) contains multiple contract and if the contract numbers
@@ -1086,6 +1094,7 @@ def three_way_contract_line_matching(comparison_results,
                 'EA Price': item.get('ccx_ea_price', ''),
                 'Effective Date': item.get('effective_date_ccx', ''),
                 'Expiration Date': item.get('expiration_date_ccx', ''),
+                'ERP Vendor ID': item.get('erp_vendor_id_ccx', ''),
                 'Dataset': 'CCX',
                 'File Row': item.get('File_Row', ''),  # Group identifier
                 'Pair ID': 'tc' + str(i), # Unique identifier for the pair
@@ -1219,6 +1228,7 @@ def make_infor_upload_stack(merged_df):
             'EA Price': '', # need calculation, it will be the price_infor / qoe_infor, will deal with it later
             'Effective Date': item.get('effective_date_infor', ''),
             'Expiration Date': item.get('expiration_date_infor', ''),
+            'ERP Vendor ID': item.get('erp_vendor_id_infor', ''),
             'Dataset': 'Infor',
             'File Row': item.get('File_Row', ''),
             'Pair ID': 'ti' + str(p_cnt), # Unique identifier for the pair
@@ -1240,6 +1250,7 @@ def make_infor_upload_stack(merged_df):
             'EA Price': '', # need calculation, will deal with it later
             'Effective Date': item.get('Effective_Date', ''),
             'Expiration Date': item.get('Expiration_Date', ''),
+            'ERP Vendor ID': item.get('ERP_Vendor_ID', ''),
             'Dataset': 'TP',
             'File Row': item.get('File_Row', ''),
             'Pair ID': 'ti' + str(p_cnt) # Unique identifier for the pair
@@ -1509,28 +1520,16 @@ def change_simulation_stage1(validated_df, stacked_df):
     """
     # count line count for validated_df per contract number
     validated_df['Total Contract Line Count'] = validated_df.groupby('Contract Number')['File Row'].transform('count')
+    #
+    # stacked df to pass the Keep information if same contract number between TP and CCX
+    stacked_df['Contract Number'] = stacked_df['Contract Number'].astype(str).str.strip().str.upper()
+    
     # merge dataframe to have the indicator information aligned
-    df_m = validated_df.merge(stacked_df,
+    df_m = validated_df.merge(stacked_df[stacked_df['Dataset'] == 'CCX'],
                               on = ['File Row'],
                               how = 'left',
                               suffixes = ('_a', '_b'),
                               indicator = True)
-    
-    # # fill na on b side to soak a side informations
-    # for col in ['Source Contract Type', 'Contract Number', 'Total Contract Line Count',
-    #             'Reduced Mfg Part Num', 'Mfg Part Num', 
-    #             'Vendor Part Num', 'Buyer Part Num', 'Description', 'UOM', 'QOE', 
-    #             'Contract Price', 'Effective Date', 'Expiration Date']:
-    #     if col + '_b' in df_m.columns:
-    #         df_m[col + '_b'] = df_m[col + '_b'].fillna(df_m[col + '_a'])
-
-    # # calculate EA price
-    # df_m['EA Price'] = df_m['Contract Price_b']/df_m['QOE_b']
-    # # fill for other columns
-    # df_m['Dataset'] = df_m['Dataset'].fillna('TP')
-    # df_m['Rank'] = df_m['Rank'].fillna(1)
-    # df_m['Keep'] = df_m['Keep'].fillna(True)
-    # df_m['Keep'] = df_m['Keep'].infer_objects(copy = False)
     
     # mark for same contract number (make sure they are upper cased and stripped)
     df_m['Contract Number_a'] = df_m['Contract Number_a'].astype(str).str.strip().str.upper()
@@ -1539,7 +1538,7 @@ def change_simulation_stage1(validated_df, stacked_df):
     df_m['Total Contract Line Count_b'] = df_m['Total Contract Line Count_b'].fillna(0).astype(int)
 
     # group by contract pairs to get the count of overlappings
-    df_cross = df_m[df_m['Dataset'] == 'CCX'].groupby(['_merge', 
+    df_cross = df_m.groupby(['_merge',
                              'Contract Number_a', 
                              'Contract Number_b',
                              'Total Contract Line Count_a',
@@ -1547,22 +1546,344 @@ def change_simulation_stage1(validated_df, stacked_df):
                              observed = True).agg({'File Row': 'nunique'}).reset_index()
     df_cross.rename(columns = {'File Row': 'Overlapping Count'}, inplace = True)
     df_cross.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross.xlsx'), index = False) #debug
-
-    # add label to df_m to denote if we should Add, delete, or update record based on current understanding
-    # create: merge = left_only or ((Keep = True) and (Same Contract Number = False))
-    create = (df_m['_merge'] == 'left_only') | ((df_m['Keep'] == True) & (df_m['Same Contract Number'] == False))
-    df_m.loc[create, 'Create'] = 'Create'
-    # update: merge = both and Same Contract Number = True and keep = True
-    update = (df_m['_merge'] == 'both') & (df_m['Same Contract Number'] == True) & (df_m['Keep'] == False)
-    df_m.loc[update, 'Update'] = 'Update'
-    # delete: merge = both and Same Contract Number = True and keep = False
-    delete = (df_m['_merge'] == 'both') & (df_m['Same Contract Number'] == False) & (df_m['Keep'] == False)
-    df_m.loc[delete, 'Delete'] = 'Delete'
-
-    df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index = False) #debug
     
-    return df_m, df_cross
+    return df_cross
 
+def actual_action_on_update_row(row, mode = None):
+    fields_to_compare = ['Mfg Part Num', 'Vendor Part Num',
+                        'Buyer Part Num', 'Description', 'Contract Price',
+                        'UOM', 'QOE', 'Effective Date', 'Expiration Date']
+    
+    comparison_results = []
+    for field in fields_to_compare:
+        if field != 'Buyer Part Num':
+            field_keep = field + '_keep'
+            field_drop = field + '_drop'
+            res = row[field_keep] == row[field_drop]
+            comparison_results.append('Y' if res == True else 'N')
+        else:
+            comparison_results.append('x')
+    
+    quick_check = ''.join(comparison_results)
+    
+    if quick_check == 'YYxYYYYYY':
+        # No change in the fields we care about
+        return "No Change", quick_check
+    
+    # quick check
+    quick_check = ''.join(comparison_results)
+    if mode == 'legacy':
+        # the field currently is not used but we want to keep it in code to make things clear
+        pure_update_fields = ['Description', 'Contract Price']
+        
+        # Check if only description changed
+        if quick_check in ['YYxNYYYYY', 'YYxYNYYYY', 'YYxNNYYYY']:
+            return "Update (New)", quick_check
+        
+        # Any other field changed
+        return "Expire then Create (Create)", quick_check
+    
+    elif mode == 'new':
+        expire_then_create_fields = ['Mfg Part Num', 'UOM']
+        if quick_check[0] == 'N' or quick_check[5] == 'N':
+            # if Mfg Part Num or UOM changed, we need to expire then create
+            return "Expire then Create (Create)", quick_check
+        else:
+            # if only other fields changed, we can update
+            return "Update (New)", quick_check
+        
+
+def final_data_helper(row, group = 'keep', 
+                      actual_action = None,
+                      quick_check = None):
+    if group == 'keep':
+        return {
+            'File Row': row['File Row'],
+            'Dataset': row['Dataset_keep'],
+            'Contract Number': row['Contract Number_keep'],
+            'Mfg Part Num': row['Mfg Part Num_keep'],
+            'Vendor Part Num': row['Vendor Part Num_keep'],
+            'Buyer Part Num': row['Buyer Part Num_keep'] if row['Buyer Part Num_keep'] != '' else row['Mfg Part Num_drop'],
+            'Description': row['Description_keep'],
+            'Contract Price': row['Contract Price_keep'],
+            'UOM': row['UOM_keep'],
+            'QOE': row['QOE_keep'],
+            'Effective Date': row['Effective Date_keep'],
+            'Expiration Date': row['Expiration Date_keep'],
+            'Actual Action': actual_action,
+            'Quick Check': quick_check
+        }
+    elif group == 'drop':
+        return {
+            'File Row': row['File Row'],
+            'Dataset': row['Dataset_drop'],
+            'Contract Number': row['Contract Number_drop'],
+            'Mfg Part Num': row['Mfg Part Num_drop'],
+            'Vendor Part Num': row['Vendor Part Num_drop'],
+            'Buyer Part Num': row['Buyer Part Num_drop'],
+            'Description': row['Description_drop'],
+            'Contract Price': row['Contract Price_drop'],
+            'UOM': row['UOM_drop'],
+            'QOE': row['QOE_drop'],
+            'Effective Date': row['Effective Date_drop'],
+            'Expiration Date': row['Expiration Date_drop'],
+            'Actual Action': actual_action,
+            'Quick Check': quick_check
+        }
+    else:
+        raise ValueError("Invalid group specified. Use 'keep' or 'drop'.")
+
+def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new'):
+    upsert_file_row = set(validated_df[validated_df['Intended Action'] == 'Upsert']['File Row'])
+    stacked_df['Contract Number'] = stacked_df['Contract Number'].astype(str).str.strip().str.upper()
+    keep_df = stacked_df[stacked_df['Keep'] == True].copy()
+    drop_df = stacked_df[stacked_df['Keep'] == False].copy()
+    
+    df_m = keep_df.merge(drop_df,
+                         on = ['File Row'],
+                         suffixes = ('_keep', '_drop'),
+                         how = 'left')
+    
+    df_m['Intended Action'] = df_m['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
+    
+    # for df_m matched lines that marked as intention as 'Upsert'
+    primary_action = []
+    actual_action = []
+    quick_check = []
+    final_data = []
+    for i, row in df_m.iterrows():
+        a_action, q_check = actual_action_on_update_row(row, mode = update_action_mode)
+        if row['Intended Action'] == 'Upsert':
+            if row['Dataset_keep'] == 'TP':
+                if row['Contract Number_keep'] == row['Contract Number_drop']:
+                    # contract line already exists on CCX, for this row our primary action is to update the existing contract
+                    primary_action.append('Update')
+                    actual_action.append(a_action)
+                    quick_check.append(q_check)
+                    final_data.append(final_data_helper(row, group = 'keep', actual_action = a_action, quick_check = q_check))
+                    if a_action == 'Expire then Create (Create)':
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire then Create (Expire)', quick_check = q_check))
+                    if a_action == 'Update (New)':
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Update (Existing)', quick_check = q_check))
+                else:
+                    primary_action.append('Expire CCX')
+                    actual_action.append('Expire')
+                    quick_check.append(q_check)
+                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check))
+            elif row['Dataset_keep'] == 'CCX':
+                if row['Dataset_drop'] == 'TP':
+                    # if the drop contract is from TP, then basically we choose to not use the TP version but the CCX version
+                    primary_action.append('Mute TP')
+                    actual_action.append('Mute')
+                    quick_check.append(q_check)
+                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Mute', quick_check = q_check))
+                else: 
+                    primary_action.append('Expire CCX')
+                    actual_action.append('Expire')
+                    quick_check.append(q_check)
+                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check))
+        
+        # when intended action is 'Expire', we simply expire the contract from TP and keep other thing untouched
+        else:
+            primary_action.append('Expire CCX')
+            actual_action.append('Expire')
+            quick_check.append(q_check)
+            final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check))
+
+    df_m['Primary Action'] = primary_action
+    df_m['Actual Action'] = actual_action
+    df_m['Quick Check'] = quick_check
+
+    df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index=False) #debug
+
+    data_change_df1 = pd.DataFrame(final_data)
+    data_change_df1.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number', 'Actual Action'], keep='first', inplace=True)
+
+    # merge the net new item from TP to data_change_df
+    all_file_row = set(validated_df['File Row'])
+    keep_file_row = set(keep_df['File Row'])
+    net_new_file_row = all_file_row.difference(keep_file_row)
+    net_new_df = validated_df[validated_df['File Row'].isin(net_new_file_row)].copy()
+    net_new_df['Dataset'] = 'TP'
+    net_new_df['Actual Action'] = 'Create'
+    net_new_df['Quick Check'] = 'x'  # No quick check for new items
+    data_change_df2 = net_new_df[list(data_change_df1.columns)].copy()
+
+    # combine the two dataframes
+    data_change_show_df = pd.concat([data_change_df1, data_change_df2], ignore_index=True)
+
+    # adjust the Effective and Expiration Date for certain operations
+    today = pd.to_datetime('today').strftime('%Y-%m-%d')
+    tomorrow = (pd.to_datetime('today') + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+    for i, row in data_change_show_df.iterrows():
+        if row['Actual Action'] == 'Expire' or row['Actual Action'] == 'Expire then Create (Expire)':
+            data_change_show_df.at[i, 'Expiration Date'] = today
+        elif row['Actual Action'] == 'Expire then Create (Create)':
+            data_change_show_df.at[i, 'Effective Date'] = tomorrow
+
+    data_change_df = data_change_show_df[~data_change_show_df['Actual Action'].isin(['Update (Existing)'])].copy()
+    data_change_df.drop(columns = ['Dataset', 'Quick Check'], inplace = True)
+    
+    data_change_show_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'data_change_show_df.xlsx'), index=False) #debug
+
+    return data_change_show_df, data_change_df
+
+def apply_change(data_change_df,
+                 validated_df,
+                 stacked_df):
+    """Apply changes to validated_df and ccx_df isolated from stacked_df,
+    return the resulting dataframes."""
+    ccx_df = stacked_df[stacked_df['Dataset'] == 'CCX'].copy()
+    ccx_change_df = data_change_df[~data_change_df['Actual Action'].isin(['Create', 'Mute'])].copy()
+    tp_change_df = data_change_df[data_change_df['Actual Action'].isin(['Create', 'Mute'])].copy()
+                                                                         
+    ccx_merge = ccx_df.merge(ccx_change_df,
+                             on = ['File Row', 'Contract Number'],
+                             how = 'left',
+                             suffixes = ('_original', '_change')
+    )
+
+    # ccx_merge can have blank change, those are CCX existing record we didn't touch with TP
+    ccx_merge_file_rows = set(ccx_merge[~ccx_merge['Actual Action'].isna()]['File Row'])
+    # fill the blank join as 'No change'
+    ccx_merge.loc[ccx_merge['Actual Action'].isna(), 'Actual Action'] = 'No Change'
+    # fill the blank _change columns with _original values
+    for col in ccx_merge.columns:
+        if col.endswith('_change'):
+            original_col = col.replace('_change', '_original')
+            ccx_merge.loc[:, col] = ccx_merge[col].fillna(ccx_merge[original_col])
+
+    ccx_merge.to_excel(os.path.join(current_app.root_path, 'temp_files', 'ccx_merge.xlsx'), index=False) #debug
+    
+    tp_merge = validated_df.merge(tp_change_df,
+                                  on = ['File Row', 'Contract Number'],
+                                  how = 'left',
+                                  suffixes = ('_original', '_change')
+    )
+    tp_merge.loc[:, 'Actual Action'] = tp_merge.apply(lambda x: 'Merged' 
+                                                      if (x['File Row'] in ccx_merge_file_rows and pd.isnull(x['Actual Action'])) 
+                                                      else x['Actual Action'], axis=1)
+    # fill the blank _change columns with _original values
+    for col in tp_merge.columns:
+        if col.endswith('_change'):
+            original_col = col.replace('_change', '_original')
+            tp_merge.loc[:, col] = tp_merge[col].fillna(tp_merge[original_col])
+    
+    tp_merge.to_excel(os.path.join(current_app.root_path, 'temp_files', 'tp_merge.xlsx'), index=False) #debug
+
+    return ccx_merge, tp_merge
+
+def change_simulation_stage3(ccx_merge, tp_merge):
+    """
+    Finalize the changes by applying the changes to CCX and TP dataframes.
+    
+    Args:
+        ccx_merge: DataFrame with CCX changes
+        tp_merge: DataFrame with TP changes
+    
+    Returns:
+        df_cross_new: Dataframe that feed into network graph to replot the contract relations
+    """
+    action_map = {'No Change': 0,
+                'Update (New)': 0,
+                'Expire': -1,
+                'Expire then Create (Create)': 1,
+                'Expire then Create (Expire)': -1,
+                'Create': 0,
+                'Merged': -1,
+                'Mute': -1}
+    
+    # Calculate line count changes for CCX
+    ccx_line_count_cal = ccx_merge.groupby(['Contract Number', 
+                                            'Total Contract Line Count',
+                                            'Actual Action']).agg({'File Row': 'count'}).unstack(fill_value=0)
+    ccx_line_count_cal.columns = ccx_line_count_cal.columns.droplevel(0)  # Flatten the MultiIndex columns
+    ccx_line_count_cal = ccx_line_count_cal.reset_index()
+
+    # Calculate line count changes for TP
+    tp_line_count_cal = tp_merge.groupby(['Contract Number',
+                                          'Total Contract Line Count',
+                                          'Actual Action']).agg({'File Row': 'count'}).unstack(fill_value=0)
+    tp_line_count_cal.columns = tp_line_count_cal.columns.droplevel(0)  # Flatten the MultiIndex columns
+    tp_line_count_cal = tp_line_count_cal.reset_index()
+
+    # Function to calculate delta for each contract
+    def calculate_contract_delta(row, action_map):
+        delta = 0
+        for action, multiplier in action_map.items():
+            if action in row.index and not pd.isna(row[action]):
+                delta += row[action] * multiplier
+        return delta
+
+    # Calculate deltas for CCX
+    if not ccx_line_count_cal.empty:
+        ccx_line_count_cal['Delta'] = ccx_line_count_cal.apply(
+            lambda row: calculate_contract_delta(row, action_map), axis=1
+        )
+        ccx_line_count_cal['Total Contract Line Count (Change Applied)'] = (
+            ccx_line_count_cal['Total Contract Line Count'] + ccx_line_count_cal['Delta']
+        )
+    
+    # Calculate deltas for TP
+    if not tp_line_count_cal.empty:
+        tp_line_count_cal['Delta'] = tp_line_count_cal.apply(
+            lambda row: calculate_contract_delta(row, action_map), axis=1
+        )
+        tp_line_count_cal['Total Contract Line Count (Change Applied)'] = (
+            tp_line_count_cal['Total Contract Line Count'] + tp_line_count_cal['Delta']
+        )
+
+    # Save debug files
+    ccx_line_count_cal.to_excel(os.path.join(current_app.root_path, 'temp_files', 'ccx_operations.xlsx')) #debug
+    tp_line_count_cal.to_excel(os.path.join(current_app.root_path, 'temp_files', 'tp_operations.xlsx')) #debug
+
+    # only exclude the final looks of the contracts after changing
+    # limit by Actual Action, then only take the _change portion of them
+    ccx_final = ccx_merge[ccx_merge['Actual Action'].isin(['No Change', 
+                                                        'Update (New)',
+                                                        'Expire then Create (Create)'])].copy()
+    
+    tp_final = tp_merge[tp_merge['Actual Action'].isin(['Create'])].copy()
+
+    ccx_change_cols = [col for col in ccx_merge.columns if col.endswith('_change')]
+    tp_change_cols = [col for col in tp_merge.columns if col.endswith('_change')]
+    ccx_cols_to_keep = ccx_change_cols + ['ERP Vendor ID', 'Actual Action', 'File Row', 'Contract Number']
+    tp_cols_to_keep = tp_change_cols + ['ERP Vendor ID', 'Actual Action', 'File Row', 'Contract Number']
+    ccx_final = ccx_final[ccx_cols_to_keep].copy()
+    tp_final = tp_final[tp_cols_to_keep].copy()
+    # rename the columns to make them consistent
+    ccx_final.rename(columns=lambda x: x.replace('_change', ''), inplace=True)
+    tp_final.rename(columns=lambda x: x.replace('_change', ''), inplace=True)
+
+    # merge line_count_cal back to ccx_final and tp_final
+    ccx_final_lc = ccx_final.merge(ccx_line_count_cal[['Contract Number', 
+                                                     'Total Contract Line Count (Change Applied)']],
+                                on='Contract Number',
+                                how='left')
+    tp_final_lc = tp_final.merge(tp_line_count_cal[['Contract Number', 
+                                                     'Total Contract Line Count (Change Applied)']],
+                                on='Contract Number',
+                                how='left')
+    
+    df_m_new = tp_final_lc.merge(ccx_final_lc,
+                                      on = ['File Row'],
+                                      how = 'outer',
+                                      suffixes = ('_a', '_b'),
+                                      indicator = True)
+    df_m_new.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m_new.xlsx'), index=False) #debug
+    
+    df_cross_new = df_m_new.groupby(['_merge',
+                                        'Contract Number_a', 
+                                        'Contract Number_b',
+                                        'Total Contract Line Count (Change Applied)_a',
+                                        'Total Contract Line Count (Change Applied)_b'],
+                                        observed = False).agg({'File Row': 'nunique'}).reset_index()
+    df_cross_new.rename(columns = {'File Row': 'Overlapping Count'}, inplace = True)
+    df_cross_new['Overlapping Count'] = df_cross_new['Overlapping Count'].astype(int)
+
+    df_cross_new.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross_new.xlsx'), index=False) #debug
+    
+    return df_cross_new
 
 def generate_network_graph(network_df):
     """
@@ -1759,7 +2080,7 @@ def generate_network_graph(network_df):
         total = self_total_map[n]
         
         ratio = min(1.0, overlap / total) if total > 0 else 0
-        arc_angle = ratio * 2 * np.pi
+        arc_angle = max(0.2 * 2 * np.pi, ratio * 2 * np.pi)
         
         node_size = marker_sizes.get(n, 25)
         
@@ -1828,7 +2149,7 @@ def generate_network_graph(network_df):
         margin=dict(l=15, r=15, t=30, b=80),
         annotations=[
             dict(
-                text="Green nodes: Contract A<br>Blue nodes: Contract B<br>Light green arcs: Self-overlaps proportional to total lines<br>Numbers show overlap/total ratio",
+                text="Green nodes: Contract TP<br>Blue nodes: Contract CCX<br>Light green arcs: Self-overlaps proportional to total lines<br>Numbers show overlap/total ratio",
                 showarrow=False,
                 xref="paper", yref="paper",
                 x=0.5, y=-0.18,
