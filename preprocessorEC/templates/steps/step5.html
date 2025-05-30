@@ -98,13 +98,13 @@
                 <!-- Left graph -->
                 <div class="graph-wrapper">
                     <div class="graph-title">Original Network</div>
-                    <div id="network-graph-left" class="network-graph"></div>
+                    <div id="original-network-graph" class="network-graph" style="height: 500px"></div>
                 </div>
                 
                 <!-- Right graph -->
                 <div class="graph-wrapper">
                     <div class="graph-title">Modified Network</div>
-                    <div id="network-graph-right" class="network-graph"></div>
+                    <div id="modified-network-graph" class="network-graph"></div>
                 </div>
             </div>
         </div>
@@ -118,89 +118,99 @@
 </div>
 
 <!-- Add Plotly.js CDN -->
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 
 <script>
-    document.getElementById('view-changes-btn').addEventListener('click', function() {
-        // Show loading spinner
-        document.getElementById('loading-spinner').style.display = 'block';
-        document.getElementById('results-container').style.display = 'none';
+document.getElementById('view-changes-btn').addEventListener('click', function() {
+    // Show loading spinner
+    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('results-container').style.display = 'none';
+    
+    // Make AJAX request to show_changes endpoint
+    fetch('/change-simulation/show-changes', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading spinner
+        document.getElementById('loading-spinner').style.display = 'none';
         
-        // Make AJAX request to show_changes endpoint
-        fetch('/change-simulation/show-changes', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            credentials: 'same-origin'
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Hide loading spinner
-            document.getElementById('loading-spinner').style.display = 'none';
+        // Display results container
+        document.getElementById('results-container').style.display = 'block';
+        
+        const resultsDiv = document.getElementById('simulation-results');
+        
+        if (data.success) {
+            // Format and display the results
+            let html = '<div class="alert alert-success">Changes loaded successfully</div>';
+            html += '<div class="card mb-3"><div class="card-body">';
+            html += `<p>Number of validated records: <strong>${data.result.validated_count}</strong></p>`;
+            html += `<p>Number of records to be processed: <strong>${data.result.stacked_count}</strong></p>`;
+            html += '</div></div>';
             
-            // Display results container
-            document.getElementById('results-container').style.display = 'block';
+            resultsDiv.innerHTML = html;
             
-            const resultsDiv = document.getElementById('simulation-results');
-            
-            if (data.success) {
-                // Format and display the results
-                let html = '<div class="alert alert-success">Changes loaded successfully</div>';
-                html += '<div class="card mb-3"><div class="card-body">';
-                html += `<p>Number of validated records: <strong>${data.result.validated_count}</strong></p>`;
-                html += `<p>Number of records to be processed: <strong>${data.result.stacked_count}</strong></p>`;
-                html += '</div></div>';
+            // Display network graphs if available
+            if (data.result.original_graph_data && data.result.modified_graph_data) {
+                document.getElementById('network-graph-container').style.display = 'block';
                 
-                resultsDiv.innerHTML = html;
-                
-                // Display network graphs if available
-                if (data.result.graph_data) {
-                    document.getElementById('network-graph-container').style.display = 'block';
-                    
+                try {
                     // Parse the graph data from JSON
-                    const graphData = JSON.parse(data.result.graph_data);
+                    const graphDataOriginal = JSON.parse(data.result.original_graph_data);
+                    const graphDataModified = JSON.parse(data.result.modified_graph_data);
+
+                    // config object
+                    const plotConfig = {
+                        responsive: true,
+                        displayModeBar: true,
+                        modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'],
+                        displaylogo: false,
+                        scrollZoom: true,
+                        doubleClick: 'reset'
+                    };
                     
                     // Create the left Plotly graph
-                    Plotly.newPlot('network-graph-left', graphData.data, graphData.layout, {
-                        responsive: true,
-                        displayModeBar: true,
-                        modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
-                        displaylogo: false
-                    });
+                    Plotly.newPlot('original-network-graph', graphDataOriginal.data, graphDataOriginal.layout, plotConfig)
+                        .then(function() {
+                            // Force pan mode after the plot is created
+                            Plotly.relayout('original-network-graph', {'dragmode': 'pan'});
+                        });
                     
-                    // Create the right Plotly graph (using same data for now as placeholder)
-                    // Modify the layout slightly to differentiate
-                    const rightLayout = JSON.parse(JSON.stringify(graphData.layout)); // Deep copy
-                    rightLayout.title = '';
+                    // Create the right Plotly graph
+                    Plotly.newPlot('modified-network-graph', graphDataModified.data, graphDataModified.layout, plotConfig)
+                        .then(function() {
+                            // Force pan mode after the plot is created
+                            Plotly.relayout('modified-network-graph', {'dragmode': 'pan'});
+                        });
                     
-                    Plotly.newPlot('network-graph-right', graphData.data, rightLayout, {
-                        responsive: true,
-                        displayModeBar: true,
-                        modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
-                        displaylogo: false
-                    });
-                } else {
-                    // Hide graph container if no data
-                    document.getElementById('network-graph-container').style.display = 'none';
+                } catch (error) {
+                    document.getElementById('network-graph-container').innerHTML = 
+                        '<div class="alert alert-warning">Error displaying graphs. Please try again or contact support.</div>';
                 }
             } else {
-                // Display error message
-                resultsDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+                // Hide graph container if no data
                 document.getElementById('network-graph-container').style.display = 'none';
             }
-        })
-        .catch(error => {
-            // Hide loading spinner
-            document.getElementById('loading-spinner').style.display = 'none';
-            
-            // Display error
-            document.getElementById('results-container').style.display = 'block';
-            document.getElementById('simulation-results').innerHTML = 
-                '<div class="alert alert-danger">An error occurred while processing your request. Please try again.</div>';
+        } else {
+            // Display error message
+            resultsDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
             document.getElementById('network-graph-container').style.display = 'none';
-            console.error('Error:', error);
-        });
+        }
+    })
+    .catch(error => {
+        // Hide loading spinner
+        document.getElementById('loading-spinner').style.display = 'none';
+        
+        // Display error
+        document.getElementById('results-container').style.display = 'block';
+        document.getElementById('simulation-results').innerHTML = 
+            '<div class="alert alert-danger">An error occurred while processing your request. Please try again.</div>';
+        document.getElementById('network-graph-container').style.display = 'none';
     });
+});
 </script>

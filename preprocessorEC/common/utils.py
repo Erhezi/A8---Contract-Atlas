@@ -1815,6 +1815,27 @@ def change_simulation_stage3(ccx_merge, tp_merge):
                 delta += row[action] * multiplier
         return delta
 
+    def calculate_detailed_changes(row):
+        changes = {'Insert': 0, 'Update': 0, 'Delete': 0}
+        
+        # Insert: Create actions and Expire then Create (Create)
+        if 'Create' in row.index:
+            changes['Insert'] += row.get('Create', 0)
+        if 'Expire then Create (Create)' in row.index:
+            changes['Insert'] += row.get('Expire then Create (Create)', 0)
+            
+        # Update: Update (New) actions
+        if 'Update (New)' in row.index:
+            changes['Update'] += row.get('Update (New)', 0)
+            
+        # Delete: Expire actions and Expire then Create (Expire)
+        if 'Expire' in row.index:
+            changes['Delete'] += row.get('Expire', 0)
+        if 'Expire then Create (Expire)' in row.index:
+            changes['Delete'] += row.get('Expire then Create (Expire)', 0)
+            
+        return changes
+
     # Calculate deltas for CCX
     if not ccx_line_count_cal.empty:
         ccx_line_count_cal['Delta'] = ccx_line_count_cal.apply(
@@ -1823,6 +1844,10 @@ def change_simulation_stage3(ccx_merge, tp_merge):
         ccx_line_count_cal['Total Contract Line Count (Change Applied)'] = (
             ccx_line_count_cal['Total Contract Line Count'] + ccx_line_count_cal['Delta']
         )
+        detailed_changes_ccx = ccx_line_count_cal.apply(calculate_detailed_changes, axis=1)
+        ccx_line_count_cal['Insert_Count'] = detailed_changes_ccx.apply(lambda x: x['Insert'])
+        ccx_line_count_cal['Update_Count'] = detailed_changes_ccx.apply(lambda x: x['Update'])
+        ccx_line_count_cal['Delete_Count'] = detailed_changes_ccx.apply(lambda x: x['Delete'])
     
     # Calculate deltas for TP
     if not tp_line_count_cal.empty:
@@ -1832,6 +1857,10 @@ def change_simulation_stage3(ccx_merge, tp_merge):
         tp_line_count_cal['Total Contract Line Count (Change Applied)'] = (
             tp_line_count_cal['Total Contract Line Count'] + tp_line_count_cal['Delta']
         )
+        detailed_change_tp = tp_line_count_cal.apply(calculate_detailed_changes, axis=1)
+        tp_line_count_cal['Insert_Count'] = detailed_change_tp.apply(lambda x: x['Insert'])
+        tp_line_count_cal['Update_Count'] = detailed_change_tp.apply(lambda x: x['Update'])
+        tp_line_count_cal['Delete_Count'] = detailed_change_tp.apply(lambda x: x['Delete'])
 
     # Save debug files
     ccx_line_count_cal.to_excel(os.path.join(current_app.root_path, 'temp_files', 'ccx_operations.xlsx')) #debug
@@ -1841,7 +1870,8 @@ def change_simulation_stage3(ccx_merge, tp_merge):
     # limit by Actual Action, then only take the _change portion of them
     ccx_final = ccx_merge[ccx_merge['Actual Action'].isin(['No Change', 
                                                         'Update (New)',
-                                                        'Expire then Create (Create)'])].copy()
+                                                        'Expire then Create (Create)',
+                                                        'Expire'])].copy()
     
     tp_final = tp_merge[tp_merge['Actual Action'].isin(['Create'])].copy()
 
@@ -1855,40 +1885,75 @@ def change_simulation_stage3(ccx_merge, tp_merge):
     ccx_final.rename(columns=lambda x: x.replace('_change', ''), inplace=True)
     tp_final.rename(columns=lambda x: x.replace('_change', ''), inplace=True)
 
+    # Merge line count calculations with change details
+    ccx_merge_cols = ['Contract Number', 'Total Contract Line Count (Change Applied)', 
+                      'Insert_Count', 'Update_Count', 'Delete_Count']
+    tp_merge_cols = ['Contract Number', 'Total Contract Line Count (Change Applied)', 
+                     'Insert_Count', 'Update_Count', 'Delete_Count']
+
     # merge line_count_cal back to ccx_final and tp_final
-    ccx_final_lc = ccx_final.merge(ccx_line_count_cal[['Contract Number', 
-                                                     'Total Contract Line Count (Change Applied)']],
+    ccx_final_lc = ccx_final.merge(ccx_line_count_cal[ccx_merge_cols],
                                 on='Contract Number',
                                 how='left')
-    tp_final_lc = tp_final.merge(tp_line_count_cal[['Contract Number', 
-                                                     'Total Contract Line Count (Change Applied)']],
+    tp_final_lc = tp_final.merge(tp_line_count_cal[tp_merge_cols],
                                 on='Contract Number',
                                 how='left')
+    
+    # fillna for the line count columns
+    for col in ['Insert_Count', 'Update_Count', 'Delete_Count']:
+        ccx_final_lc[col] = ccx_final_lc[col].fillna(0).astype(int)
+        tp_final_lc[col] = tp_final_lc[col].fillna(0).astype(int)
     
     df_m_new = tp_final_lc.merge(ccx_final_lc,
                                       on = ['File Row'],
                                       how = 'outer',
                                       suffixes = ('_a', '_b'),
                                       indicator = True)
-    df_m_new.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m_new.xlsx'), index=False) #debug
     
-    df_cross_new = df_m_new.groupby(['_merge',
-                                        'Contract Number_a', 
-                                        'Contract Number_b',
-                                        'Total Contract Line Count (Change Applied)_a',
-                                        'Total Contract Line Count (Change Applied)_b'],
-                                        observed = False).agg({'File Row': 'nunique'}).reset_index()
-    df_cross_new.rename(columns = {'File Row': 'Overlapping Count'}, inplace = True)
-    df_cross_new['Overlapping Count'] = df_cross_new['Overlapping Count'].astype(int)
+    df_m_new.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m_new.xlsx'), index=False) #debug
+
+    # fillna before groupby
+    df_m_new['Contract Number_a'] = df_m_new['Contract Number_a'].fillna('').astype(str).str.strip().str.upper()
+    df_m_new['Contract Number_b'] = df_m_new['Contract Number_b'].fillna('').astype(str).str.strip().str.upper()
+    # Fill change count columns
+    for suffix in ['_a', '_b']:
+        for col in ['Insert_Count', 'Update_Count', 'Delete_Count', 'Total Contract Line Count (Change Applied)']:
+            df_m_new[f'{col}{suffix}'] = df_m_new[f'{col}{suffix}'].fillna(0).astype(int)
+
+    groupby_cols = ['_merge']
+    for suffix in ['_a', '_b']:
+        for col in ['Contract Number', 'Total Contract Line Count (Change Applied)',
+                    'Insert_Count', 'Update_Count', 'Delete_Count']:
+            groupby_cols.append(f'{col}{suffix}')  
+    
+    df_cross_new = df_m_new.groupby(groupby_cols,
+                                    observed = True).agg({'File Row': 'nunique'}).reset_index()
+    df_cross_new.rename(columns = {'File Row': 'Deltas'}, inplace = True)
+    df_cross_new['Overlapping Count'] = df_cross_new.apply(lambda x: x['Delta'] if x['_merge'] == 'both' else 0, axis=1)
+
+    df_cross_new.rename(columns = {'Total Contract Line Count (Change Applied)_a': 'Total Contract Line Count_a',
+                                   'Total Contract Line Count (Change Applied)_b': 'Total Contract Line Count_b'}, inplace = True)
 
     df_cross_new.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross_new.xlsx'), index=False) #debug
     
     return df_cross_new
 
-def generate_network_graph(network_df):
+def generate_network_graph(network_df, 
+                           fixed_pos = None,
+                           show_IUD = False):
     """
     Generate a network graph from the network DataFrame using Plotly
     Returns JSON string suitable for frontend consumption
+
+    Args:
+        network_df: DataFrame containing network data with columns:
+                    'Contract Number_a', 'Total Contract Line Count_a',
+                    'Contract Number_b', 'Total Contract Line Count_b',
+                    'Overlapping Count'
+                    (for modified network, we have additional input)
+                    'Delete_Count_a', 'Insert_Count_a', 'Update_Count_a',
+                    'Delete_Count_b', 'Insert_Count_b', 'Update_Count_b'
+        fixed_pos: Optional dictionary of fixed positions for nodes
     """
     if network_df.empty:
         return None
@@ -1911,6 +1976,39 @@ def generate_network_graph(network_df):
     df_nodes = df_nodes[df_nodes['total'] > 0]
     
     node_sizes_map = dict(zip(df_nodes['contract'], df_nodes['total']))
+
+    # change information mapping if show_IUD is True
+    change_info_map = {}
+    if show_IUD:
+        # Process contract_a changes
+        for _, row in network_df.iterrows():
+            contract_a = row['Contract Number_a']
+            if contract_a and contract_a != '':
+                insert_a = row.get('Insert_Count_a', 0)
+                update_a = row.get('Update_Count_a', 0)
+                delete_a = row.get('Delete_Count_a', 0)
+                
+                if contract_a not in change_info_map:
+                    change_info_map[contract_a] = {'Insert': 0, 'Update': 0, 'Delete': 0}
+                
+                change_info_map[contract_a]['Insert'] += insert_a
+                change_info_map[contract_a]['Update'] += update_a
+                change_info_map[contract_a]['Delete'] += delete_a
+        
+        # Process contract_b changes
+        for _, row in network_df.iterrows():
+            contract_b = row['Contract Number_b']
+            if contract_b and contract_b != '':
+                insert_b = row.get('Insert_Count_b', 0)
+                update_b = row.get('Update_Count_b', 0)
+                delete_b = row.get('Delete_Count_b', 0)
+                
+                if contract_b not in change_info_map:
+                    change_info_map[contract_b] = {'Insert': 0, 'Update': 0, 'Delete': 0}
+                
+                change_info_map[contract_b]['Insert'] += insert_b
+                change_info_map[contract_b]['Update'] += update_b
+                change_info_map[contract_b]['Delete'] += delete_b
 
     # Track which contracts are contract_a for coloring
     a_contracts = set(network_df['Contract Number_a'])
@@ -1938,7 +2036,18 @@ def generate_network_graph(network_df):
             G.add_edge(u, v, weight=w)
 
     # Circular layout for nodes
-    pos = nx.circular_layout(G)
+    if fixed_pos is not None:
+        # Use fixed positions if provided
+        pos = {}
+        for node in G.nodes():
+            if node in fixed_pos:
+                pos[node] = fixed_pos[node]
+            else:
+                # if new nodes not in fixed_pos, assign circular layout with no overlap
+                temp_pos = nx.circular_layout([node])
+                pos[node] = temp_pos[node]
+    else:
+        pos = nx.circular_layout(G)
 
     # Scale node sizes to a 10–40 range with better NaN handling
     sizes = list(node_sizes_map.values())
@@ -2030,10 +2139,10 @@ def generate_network_graph(network_df):
         if n in a_contracts:
             if n in self_map:
                 # Self-looping contract_a nodes: translucent teal (mix of green and blue)
-                node_colors.append('rgba(30, 180, 140, 0.8)')  # Teal with transparency
+                node_colors.append('rgba(30, 200, 160, 0.9)')  # Teal with transparency
             else:
                 # Non-self-looping contract_a nodes: translucent green
-                node_colors.append('rgba(46, 160, 44, 0.7)')  # Green with transparency
+                node_colors.append('rgba(50, 210, 45, 0.9)')  # Green with transparency
         else:
             # Contract_b nodes: skyblue (no change)
             node_colors.append('skyblue')
@@ -2042,11 +2151,35 @@ def generate_network_graph(network_df):
     safe_marker_sizes = [marker_sizes.get(n, 25) for n in G.nodes()]
     safe_node_sizes = [int(node_sizes_map.get(n, 1)) for n in G.nodes()]
 
+    # Enhanced hover text with change information if show_IUD is True
+    node_hover_texts = []
+    node_labels = []
+    for i, n in enumerate(G.nodes()):
+        base_text = f"{n}<br>Total lines: {safe_node_sizes[i]}"
+        
+        if show_IUD and n in change_info_map:
+            changes = change_info_map[n]
+            insert_count = changes.get('Insert', 0)
+            update_count = changes.get('Update', 0)
+            delete_count = changes.get('Delete', 0)
+
+            change_text = f"<br>Changes: I:{insert_count} U:{update_count} D:{delete_count}"
+            base_text += change_text
+
+            node_labels.append(f"<span style='font-size:11px'>{n}</span><br><span style='font-size:10px'>I:{insert_count}, U:{update_count}, D:{delete_count}</span>")
+        elif show_IUD:
+            base_text += "<br>Changes: I:0 U:0 D:0"
+            node_labels.append(f"<span style='font-size:11px'>{n}</span><br><span style='font-size:10px'>I:0, U:0, D:0</span>")
+        else:
+            node_labels.append(str(n))
+        
+        node_hover_texts.append(base_text)
+
     node_trace = go.Scatter(
         x=[pos[n][0] for n in G.nodes()],
         y=[pos[n][1] for n in G.nodes()],
         mode='markers+text',
-        text=list(G.nodes()),
+        text=node_labels,
         textposition='bottom center',
         marker=dict(
             size=safe_marker_sizes,
@@ -2054,7 +2187,8 @@ def generate_network_graph(network_df):
             line=dict(width=2, color='#333')
         ),
         hoverinfo='text',
-        hovertext=[f"{n}<br>Total lines: {safe_node_sizes[i]}" for i, n in enumerate(G.nodes())]
+        hovertext=node_hover_texts,
+        textfont=dict(size=11)
     )
 
 
@@ -2139,6 +2273,7 @@ def generate_network_graph(network_df):
         hoverinfo='text',
         hovertext=ring_hover_texts
     )
+
 
     # Create figure
     fig_data = edge_traces + arc_traces + [label_trace, ring_background_trace, ring_label_trace, node_trace]
