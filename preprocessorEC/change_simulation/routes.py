@@ -69,21 +69,44 @@ def show_changes():
         ccx_merge, tp_merge = apply_change(data_change_df, validated_df, stacked_df)
         modified_network_df = change_simulation_stage3(ccx_merge, tp_merge)
 
-        all_contracts = set()
-        if not origianl_network_df.empty:
-            all_contracts.update(origianl_network_df['Contract Number_a'].unique())
-            all_contracts.update(origianl_network_df['Contract Number_b'].unique())
-        if not modified_network_df.empty:
-            all_contracts.update(modified_network_df['Contract Number_a'].unique())
-            all_contracts.update(modified_network_df['Contract Number_b'].unique())
-        # pop out nan or ''
-        all_contracts.discard('')
-        all_contracts.discard(None)
+        # Collect contracts and group them by type
+        contract_a_set = set()
+        contract_b_set = set()
 
-        all_contracts = list(all_contracts)
-        if all_contracts:
+        if not origianl_network_df.empty:
+            contract_a_set.update(origianl_network_df['Contract Number_a'].dropna().astype(str))
+            contract_b_set.update(origianl_network_df['Contract Number_b'].dropna().astype(str))
+
+        if not modified_network_df.empty:
+            contract_a_set.update(modified_network_df['Contract Number_a'].dropna().astype(str))
+            contract_b_set.update(modified_network_df['Contract Number_b'].dropna().astype(str))
+
+        # Remove empty strings and None values
+        contract_a_set.discard('')
+        contract_a_set.discard('nan')
+        contract_b_set.discard('')
+        contract_b_set.discard('nan')
+
+        # Sort each group individually for consistency
+        contract_a_list = sorted(list(contract_a_set))
+        contract_b_list = sorted(list(contract_b_set))
+
+        # Combine with Contract A first, then Contract B
+        # This ensures Contract A nodes are grouped together in the first half of the circle
+        # and Contract B nodes are grouped together in the second half
+        all_contracts = contract_a_list + contract_b_list
+
+        # Remove duplicates while preserving order (in case a contract appears in both A and B)
+        seen = set()
+        all_contracts_ordered = []
+        for contract in all_contracts:
+            if contract not in seen:
+                all_contracts_ordered.append(contract)
+                seen.add(contract)
+
+        if all_contracts_ordered:
             master_G = nx.Graph()
-            master_G.add_nodes_from(all_contracts)
+            master_G.add_nodes_from(all_contracts_ordered)
             master_pos = nx.circular_layout(master_G)
         else:
             master_pos = {}

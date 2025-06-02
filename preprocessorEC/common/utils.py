@@ -1595,7 +1595,8 @@ def actual_action_on_update_row(row, mode = None):
 
 def final_data_helper(row, group = 'keep', 
                       actual_action = None,
-                      quick_check = None):
+                      quick_check = None,
+                      primary_action = None):
     if group == 'keep':
         return {
             'File Row': row['File Row'],
@@ -1611,7 +1612,9 @@ def final_data_helper(row, group = 'keep',
             'Effective Date': row['Effective Date_keep'],
             'Expiration Date': row['Expiration Date_keep'],
             'Actual Action': actual_action,
-            'Quick Check': quick_check
+            'Quick Check': quick_check,
+            'Primary Action': primary_action,
+            'Group': 'Keep'
         }
     elif group == 'drop':
         return {
@@ -1628,7 +1631,9 @@ def final_data_helper(row, group = 'keep',
             'Effective Date': row['Effective Date_drop'],
             'Expiration Date': row['Expiration Date_drop'],
             'Actual Action': actual_action,
-            'Quick Check': quick_check
+            'Quick Check': quick_check,
+            'Primary Action': primary_action,
+            'Group': 'Drop'
         }
     else:
         raise ValueError("Invalid group specified. Use 'keep' or 'drop'.")
@@ -1651,8 +1656,9 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     actual_action = []
     quick_check = []
     final_data = []
+    update_rows = set()
     for i, row in df_m.iterrows():
-        a_action, q_check = actual_action_on_update_row(row, mode = update_action_mode)
+        a_action, q_check = actual_action_on_update_row(row, mode = update_action_mode) #we can choose different action mode here
         if row['Intended Action'] == 'Upsert':
             if row['Dataset_keep'] == 'TP':
                 if row['Contract Number_keep'] == row['Contract Number_drop']:
@@ -1660,53 +1666,62 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
                     primary_action.append('Update')
                     actual_action.append(a_action)
                     quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = a_action, quick_check = q_check))
+                    update_rows.add(row['File Row']) # if tp row is qualified for update, then we cannot create it later when it has more matches
+                    final_data.append(final_data_helper(row, group = 'keep', actual_action = a_action, quick_check = q_check, primary_action = 'Update'))
                     if a_action == 'Expire then Create (Create)':
-                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire then Create (Expire)', quick_check = q_check))
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire then Create (Expire)', quick_check = q_check, primary_action = 'Update'))
                     if a_action == 'Update (New)':
-                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Update (Existing)', quick_check = q_check))
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Update (Existing)', quick_check = q_check, primary_action = 'Update'))
                 else:
+                    # for ccx side, we expire the row
                     primary_action.append('Expire CCX')
                     actual_action.append('Expire')
                     quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check))
+                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
+                    # for tp side, we create new row (this can conflict with update row above)
+                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Create', quick_check = q_check, primary_action = 'Create TP'))
             elif row['Dataset_keep'] == 'CCX':
                 if row['Dataset_drop'] == 'TP':
                     # if the drop contract is from TP, then basically we choose to not use the TP version but the CCX version
                     primary_action.append('Mute TP')
                     actual_action.append('Mute')
                     quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Mute', quick_check = q_check))
+                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Mute', quick_check = q_check, primary_action = 'Mute TP'))
                 else: 
                     primary_action.append('Expire CCX')
                     actual_action.append('Expire')
                     quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check))
+                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
         
         # when intended action is 'Expire', we simply expire the contract from TP and keep other thing untouched
         else:
             primary_action.append('Expire CCX')
             actual_action.append('Expire')
             quick_check.append(q_check)
-            final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check))
-
-    df_m['Primary Action'] = primary_action
-    df_m['Actual Action'] = actual_action
-    df_m['Quick Check'] = quick_check
-
-    df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index=False) #debug
+            final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
+    
+    # df_m['Primary Action'] = primary_action
+    # df_m['Actual Action'] = actual_action
+    # df_m['Quick Check'] = quick_check
 
     data_change_df1 = pd.DataFrame(final_data)
+    # if update_row has value then we need to solve potential conflict
+    if len(update_rows) > 0:
+        create_tp_to_remove = data_change_df1[(data_change_df1['Actual Action'] == 'Create') & (data_change_df1['File Row'].isin(update_rows))].index
+        data_change_df1.drop(index=create_tp_to_remove, inplace=True)
+
     data_change_df1.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number', 'Actual Action'], keep='first', inplace=True)
 
     # merge the net new item from TP to data_change_df
     all_file_row = set(validated_df['File Row'])
     keep_file_row = set(keep_df['File Row'])
-    net_new_file_row = all_file_row.difference(keep_file_row)
+    net_new_file_row = (all_file_row.difference(keep_file_row)).intersection(upsert_file_row)
     net_new_df = validated_df[validated_df['File Row'].isin(net_new_file_row)].copy()
     net_new_df['Dataset'] = 'TP'
     net_new_df['Actual Action'] = 'Create'
     net_new_df['Quick Check'] = 'x'  # No quick check for new items
+    net_new_df['Primary Action'] = 'Create'
+    net_new_df['Group'] = 'Keep'  # New items are considered as 'Keep'
     data_change_df2 = net_new_df[list(data_change_df1.columns)].copy()
 
     # combine the two dataframes
@@ -1722,7 +1737,7 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
             data_change_show_df.at[i, 'Effective Date'] = tomorrow
 
     data_change_df = data_change_show_df[~data_change_show_df['Actual Action'].isin(['Update (Existing)'])].copy()
-    data_change_df.drop(columns = ['Dataset', 'Quick Check'], inplace = True)
+    data_change_df.drop(columns = ['Dataset', 'Quick Check', 'Primary Action', 'Group'], inplace = True)
     
     data_change_show_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'data_change_show_df.xlsx'), index=False) #debug
 
@@ -1752,7 +1767,12 @@ def apply_change(data_change_df,
         if col.endswith('_change'):
             original_col = col.replace('_change', '_original')
             ccx_merge.loc[:, col] = ccx_merge[col].fillna(ccx_merge[original_col])
-
+    
+    # if actual action is Expire or Create then Expire (Expire), we need to break the file row link
+    ccx_merge.loc[:, 'File Row Modified'] = ccx_merge['File Row']
+    ccx_merge.loc[ccx_merge['Actual Action'] == 'Expire', 'File Row Modified'] = np.nan
+    ccx_merge.loc[ccx_merge['Actual Action'] == 'Expire then Create (Expire)', 'File Row Modified'] = np.nan
+       
     ccx_merge.to_excel(os.path.join(current_app.root_path, 'temp_files', 'ccx_merge.xlsx'), index=False) #debug
     
     tp_merge = validated_df.merge(tp_change_df,
@@ -1768,6 +1788,10 @@ def apply_change(data_change_df,
         if col.endswith('_change'):
             original_col = col.replace('_change', '_original')
             tp_merge.loc[:, col] = tp_merge[col].fillna(tp_merge[original_col])
+
+    # if actual action is not Create, we need to break the file row link
+    tp_merge.loc[:, 'File Row Modified'] = tp_merge['File Row']
+    tp_merge.loc[tp_merge['Actual Action'] != 'Create', 'File Row Modified'] = np.nan
     
     tp_merge.to_excel(os.path.join(current_app.root_path, 'temp_files', 'tp_merge.xlsx'), index=False) #debug
 
@@ -1877,8 +1901,8 @@ def change_simulation_stage3(ccx_merge, tp_merge):
 
     ccx_change_cols = [col for col in ccx_merge.columns if col.endswith('_change')]
     tp_change_cols = [col for col in tp_merge.columns if col.endswith('_change')]
-    ccx_cols_to_keep = ccx_change_cols + ['ERP Vendor ID', 'Actual Action', 'File Row', 'Contract Number']
-    tp_cols_to_keep = tp_change_cols + ['ERP Vendor ID', 'Actual Action', 'File Row', 'Contract Number']
+    ccx_cols_to_keep = ccx_change_cols + ['ERP Vendor ID', 'Actual Action', 'File Row', 'Contract Number', 'File Row Modified']
+    tp_cols_to_keep = tp_change_cols + ['ERP Vendor ID', 'Actual Action', 'File Row', 'Contract Number', 'File Row Modified']
     ccx_final = ccx_final[ccx_cols_to_keep].copy()
     tp_final = tp_final[tp_cols_to_keep].copy()
     # rename the columns to make them consistent
@@ -1905,7 +1929,7 @@ def change_simulation_stage3(ccx_merge, tp_merge):
         tp_final_lc[col] = tp_final_lc[col].fillna(0).astype(int)
     
     df_m_new = tp_final_lc.merge(ccx_final_lc,
-                                      on = ['File Row'],
+                                      on = ['File Row Modified'],
                                       how = 'outer',
                                       suffixes = ('_a', '_b'),
                                       indicator = True)
@@ -1927,9 +1951,9 @@ def change_simulation_stage3(ccx_merge, tp_merge):
             groupby_cols.append(f'{col}{suffix}')  
     
     df_cross_new = df_m_new.groupby(groupby_cols,
-                                    observed = True).agg({'File Row': 'nunique'}).reset_index()
-    df_cross_new.rename(columns = {'File Row': 'Deltas'}, inplace = True)
-    df_cross_new['Overlapping Count'] = df_cross_new.apply(lambda x: x['Delta'] if x['_merge'] == 'both' else 0, axis=1)
+                                    observed = True).agg({'File Row Modified': 'nunique'}).reset_index()
+    df_cross_new.rename(columns = {'File Row Modified': 'Deltas'}, inplace = True)
+    df_cross_new['Overlapping Count'] = df_cross_new.apply(lambda x: x['Deltas'] if x['_merge'] == 'both' else 0, axis=1)
 
     df_cross_new.rename(columns = {'Total Contract Line Count (Change Applied)_a': 'Total Contract Line Count_a',
                                    'Total Contract Line Count (Change Applied)_b': 'Total Contract Line Count_b'}, inplace = True)
@@ -1938,22 +1962,13 @@ def change_simulation_stage3(ccx_merge, tp_merge):
     
     return df_cross_new
 
+
 def generate_network_graph(network_df, 
                            fixed_pos = None,
                            show_IUD = False):
     """
     Generate a network graph from the network DataFrame using Plotly
     Returns JSON string suitable for frontend consumption
-
-    Args:
-        network_df: DataFrame containing network data with columns:
-                    'Contract Number_a', 'Total Contract Line Count_a',
-                    'Contract Number_b', 'Total Contract Line Count_b',
-                    'Overlapping Count'
-                    (for modified network, we have additional input)
-                    'Delete_Count_a', 'Insert_Count_a', 'Update_Count_a',
-                    'Delete_Count_b', 'Insert_Count_b', 'Update_Count_b'
-        fixed_pos: Optional dictionary of fixed positions for nodes
     """
     if network_df.empty:
         return None
@@ -1972,8 +1987,9 @@ def generate_network_graph(network_df,
     df_nodes = pd.concat([df_a, df_b]).drop_duplicates('contract')
     
     # Clean and convert node sizes, handling NaN and invalid values
-    df_nodes['total'] = pd.to_numeric(df_nodes['total'], errors='coerce').fillna(1)
-    df_nodes = df_nodes[df_nodes['total'] > 0]
+    df_nodes['total'] = pd.to_numeric(df_nodes['total'], errors='coerce').fillna(0)
+    # CHANGE: Keep nodes with 0 total instead of filtering them out
+    # df_nodes = df_nodes[df_nodes['total'] > 0]  # Remove this line
     
     node_sizes_map = dict(zip(df_nodes['contract'], df_nodes['total']))
 
@@ -2028,12 +2044,17 @@ def generate_network_graph(network_df,
     
     # Add all contract nodes first (this ensures isolated nodes are included)
     for node in node_sizes_map.keys():
-        G.add_node(node)
+        if str(node).strip() != '' and str(node).strip().lower() != 'nan':
+            G.add_node(node)
     
     # Then add edges (this won't affect isolated nodes)
     for u, v, w in edges:
         if u in node_sizes_map and v in node_sizes_map:  # Ensure both nodes exist
             G.add_edge(u, v, weight=w)
+    
+    # Check if graph is empty after filtering
+    if len(G.nodes()) == 0:
+        return None
 
     # Circular layout for nodes
     if fixed_pos is not None:
@@ -2051,28 +2072,35 @@ def generate_network_graph(network_df,
 
     # Scale node sizes to a 10–40 range with better NaN handling
     sizes = list(node_sizes_map.values())
-    if len(sizes) > 1:
-        # Ensure all sizes are valid numbers
-        valid_sizes = [s for s in sizes if not pd.isna(s) and s > 0]
-        if valid_sizes:
-            min_size, max_size = np.log(min(valid_sizes)), np.log(max(valid_sizes))
-            marker_sizes = {}
-            for n in G.nodes():
-                node_total = node_sizes_map.get(n, 1)
-                if pd.isna(node_total) or node_total <= 0:
-                    node_total = 1  # Default size for invalid values
-                
+    # CHANGE: Only consider sizes > 0 for scaling, but handle 0 sizes separately
+    valid_sizes = [s for s in sizes if not pd.isna(s) and s > 0]
+    
+    marker_sizes = {}
+    if len(valid_sizes) > 1:
+        min_size, max_size = np.log(min(valid_sizes)), np.log(max(valid_sizes))
+        for n in G.nodes():
+            node_total = node_sizes_map.get(n, 0)
+            if pd.isna(node_total):
+                node_total = 0
+            
+            # CHANGE: Handle 0 sizes specially
+            if node_total == 0:
+                marker_sizes[n] = 15  # Fixed small size for 0-count nodes
+            else:
                 if max_size > min_size:
                     scaled_size = 10 + (np.log(node_total) - min_size) / (max_size - min_size) * 30
                 else:
                     scaled_size = 25  # Default size when all nodes are the same size
                 
-                # Ensure the final size is a valid number
                 marker_sizes[n] = max(10, min(40, scaled_size)) if not pd.isna(scaled_size) else 25
-        else:
-            marker_sizes = {n: 25 for n in G.nodes()}
     else:
-        marker_sizes = {n: 25 for n in G.nodes()}
+        # Handle case where all valid sizes are the same or no valid sizes
+        for n in G.nodes():
+            node_total = node_sizes_map.get(n, 0)
+            if pd.isna(node_total) or node_total == 0:
+                marker_sizes[n] = 15  # Fixed small size for 0-count nodes
+            else:
+                marker_sizes[n] = 25  # Default size
 
     # Edge traces
     edge_traces = []
@@ -2133,10 +2161,15 @@ def generate_network_graph(network_df,
     except Exception as e:
         print(f"Error processing self-loops: {e}")
 
-    # Color nodes: green for contract_a, skyblue for others
+    # CHANGE: Color nodes with special handling for 0-count nodes
     node_colors = []
     for n in G.nodes():
-        if n in a_contracts:
+        node_total = node_sizes_map.get(n, 0)
+        
+        # CHANGE: Red color for nodes with 0 total line count
+        if node_total == 0:
+            node_colors.append('red')
+        elif n in a_contracts:
             if n in self_map:
                 # Self-looping contract_a nodes: translucent teal (mix of green and blue)
                 node_colors.append('rgba(30, 200, 160, 0.9)')  # Teal with transparency
@@ -2149,7 +2182,8 @@ def generate_network_graph(network_df,
 
     # Node trace with safe size values
     safe_marker_sizes = [marker_sizes.get(n, 25) for n in G.nodes()]
-    safe_node_sizes = [int(node_sizes_map.get(n, 1)) for n in G.nodes()]
+    # CHANGE: Handle 0 sizes in safe_node_sizes display
+    safe_node_sizes = [int(node_sizes_map.get(n, 0)) for n in G.nodes()]
 
     # Enhanced hover text with change information if show_IUD is True
     node_hover_texts = []
@@ -2191,7 +2225,7 @@ def generate_network_graph(network_df,
         textfont=dict(size=11)
     )
 
-
+    # Rest of the function remains the same...
     self_total_map = {}
     for n in self_map.keys():
         # Find the corresponding row in network_df for this contract
@@ -2219,17 +2253,12 @@ def generate_network_graph(network_df,
         node_size = marker_sizes.get(n, 25)
         
         # Calculate radius based on node size with proper scaling
-        # Convert marker size to data coordinates (marker size is in pixels)
-        # Since your node sizes range from 10-40, we want rings to be slightly larger
         base_radius = node_size / 200  # Convert pixel size to data coordinates
         min_radius = 0.12
         radius_buffer = base_radius * 0.15  # 15% larger than node
         
         # Ensure minimum radius and scale appropriately
         radius = max(min_radius, base_radius + radius_buffer)
-        
-        # Alternative simpler approach - directly scale with node size
-        # radius = max(0.12, node_size / 800 + 0.03)
         
         theta = np.linspace(0, arc_angle, 100)
         x_center, y_center = pos[n]
@@ -2274,7 +2303,6 @@ def generate_network_graph(network_df,
         hovertext=ring_hover_texts
     )
 
-
     # Create figure
     fig_data = edge_traces + arc_traces + [label_trace, ring_background_trace, ring_label_trace, node_trace]
     
@@ -2284,7 +2312,7 @@ def generate_network_graph(network_df,
         margin=dict(l=15, r=15, t=30, b=80),
         annotations=[
             dict(
-                text="Green nodes: Contract TP<br>Blue nodes: Contract CCX<br>Light green arcs: Self-overlaps proportional to total lines<br>Numbers show overlap/total ratio",
+                text="Green nodes: Contract TP<br>Blue nodes: Contract CCX<br>Light green arcs: Self-overlaps proportional to total lines<br>Numbers show overlap/total ratio<br>Red nodes: Contracts with 0 lines",
                 showarrow=False,
                 xref="paper", yref="paper",
                 x=0.5, y=-0.18,
