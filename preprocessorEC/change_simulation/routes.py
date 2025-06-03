@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, flash, current_app, redirect, url_for
 from flask_login import login_required, current_user
-from ..common.session import get_validated_data, get_deduped_results, get_infor_cl_matches
-from ..common.utils import make_infor_upload_stack, apply_change, change_simulation_stage1, change_simulation_stage2, change_simulation_stage3, generate_network_graph
+from ..common.session import get_validated_data, get_deduped_results, get_uom_qoe_validation
+from ..common.utils import compute_changes_to_show, apply_change, change_simulation_stage1, change_simulation_stage2, change_simulation_stage3, generate_network_graph
 import os
 import json
 import pandas as pd
@@ -18,10 +18,16 @@ def show_changes():
     try:
         user_id = current_user.id
         
-        # Get validated data from session
-        validated_data = get_validated_data(user_id)
-        deduped_results = get_deduped_results(user_id)
+        # Get update_action_mode from request, default to 'new'
+        request_data = request.get_json() or {}
+        update_action_mode = request_data.get('update_action_mode', 'new')
         
+        # Validate update_action_mode parameter
+        if update_action_mode not in ['new', 'legacy']:
+            update_action_mode = 'new'  # Default to 'new' if invalid value
+        
+        # Get validated data from session
+        validated_data = get_validated_data(user_id)       
         if not validated_data:
             flash("No validated data found. Please complete the previous steps first.", "danger")
             return jsonify({
@@ -30,44 +36,59 @@ def show_changes():
             }), 400
         
         # Get stacked data from step3 (deduplication results)
+        # this can be empty if there is no duplicates found, and the stacked data in this case need to be handled gracefully
         deduped_results = get_deduped_results(user_id)
         if not deduped_results:
-            flash("No stacked data found. Please complete the deduplication step first.", "danger")
-            return jsonify({
-                'success': False,
-                'message': "No stacked data found. Please complete the deduplication step first."
-            }), 400
+            flash("No deduplicated results found. Please complete the deduplication step first.", "warning")
+            deduped_results = {}
+            # stacked_df in this case will simply take the validated data as the base, and we will map the columns to fit the stacked_df's structure
+            stacked_data = []
+            for item in validated_data:
+                row = {
+                    'Buyer Part Num': item.get('Buyer Part Num', ''),
+                    'Contract Number': item.get('Contract Number', ''),
+                    'Contract Price': item.get('Contract Price', ''),
+                    'Dataset': 'TP',
+                    'Description': item.get('Description', ''),
+                    'EA Price': 0.0,
+                    'ERP Vendor ID': item.get('ERP Vendor ID', ''),
+                    'Effective Date': item.get('Effective Date', ''),
+                    'Expiration Date': item.get('Expiration Date', ''),
+                    'File Row': item.get('File Row', ''),
+                    'Keep': True,
+                    'Mfg Part Num': item.get('Mfg Part Num', ''),
+                    'Pair ID': 'tcx',
+                    'QOE': item.get('QOE', ''),
+                    'Rank': 1,
+                    'Reduced Mfg Part Num': item.get('Reduced Mfg Part Num', ''),
+                    'Source Contract Type': item.get('Source Contract Type', ''),
+                    'Total Contract Line Count': 0,
+                    'UOM': item.get('UOM', ''),
+                    'Vendor Part Num': item.get('Vendor Part Num', '')
+                }
+                stacked_data.append(row)
+            deduped_results['stacked_data'] = stacked_data
         
-        # # get merged df from step4 (infor_cl_matching results)
-        # merged_results = get_infor_cl_matches(user_id)
-        # if not merged_results:
-        #     flash("No merged data found. Please complete the item matching step first.", "danger")
-        #     return jsonify({
-        #         'success': False,
-        #         'message': "No merged data found. Please complete the item matching step first."
-        #     }), 400
+        # get uom_qoe_validation restults from step4 (uom_qoe_validation)
+        # this can be empty if there nothing to be validated (no item master matching found for items)
+        uom_qoe_validation = get_uom_qoe_validation(user_id)
+        if not uom_qoe_validation:
+            flash("No UOM/QOE validation results found. Please complete the validation step first.", "warning")
+            uom_qoe_validation = {}
         
         # Convert data to DataFrames
         validated_df = pd.DataFrame(validated_data)
         # The stacked data should be the deduplicated results from step3
         stacked_df = pd.DataFrame(deduped_results.get('stacked_data', []))
+        # analyzed_df from uom_qoe_validation
+        analyzed_df = pd.DataFrame(uom_qoe_validation.get('analyzed_df', []))
 
-        # # the merged data should be the infor_cl_matching results from step4, transform to make it match stacked_df format
-        # stacked_df_b = make_infor_upload_stack(merged_results.get('merged_df', []))
-
-        # output to temp_files dir for debugging
-        validated_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"validated_data_{user_id}.xlsx"), index=False)
-        stacked_df.to_excel(os.path.join(current_app.root_path, "temp_files", f"stacked_data_{user_id}.xlsx"), index=False)
-        # stacked_df_b.to_excel(os.path.join(current_app.root_path, "temp_files", f"merged_data_{user_id}.xlsx"), index=False)
-
-        # it is possible to have stacked_df as empty or no stacked_df if there is no duplicates found.
-        # under such case, we might still proceed but we need to handle it gracefully.
         
         # multiple stages to process the change simulation
         origianl_network_df = change_simulation_stage1(validated_df, stacked_df)
-        data_change_show_df, data_change_df = change_simulation_stage2(validated_df, stacked_df)
+        data_change_show_df, data_change_df = change_simulation_stage2(validated_df, stacked_df, update_action_mode=update_action_mode)
         ccx_merge, tp_merge = apply_change(data_change_df, validated_df, stacked_df)
-        modified_network_df = change_simulation_stage3(ccx_merge, tp_merge)
+        modified_network_df, ccx_line_count_cal, tp_line_count_cal, line_count_before_after = change_simulation_stage3(ccx_merge, tp_merge)
 
         # Collect contracts and group them by type
         contract_a_set = set()
@@ -114,6 +135,9 @@ def show_changes():
         original_graph_json = generate_network_graph(origianl_network_df, fixed_pos=master_pos, show_IUD=False)
         modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=master_pos, show_IUD=True)
         
+
+        changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, analyzed_df)
+        
         # Store simulation results in the session if needed
         # session.store_simulation_results(user_id, simulation_results)
         
@@ -122,11 +146,13 @@ def show_changes():
             'success': True,
             'message': "Changes loaded successfully. Processing simulation...",
             'result': {
-                'validated_count': len(validated_df),
-                'stacked_count': len(stacked_df),
+                'update_action_mode': update_action_mode,
                 'original_graph_data': original_graph_json,
                 'modified_graph_data': modified_graph_json,
-                'data_change_show': data_change_show_df.to_dict(orient='records')
+                'data_change_show': changes_to_show_df.to_dict(orient='records'),
+                'line_count_before_after': line_count_before_after.to_dict(orient='records') if not line_count_before_after.empty else [],
+                'ccx_line_count_cal': ccx_line_count_cal.to_dict(orient='records') if not ccx_line_count_cal.empty else [],
+                'tp_line_count_cal': tp_line_count_cal.to_dict(orient='records') if not tp_line_count_cal.empty else []
                 # Add more details about the changes as needed
             }
         })

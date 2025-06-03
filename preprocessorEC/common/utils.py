@@ -1516,7 +1516,7 @@ def change_simulation_stage1(validated_df, stacked_df):
         stacked_df: DataFrame with stacked data
     
     Returns:
-        None
+        df_cross: DataFrame to feed into network graph to show the overlapping contract items
     """
     # count line count for validated_df per contract number
     validated_df['Total Contract Line Count'] = validated_df.groupby('Contract Number')['File Row'].transform('count')
@@ -1549,7 +1549,7 @@ def change_simulation_stage1(validated_df, stacked_df):
     
     return df_cross
 
-def actual_action_on_update_row(row, mode = None):
+def actual_action_on_update_row(row, update_action_mode = None):
     fields_to_compare = ['Mfg Part Num', 'Vendor Part Num',
                         'Buyer Part Num', 'Description', 'Contract Price',
                         'UOM', 'QOE', 'Effective Date', 'Expiration Date']
@@ -1572,7 +1572,7 @@ def actual_action_on_update_row(row, mode = None):
     
     # quick check
     quick_check = ''.join(comparison_results)
-    if mode == 'legacy':
+    if update_action_mode == 'legacy':
         # the field currently is not used but we want to keep it in code to make things clear
         pure_update_fields = ['Description', 'Contract Price']
         
@@ -1583,7 +1583,7 @@ def actual_action_on_update_row(row, mode = None):
         # Any other field changed
         return "Expire then Create (Create)", quick_check
     
-    elif mode == 'new':
+    elif update_action_mode == 'new':
         expire_then_create_fields = ['Mfg Part Num', 'UOM']
         if quick_check[0] == 'N' or quick_check[5] == 'N':
             # if Mfg Part Num or UOM changed, we need to expire then create
@@ -1658,7 +1658,7 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     final_data = []
     update_rows = set()
     for i, row in df_m.iterrows():
-        a_action, q_check = actual_action_on_update_row(row, mode = update_action_mode) #we can choose different action mode here
+        a_action, q_check = actual_action_on_update_row(row, update_action_mode = update_action_mode) #we can choose different action mode here
         if row['Intended Action'] == 'Upsert':
             if row['Dataset_keep'] == 'TP':
                 if row['Contract Number_keep'] == row['Contract Number_drop']:
@@ -1700,9 +1700,10 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
             quick_check.append(q_check)
             final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
     
-    # df_m['Primary Action'] = primary_action
-    # df_m['Actual Action'] = actual_action
-    # df_m['Quick Check'] = quick_check
+    df_m['Primary Action'] = primary_action
+    df_m['Actual Action'] = actual_action
+    df_m['Quick Check'] = quick_check
+    df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index=False) #debug
 
     data_change_df1 = pd.DataFrame(final_data)
     # if update_row has value then we need to solve potential conflict
@@ -1736,7 +1737,7 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
         elif row['Actual Action'] == 'Expire then Create (Create)':
             data_change_show_df.at[i, 'Effective Date'] = tomorrow
 
-    data_change_df = data_change_show_df[~data_change_show_df['Actual Action'].isin(['Update (Existing)'])].copy()
+    data_change_df = data_change_show_df.copy()
     data_change_df.drop(columns = ['Dataset', 'Quick Check', 'Primary Action', 'Group'], inplace = True)
     
     data_change_show_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'data_change_show_df.xlsx'), index=False) #debug
@@ -1749,7 +1750,8 @@ def apply_change(data_change_df,
     """Apply changes to validated_df and ccx_df isolated from stacked_df,
     return the resulting dataframes."""
     ccx_df = stacked_df[stacked_df['Dataset'] == 'CCX'].copy()
-    ccx_change_df = data_change_df[~data_change_df['Actual Action'].isin(['Create', 'Mute'])].copy()
+    ccx_change_df = data_change_df[~data_change_df['Actual Action'].isin(['Create', 'Mute', 'Merged',
+                                                                          'Update (Existing)'])].copy()
     tp_change_df = data_change_df[data_change_df['Actual Action'].isin(['Create', 'Mute'])].copy()
                                                                          
     ccx_merge = ccx_df.merge(ccx_change_df,
@@ -1890,7 +1892,14 @@ def change_simulation_stage3(ccx_merge, tp_merge):
     ccx_line_count_cal.to_excel(os.path.join(current_app.root_path, 'temp_files', 'ccx_operations.xlsx')) #debug
     tp_line_count_cal.to_excel(os.path.join(current_app.root_path, 'temp_files', 'tp_operations.xlsx')) #debug
 
-    # only exclude the final looks of the contracts after changing
+    # line per contract before and after
+    ccx_line_count_before_after = ccx_line_count_cal[['Contract Number', 'Total Contract Line Count', 'Total Contract Line Count (Change Applied)', 'Delta']].copy()
+    tp_line_count_before_after = tp_line_count_cal[['Contract Number', 'Total Contract Line Count', 'Total Contract Line Count (Change Applied)', 'Delta']].copy()
+    ccx_line_count_before_after.loc[:, 'Dataset'] = 'CCX'
+    tp_line_count_before_after.loc[:, 'Dataset'] = 'TP'
+    line_count_before_after = pd.concat([ccx_line_count_before_after, tp_line_count_before_after], ignore_index=True)
+    
+    
     # limit by Actual Action, then only take the _change portion of them
     ccx_final = ccx_merge[ccx_merge['Actual Action'].isin(['No Change', 
                                                         'Update (New)',
@@ -1959,9 +1968,56 @@ def change_simulation_stage3(ccx_merge, tp_merge):
                                    'Total Contract Line Count (Change Applied)_b': 'Total Contract Line Count_b'}, inplace = True)
 
     df_cross_new.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross_new.xlsx'), index=False) #debug
-    
-    return df_cross_new
 
+    return df_cross_new, ccx_line_count_cal, tp_line_count_cal, line_count_before_after
+
+def compute_changes_to_show(data_change_show_df, analyzed_df):
+    """
+    Compute changes to show in the UI based on the data change DataFrame and analyzed DataFrame.
+    
+    Args:
+        data_change_show_df: DataFrame with changes to show from change simulation
+        analyzed_df: DataFrame contains finalized item matching results
+    
+    Returns:
+        changes_simulation_result_df: DataFrame with changes to show in the UI
+    """
+    
+    base_df = data_change_show_df.copy()
+
+    # if analyzed_df is empty then the item matching will just be empty string
+    if analyzed_df.empty:
+        base_df.loc[:, 'Item'] = ''
+    
+    im_label_df = analyzed_df[analyzed_df['False Positive'] == False].copy()
+    im_label_df = im_label_df[['File Row', 'Item', 'Validation']].drop_duplicates()
+    im_label_df.loc[:, 'Item Validation'] = im_label_df['Item'] + ' (' + im_label_df['Validation'] + ')'
+    im_label_by_file_row = im_label_df.groupby('File Row')['Item Validation'].apply(lambda x: ', '.join(x)).reset_index()
+    im_label_by_file_row.rename(columns = {'Item Validation': 'Item'}, inplace = True)
+    changes_simulation_result_df = base_df.merge(im_label_by_file_row, on='File Row', how='left')
+    changes_simulation_result_df.loc[:, 'Item'] = changes_simulation_result_df['Item'].fillna('')
+
+    # take the portion of want to display
+    changes_simulation_result_df = changes_simulation_result_df[changes_simulation_result_df['Actual Action'].isin(['Create', 
+                                                                                        'Update (New)',
+                                                                                        'Update (Existing)',
+                                                                                        'Expire then Create (Expire)',
+                                                                                        'Expire then Create (Create)',
+                                                                                        'Expire'])].copy()
+
+    # add column to let user forgive the expiration of the item by mark 'Do Not Expire' as true (default to False)
+    # for anything that are not set up as 'Expire CCX' under primary action, we will set it to nan
+    changes_simulation_result_df.loc[:, 'Do Not Expire'] = None
+    changes_simulation_result_df.loc[changes_simulation_result_df['Primary Action'] == 'Expire CCX', 'Do Not Expire'] = False
+    
+    # extract the reference line for items to be expired
+    file_rows_to_expire = set(changes_simulation_result_df[changes_simulation_result_df['Primary Action'] == 'Expire CCX']['File Row'])
+    reference_for_expire_rows = base_df[(base_df['File Row'].isin(file_rows_to_expire)) & (base_df['Group'] == 'Keep')].copy()
+
+    changes_simulation_result_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'changes_simulation_result_df.xlsx'), index=False) #debug
+    reference_for_expire_rows.to_excel(os.path.join(current_app.root_path, 'temp_files', 'reference_for_expire_rows.xlsx'), index=False) #debug
+    
+    return changes_simulation_result_df, reference_for_expire_rows
 
 def generate_network_graph(network_df, 
                            fixed_pos = None,
@@ -2312,10 +2368,10 @@ def generate_network_graph(network_df,
         margin=dict(l=15, r=15, t=30, b=80),
         annotations=[
             dict(
-                text="Green nodes: Contract TP<br>Blue nodes: Contract CCX<br>Light green arcs: Self-overlaps proportional to total lines<br>Numbers show overlap/total ratio<br>Red nodes: Contracts with 0 lines",
+                text="Green nodes: Contract TP<br>Blue nodes: Contract CCX<br>Light green arcs/rings: overlaping contract(s) with overlap/total lines<br>Edges: Overlaps between contracts<br>Red nodes: Contracts with 0 lines",
                 showarrow=False,
                 xref="paper", yref="paper",
-                x=0.5, y=-0.18,
+                x=0.5, y=-0.20,
                 font=dict(size=10),
                 bgcolor="rgba(255, 255, 255, 0.8)",
                 borderpad=4,

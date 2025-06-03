@@ -7,6 +7,7 @@
         border-radius: 5px;
         display: none;
     }
+    
     .loader {
         display: none;
         border: 5px solid #f3f3f3;
@@ -17,9 +18,35 @@
         animation: spin 2s linear infinite;
         margin: 20px auto;
     }
+    
     @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
+    }
+    
+    /* Ensure input groups render correctly */
+    .input-group {
+        display: flex;
+        flex-wrap: nowrap;
+    }
+    
+    .input-group-prepend {
+        display: flex;
+    }
+    
+    .input-group-text {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin-bottom: 0;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        text-align: center;
+        white-space: nowrap;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem 0 0 0.25rem;
     }
     
     /* Adding action buttons styling to match step 3 */
@@ -74,24 +101,391 @@
             flex: 100%;
         }
     }
+    
+    .update-mode-description {
+        margin-top: 10px;
+        display: none;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .active-description {
+        display: block;
+    }
+    
+    /* Change Statistics Cards - Consistent with other modules */
+    .change-stats-row {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 15px;
+        width: 100%;
+        margin-right: 0;
+        margin-left: 0;
+        margin-top: 0;
+        margin-bottom: 15px;
+    }
+
+    .change-stats-column {
+        padding: 0;
+    }
+
+    .change-stat-card {
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 0;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        border-left: 5px solid #3498db;
+        height: 100%;
+    }
+
+    .change-stat-card .card-body {
+        padding: 10px 15px 10px;
+    }
+
+    .change-stat-card .card-title {
+        display: flex;
+        align-items: center;
+        font-size: 0.8rem;
+        color: #7f8c8d;
+        margin-bottom: 8px;
+        margin-top: 2px;
+        font-weight: normal;
+    }
+
+    .change-stat-card .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-top: 0px;
+    }
+
+    /* Different border colors for different actions */
+    .ccx-create-card { border-left-color: #2ecc71; }
+    .ccx-update-card { border-left-color: #f39c12; }
+    .ccx-delete-card { border-left-color: #e74c3c; }
+    .tp-create-card { border-left-color: #3498db; }
+    .tp-mute-card { border-left-color: #95a5a6; }
+    .tp-merged-card { border-left-color: #9b59b6; }
+
+    .text-muted {
+        color: #6c757d;
+        font-size: 0.8rem;
+        margin-top: 4px;
+    }
+
+    @media (max-width: 1200px) {
+        .change-stats-row {
+            grid-template-columns: repeat(3, 1fr); /* 3 columns on medium screens */
+        }
+    }
+
+    @media (max-width: 768px) {
+        .change-stats-row {
+            grid-template-columns: repeat(2, 1fr); /* 2 columns on small screens */
+        }
+    }
+
+    @media (max-width: 576px) {
+        .change-stats-row {
+            grid-template-columns: 1fr; /* 1 column on extra small screens */
+        }
+    }
+    
+    /* Data Change Table Styling - Matched exactly with step4.html */
+    .data-change-table-container {
+        margin-top: 20px;
+        overflow-x: auto;
+        overflow-y: auto;
+        max-width: 100%;
+        max-height: 600px;
+        border: 1px solid #eee;
+        display: none; /* Hidden initially */
+    }
+    
+    .data-change-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem; 
+    }
+
+    .data-change-table th, 
+    .data-change-table td {
+        padding: 6px; 
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+        white-space: nowrap;
+    }
+    
+    .data-change-table th {
+        background-color: #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        cursor: pointer;
+        padding: 6px;
+        text-align: left;
+        white-space: normal; /* Allow text wrapping */
+        height: auto;
+        vertical-align: middle;
+    }
+    
+    .data-change-table th:hover {
+        background-color: #e9e9e9;
+    }
+    
+    .data-change-table tbody tr:hover {
+        background-color: #f0f7ff;
+    }
+    
+    /* Improved sort indicator styling from step4.html */
+    .data-change-table .sort-indicator {
+        margin-left: 5px;
+        opacity: 0.5;
+        display: inline-block;
+    }
+    
+    .data-change-table th.sort-asc .sort-indicator::after {
+        content: "▲";
+        display: inline-block;
+    }
+    
+    .data-change-table th.sort-desc .sort-indicator::after {
+        content: "▼";
+        display: inline-block;
+    }
+
+    /* Keep part number columns unwrapped */
+    .data-change-table .part-num-col {
+        white-space: nowrap;
+        min-width: 100px;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Description column styling - fix sticky header issue */
+    .data-change-table th.description-col {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #f5f5f5;
+        white-space: normal;
+        min-width: 200px;
+        max-width: 250px;
+    }
+    
+    .data-change-table td.description-col {
+        white-space: normal;
+        min-width: 200px;
+        max-width: 250px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        position: relative;
+    }
+    
+    /* Column-specific styling for better readability */
+    .data-change-table .primary-action-col,
+    .data-change-table .actual-action-col {
+        min-width: 90px;
+        max-width: 120px;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.2;
+    }
+    
+    .data-change-table .contract-col {
+        min-width: 120px;
+        max-width: 140px;
+        white-space: normal;
+        word-break: break-word;
+    }
+    
+    .data-change-table .item-col {
+        min-width: 60px;
+        max-width: 80px;
+        white-space: normal;
+        word-break: break-word;
+    }
+    
+    .data-change-table .uom-col {
+        min-width: 40px;
+        max-width: 60px;
+    }
+    
+    .data-change-table .qoe-col {
+        min-width: 50px;
+        max-width: 70px;
+    }
+    
+    .data-change-table .price-col {
+        min-width: 80px;
+        max-width: 100px;
+    }
+    
+    /* Make date columns the exact same width with wrapping headers */
+    .data-change-table .date-col {
+        min-width: 60px;
+        max-width: 100px;
+        width: 80px;
+        white-space: normal; /* Allow header text to wrap */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        word-break: break-word; /* Allow breaking for header text */
+    }
+    
+    /* Data cells in date columns should not wrap */
+    .data-change-table tbody .date-col {
+        white-space: nowrap;
+    }
+    
+    /* Enhanced tooltip behavior for description column */
+    .data-change-table td.description-col:hover::after {
+        content: attr(title);
+        position: absolute;
+        left: 0;
+        top: 100%;
+        z-index: 1000;
+        background-color: #f8f9fa;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        white-space: normal;
+        width: auto;
+        min-width: 200px;
+        max-width: 400px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        font-size: 0.8rem;
+        color: #333;
+        word-wrap: break-word;
+    }
+
+    /* Styling for search controls matching step4.html */
+    .data-change-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+        gap: 15px;
+        display: none; /* Hidden initially */
+    }
+
+    .filter-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .data-change-search-wrapper {
+        display: flex;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+        height: 38px;
+    }
+    
+    .data-change-search-input {
+        padding: 8px 12px;
+        border: none;
+        width: 300px;
+    }
+
+    .data-change-clear-search-btn {
+        background: #f5f5f5;
+        border: none;
+        border-left: 1px solid #ddd;
+        padding: 0 12px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: #666;
+        transition: all 0.2s;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        min-width: 60px;
+    }
+    
+    .data-change-clear-search-btn:hover {
+        background: #e0e0e0;
+        color: #333;
+    }
+
+    .data-change-search-type-select {
+        padding: 8px;
+        border: none;
+        border-right: 1px solid #ddd;
+        background-color: #f5f5f5;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+
+    /* Match the checkbox styling */
+    .checkbox-col {
+        text-align: center;
+        width: 80px;
+    }
+
+    .expire-checkbox {
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+    }
+
+    .expire-checkbox:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+    
+    /* Match the no-data message styling */
+    .no-data-message {
+        text-align: center;
+        padding: 40px;
+        color: #7f8c8d;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        margin: 20px 0;
+    }
 </style>
 
 <!-- Change Simulation Content -->
 <div class="step-content">   
-    <p>Click "View Changes" to simulate the changes to be applied to CCX contract(s) when we upload your file.</p>
+    <p>Simulate the changes to be applied to CCX contract(s) based on the file you uploaded.</p>
+    
+    <!-- Change Mode Selection - Updated to match step3 styling and renamed for consistency -->
+    <div class="input-group mb-3">
+        <div class="input-group-prepend">
+            <span class="input-group-text">Update Action Mode</span>
+        </div>
+        <select class="form-control" name="update_action_mode" id="update_action_mode">
+            <option value="new" selected>New</option>
+            <option value="legacy">Legacy</option>
+        </select>
+    </div>
+    
+    <!-- Enhanced mode descriptions -->
+    <div id="change-mode-descriptions" class="mb-3">
+        <div id="new_mode_desc" class="update-mode-description active-description">
+            <strong>New Mode:</strong> Uses the latest simplified change simulation logic to handle updates. Apply 'expire then create' to update item only when manfuacturer number or UOM changed.
+        </div>
+        <div id="legacy_mode_desc" class="update-mode-description">
+            <strong>Legacy Mode:</strong> Uses the traditional change simulation logic to handle updates. Apply 'expire then create' to update item when any field besides item description and/or item price changed.
+        </div>
+    </div>
+    
+    <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
+        Select the change mode and hit "View Changes" to simulate the changes.
+    </div>
     
     <button id="view-changes-btn" class="btn btn-primary">View Changes</button>
     <div class="loader" id="loading-spinner"></div>
 
-    <div id="results-container" class="mb-4">
-        <h4>Changes to be made</h4>
-        <div id="simulation-results">
-            <!-- Results will be dynamically populated here -->
-        </div>
+    <div id="results-container" class="mb-4">    
         
         <!-- Network Graph Container -->
         <div id="network-graph-container" style="display: none;">
-            <h5>Contract Overlap Networks</h5>
+            <h4>Contract Networks</h4>
             
             <!-- Two graphs side by side -->
             <div class="graph-container-flex">
@@ -108,6 +502,118 @@
                 </div>
             </div>
         </div>
+    
+    <h4>Change Statistics</h4>
+        <!-- MOVED: Change Statistics Cards to here - now between graphs and detailed table -->
+        <div class="change-stats-row" style="margin-top: 20px; margin-bottom: 20px;">
+            <div class="change-stats-column">
+                <div class="change-stat-card ccx-create-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">CCX Create</h5>
+                        <div class="stat-value" id="ccx-create-count">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="change-stats-column">
+                <div class="change-stat-card ccx-update-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">CCX Update</h5>
+                        <div class="stat-value" id="ccx-update-count">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="change-stats-column">
+                <div class="change-stat-card ccx-delete-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">CCX Delete</h5>
+                        <div class="stat-value" id="ccx-delete-count">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="change-stats-column">
+                <div class="change-stat-card tp-create-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">TP Create</h5>
+                        <div class="stat-value" id="tp-create-count">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="change-stats-column">
+                <div class="change-stat-card tp-mute-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">TP Mute</h5>
+                        <div class="stat-value" id="tp-mute-count">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="change-stats-column">
+                <div class="change-stat-card tp-merged-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">TP Merged</h5>
+                        <div class="stat-value" id="tp-merged-count">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Data Change Table Section -->
+        <div id="data-change-section" style="margin-top: 30px;">
+            <h5>Detailed Change Actions</h5>
+            <p class="text-muted">Review and modify the specific actions that will be taken for each contract line. You can prevent expiration of CCX items by checking "Do Not Expire".</p>
+            
+            <!-- Table Controls - Updated to match step4.html -->
+            <div id="data-change-controls" class="data-change-controls">
+                <div class="filter-container">
+                    <div class="data-change-search-wrapper">
+                        <select id="data-change-search-type" class="data-change-search-type-select">
+                            <option value="contains">Contains</option>
+                            <option value="not-contains">Not Contains</option>
+                            <option value="contract-only">By Contract Number</option>
+                            <option value="action-only">By Action</option>
+                        </select>
+                        <input type="text" id="data-change-search" class="data-change-search-input" placeholder="Search changes...">
+                        <button id="data-change-clear-search" class="data-change-clear-search-btn">Clear</button>
+                    </div>
+                </div>
+                <div class="data-change-batch-controls">
+                    <button id="select-all-expire-btn" class="btn btn-sm btn-outline-primary">Select All "Do Not Expire"</button>
+                    <button id="deselect-all-expire-btn" class="btn btn-sm btn-outline-secondary">Deselect All "Do Not Expire"</button>
+                    <button id="save-expire-selections-btn" class="btn btn-sm btn-success">Save Changes</button>
+                </div>
+            </div>
+            
+            <!-- Data Change Table - Keep your existing column structure but update classes -->
+            <div id="data-change-table-container" class="data-change-table-container">
+                <table id="data-change-table" class="data-change-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="Primary Action" class="primary-action-col">Primary Action<span class="sort-indicator"></span></th>
+                            <th data-sort="Actual Action" class="actual-action-col">Actual Action<span class="sort-indicator"></span></th>
+                            <th class="checkbox-col">Do Not Expire</th>
+                            <th data-sort="Item" class="item-col">Item<span class="sort-indicator"></span></th>
+                            <th data-sort="Contract Number" class="contract-col">Contract Number<span class="sort-indicator"></span></th>
+                            <th data-sort="Mfg Part Num" class="part-num-col">Mfg Part Num<span class="sort-indicator"></span></th>
+                            <th data-sort="Vendor Part Num" class="part-num-col">Vendor Part Num<span class="sort-indicator"></span></th>
+                            <th data-sort="UOM" class="uom-col">UOM<span class="sort-indicator"></span></th>
+                            <th data-sort="QOE" class="qoe-col">QOE<span class="sort-indicator"></span></th>
+                            <th data-sort="Contract Price" class="price-col">Contract Price<span class="sort-indicator"></span></th>
+                            <th data-sort="Effective Date" class="date-col">Effective Date<span class="sort-indicator"></span></th>
+                            <th data-sort="Expiration Date" class="date-col">Expiration Date<span class="sort-indicator"></span></th>
+                            <th data-sort="Description" class="description-col">Description<span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-change-tbody">
+                        <!-- Data will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- No data message -->
+            <div id="no-data-message" class="no-data-message" style="display:none;">
+                <h4>No change actions found</h4>
+                <p>There are no items requiring detailed change actions.</p>
+            </div>
+        </div>
     </div>
     
     <div class="action-buttons">
@@ -121,10 +627,40 @@
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Change mode description toggler
+    const updateActionModeSelect = document.getElementById('update_action_mode');
+    const changeModeDescriptions = document.querySelectorAll('.update-mode-description');
+    
+    updateActionModeSelect.addEventListener('change', function() {
+        // Hide all descriptions
+        changeModeDescriptions.forEach(desc => desc.classList.remove('active-description'));
+        
+        // Show the selected one
+        const selectedDesc = document.getElementById(`${this.value}_mode_desc`);
+        if (selectedDesc) {
+            selectedDesc.classList.add('active-description');
+        }
+    });
+});
+
+// Replace the existing showAlert function with this one
+function showAlert(message, type = 'success') {
+    // Use the global alert function from layout.html
+    if (typeof window.showGlobalAlert === 'function') {
+        window.showGlobalAlert(type, message);
+    } else {
+        console.log(`${type.toUpperCase()}: ${message}`);
+    }
+}
+
 document.getElementById('view-changes-btn').addEventListener('click', function() {
     // Show loading spinner
     document.getElementById('loading-spinner').style.display = 'block';
     document.getElementById('results-container').style.display = 'none';
+    
+    // Get the selected change mode (renamed to update_action_mode)
+    const updateActionMode = document.getElementById('update_action_mode').value;
     
     // Make AJAX request to show_changes endpoint
     fetch('/change-simulation/show-changes', {
@@ -133,7 +669,10 @@ document.getElementById('view-changes-btn').addEventListener('click', function()
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
         },
-        credentials: 'same-origin'
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            update_action_mode: updateActionMode
+        })
     })
     .then(response => response.json())
     .then(data => {
@@ -143,21 +682,41 @@ document.getElementById('view-changes-btn').addEventListener('click', function()
         // Display results container
         document.getElementById('results-container').style.display = 'block';
         
-        const resultsDiv = document.getElementById('simulation-results');
-        
         if (data.success) {
-            // Format and display the results
-            let html = '<div class="alert alert-success">Changes loaded successfully</div>';
-            html += '<div class="card mb-3"><div class="card-body">';
-            html += `<p>Number of validated records: <strong>${data.result.validated_count}</strong></p>`;
-            html += `<p>Number of records to be processed: <strong>${data.result.stacked_count}</strong></p>`;
-            html += '</div></div>';
+            // Show success message using the alert handler
+            showAlert(data.message, 'success');
             
-            resultsDiv.innerHTML = html;
+            // Get change statistics from the response
+            const ccxStats = data.result.ccx_line_count_cal || [];
+            const tpStats = data.result.tp_line_count_cal || [];
+            
+            // Count CCX operations using the correct property names
+            const ccxCreate = ccxStats.reduce((sum, item) => sum + (parseInt(item.Insert_Count) || 0), 0);
+            const ccxUpdate = ccxStats.reduce((sum, item) => sum + (parseInt(item.Update_Count) || 0), 0);
+            const ccxDelete = ccxStats.reduce((sum, item) => sum + (parseInt(item.Delete_Count) || 0), 0);
+            
+            // Count TP operations using the sum of the count columns
+            const tpCreate = tpStats.reduce((sum, item) => sum + (parseInt(item.Create) || 0), 0);
+            const tpMute = tpStats.reduce((sum, item) => sum + (parseInt(item.Mute) || 0), 0);
+            const tpMerged = tpStats.reduce((sum, item) => sum + (parseInt(item.Merged) || 0), 0);
+            
+            // Update the static HTML elements with the calculated values
+            document.getElementById('ccx-create-count').textContent = ccxCreate;
+            document.getElementById('ccx-update-count').textContent = ccxUpdate;
+            document.getElementById('ccx-delete-count').textContent = ccxDelete;
+            document.getElementById('tp-create-count').textContent = tpCreate;
+            document.getElementById('tp-mute-count').textContent = tpMute;
+            document.getElementById('tp-merged-count').textContent = tpMerged;
+            
+            // Store data change items for table
+            allDataChangeItems = data.result.data_change_show || [];
             
             // Display network graphs if available
             if (data.result.original_graph_data && data.result.modified_graph_data) {
                 document.getElementById('network-graph-container').style.display = 'block';
+                
+                // Display data change table
+                displayDataChangeTable();
                 
                 try {
                     // Parse the graph data from JSON
@@ -197,8 +756,14 @@ document.getElementById('view-changes-btn').addEventListener('click', function()
                 document.getElementById('network-graph-container').style.display = 'none';
             }
         } else {
-            // Display error message
-            resultsDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+            // Show error message using the global alert handler
+            if (typeof window.showGlobalAlert === 'function') {
+                window.showGlobalAlert('danger', data.message);
+            } else {
+                console.log('ERROR: ' + data.message);
+            }
+            
+            // Display error message - replace with top-level alert instead of updating div
             document.getElementById('network-graph-container').style.display = 'none';
         }
     })
@@ -206,11 +771,361 @@ document.getElementById('view-changes-btn').addEventListener('click', function()
         // Hide loading spinner
         document.getElementById('loading-spinner').style.display = 'none';
         
-        // Display error
+        // Show error message using the global alert handler
+        if (typeof window.showGlobalAlert === 'function') {
+            window.showGlobalAlert('danger', "An error occurred while processing your request. Please try again.");
+        } else {
+            console.log('ERROR: An error occurred while processing your request.');
+        }
+        
+        // Display error - replace with top-level alert instead of updating div
         document.getElementById('results-container').style.display = 'block';
-        document.getElementById('simulation-results').innerHTML = 
-            '<div class="alert alert-danger">An error occurred while processing your request. Please try again.</div>';
         document.getElementById('network-graph-container').style.display = 'none';
     });
 });
+
+// Variables for data change table
+let allDataChangeItems = [];
+let sortFieldDataChange = null;
+let sortDirectionDataChange = 'asc';
+
+// Function to display data change table
+function displayDataChangeTable() {
+    if (allDataChangeItems.length === 0) {
+        document.getElementById('data-change-controls').style.display = 'none';
+        document.getElementById('data-change-table-container').style.display = 'none';
+        document.getElementById('no-data-message').style.display = 'block';
+        return;
+    }
+    
+    // Show controls and table
+    document.getElementById('data-change-controls').style.display = 'flex';
+    document.getElementById('data-change-table-container').style.display = 'block';
+    document.getElementById('no-data-message').style.display = 'none';
+    
+    // Reset sorting
+    sortFieldDataChange = null;
+    sortDirectionDataChange = 'asc';
+    document.querySelectorAll('#data-change-table th').forEach(header => {
+        header.classList.remove('sort-asc', 'sort-desc');
+    });
+    
+    // Render table
+    renderDataChangeTable(allDataChangeItems);
+    
+    // Attach event listeners - remove existing ones first
+    attachDataChangeEventListeners(true);
+}
+
+// Function to format action text for better display
+function formatActionText(action) {
+    if (!action) return '';
+    
+    // Replace "Expire then Create" patterns
+    if (action === 'Expire then Create (Create)') {
+        return 'ETC (Create)';
+    } else if (action === 'Expire then Create (Expire)') {
+        return 'ETC (Expire)';
+    } else if (action === 'Expire then Create') {
+        return 'ETC';
+    } else if (action === 'Update (Existing)') {
+        return 'Update (Curr.)';
+    }
+    
+    // Return original text for other actions
+    return action;
+}
+
+// Function to render data change table
+function renderDataChangeTable(items) {
+    const tbody = document.getElementById('data-change-tbody');
+    tbody.innerHTML = '';
+    
+    try {
+        // Sort items if needed
+        if (sortFieldDataChange) {
+            items = [...items].sort((a, b) => {
+                let aVal = a[sortFieldDataChange] || '';
+                let bVal = b[sortFieldDataChange] || '';
+                
+                // Remove the "Do Not Expire" column sorting logic
+                
+                // Handle date fields - convert to timestamps for comparison
+                if (['Effective Date', 'Expiration Date'].includes(sortFieldDataChange)) {
+                    // Parse dates and handle invalid dates
+                    const parseDate = (dateStr) => {
+                        if (!dateStr) return 0;
+                        const date = new Date(dateStr);
+                        return isNaN(date) ? 0 : date.getTime();
+                    };
+                    
+                    aVal = parseDate(aVal);
+                    bVal = parseDate(bVal);
+                }
+                // Handle numeric fields
+                else if (['Contract Price', 'QOE'].includes(sortFieldDataChange)) {
+                    aVal = parseFloat(aVal) || 0;
+                    bVal = parseFloat(bVal) || 0;
+                }
+                // Handle string fields - convert to lowercase for case-insensitive comparison
+                else if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+                
+                // Compare based on direction
+                if (sortDirectionDataChange === 'asc') {
+                    return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+                } else {
+                    return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+                }
+            });
+        }
+        
+        items.forEach((item, index) => {
+            const row = document.createElement('tr');
+            
+            // Format contract price
+            const contractPrice = item['Contract Price'] ? 
+                '$' + parseFloat(item['Contract Price']).toFixed(2) : 'N/A';
+            
+            // Check if this row can have "Do Not Expire" checkbox
+            const canPreventExpire = item['Primary Action'] === 'Expire CCX';
+            
+            // Create checkbox cell
+            const checkboxHtml = canPreventExpire ? 
+                `<input type="checkbox" class="expire-checkbox" data-index="${index}">` : 
+                '<span class="text-muted">N/A</span>';
+            
+            // Format actions for better visibility
+            const formattedPrimaryAction = formatActionText(item['Primary Action'] || '');
+            const formattedActualAction = formatActionText(item['Actual Action'] || '');
+            
+            // Get description from Description field and limit to 60 chars (increased from 45)
+            const description = item['Description'] || '';
+            const displayDescription = description.length > 60 ? 
+                description.substring(0, 60) + '...' : description;
+            
+            // Rearranged columns according to new order
+            row.innerHTML = `
+                <td>${formattedPrimaryAction}</td>
+                <td>${formattedActualAction}</td>
+                <td class="checkbox-col">${checkboxHtml}</td>
+                <td class="item-col">${item['Item'] || ''}</td>
+                <td class="contract-col">${item['Contract Number'] || ''}</td>
+                <td class="part-num-col">${item['Mfg Part Num'] || ''}</td>
+                <td class="part-num-col">${item['Vendor Part Num'] || ''}</td>
+                <td>${item['UOM'] || ''}</td>
+                <td>${item['QOE'] || ''}</td>
+                <td>${contractPrice}</td>
+                <td class="date-col">${item['Effective Date'] || ''}</td>
+                <td class="date-col">${item['Expiration Date'] || ''}</td>
+                <td class="description-col" title="${description}">${displayDescription}</td>
+            `;
+            
+            tbody.appendChild(row);
+        });
+        
+    } catch (err) {
+        console.error("Error rendering data change table:", err);
+        tbody.innerHTML = '<tr><td colspan="13" class="text-center">Error rendering table data</td></tr>';
+    }
+}
+
+// Function to attach event listeners for data change table
+// Added parameter to optionally remove existing listeners first
+function attachDataChangeEventListeners(removeExisting = false) {
+    // Sort listeners - remove and reattach to prevent duplicates
+    const sortHeaders = document.querySelectorAll('#data-change-table th[data-sort]');
+    
+    sortHeaders.forEach(th => {
+        if (removeExisting) {
+            // Clone and replace to remove all existing event listeners
+            const newTh = th.cloneNode(true);
+            th.parentNode.replaceChild(newTh, th);
+        }
+    });
+    
+    // Re-query the DOM after cloning to get fresh references
+    document.querySelectorAll('#data-change-table th[data-sort]').forEach(th => {
+        // Add fresh event listener
+        th.addEventListener('click', function() {
+            const field = this.dataset.sort;
+            
+            if (field === sortFieldDataChange) {
+                sortDirectionDataChange = sortDirectionDataChange === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortFieldDataChange = field;
+                sortDirectionDataChange = 'asc';
+            }
+            
+            // Update sort indicators
+            document.querySelectorAll('#data-change-table th').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+            });
+            this.classList.add(sortDirectionDataChange === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // Re-render table with new sort
+            renderDataChangeTable(allDataChangeItems);
+            
+            // Don't call attachDataChangeEventListeners here to avoid recursion
+        });
+    });
+    
+    // Search functionality
+    const searchInput = document.getElementById('data-change-search');
+    const searchType = document.getElementById('data-change-search-type');
+    const clearSearch = document.getElementById('data-change-clear-search');
+    
+    if (searchInput && searchType && clearSearch) {
+        // Remove existing listeners if they exist
+        if (removeExisting) {
+            searchInput.removeEventListener('input', filterDataChangeTable);
+            searchType.removeEventListener('change', filterDataChangeTable);
+            clearSearch.removeEventListener('click', clearSearchHandler);
+        }
+        
+        searchInput.addEventListener('input', filterDataChangeTable);
+        searchType.addEventListener('change', filterDataChangeTable);
+        clearSearch.addEventListener('click', clearSearchHandler);
+    }
+    
+    // Batch selection buttons
+    const selectAllBtn = document.getElementById('select-all-expire-btn');
+    const deselectAllBtn = document.getElementById('deselect-all-expire-btn');
+    const saveBtn = document.getElementById('save-expire-selections-btn');
+    
+    if (selectAllBtn && deselectAllBtn && saveBtn) {
+        if (removeExisting) {
+            selectAllBtn.removeEventListener('click', selectAllHandler);
+            deselectAllBtn.removeEventListener('click', deselectAllHandler);
+            saveBtn.removeEventListener('click', saveExpireSelections);
+        }
+        
+        selectAllBtn.addEventListener('click', selectAllHandler);
+        deselectAllBtn.addEventListener('click', deselectAllHandler);
+        saveBtn.addEventListener('click', saveExpireSelections);
+    }
+}
+
+// Create named handler functions to avoid issues with removeEventListener
+function clearSearchHandler() {
+    document.getElementById('data-change-search').value = '';
+    filterDataChangeTable();
+}
+
+function selectAllHandler() {
+    document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+}
+
+function deselectAllHandler() {
+    document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+
+// Function to filter data change table - Updated to match step4.html
+function filterDataChangeTable() {
+    const searchTerm = document.getElementById('data-change-search').value.toLowerCase();
+    const searchType = document.getElementById('data-change-search-type').value;
+    const tableRows = document.querySelectorAll('#data-change-tbody tr');
+    
+    let visibleCount = 0;
+    
+    tableRows.forEach(row => {
+        let match = false;
+        
+        if (searchType === 'contains' || searchType === 'not-contains') {
+            // Search in all cells
+            const rowText = row.textContent.toLowerCase();
+            match = rowText.includes(searchTerm);
+            
+            // Invert match for not-contains
+            if (searchType === 'not-contains') {
+                match = !match;
+            }
+        } else if (searchType === 'contract-only') {
+            // Search only in Contract Number column (5th column in the new structure)
+            const contractCell = row.cells[4];
+            if (contractCell) {
+                const contractText = contractCell.textContent.toLowerCase();
+                match = contractText.includes(searchTerm);
+            }
+        } else if (searchType === 'action-only') {
+            // Search in Action columns (1st and 2nd columns in the new structure)
+            const primaryActionCell = row.cells[0]; // Primary Action
+            const actualActionCell = row.cells[1]; // Actual Action
+            
+            if (primaryActionCell && actualActionCell) {
+                const primaryActionText = primaryActionCell.textContent.toLowerCase();
+                const actualActionText = actualActionCell.textContent.toLowerCase();
+                match = primaryActionText.includes(searchTerm) || actualActionText.includes(searchTerm);
+            }
+        }
+        
+        // Show/hide row based on match
+        row.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+    });
+    
+    // Show/hide no data message based on visible rows
+    document.getElementById('no-data-message').style.display = visibleCount > 0 ? 'none' : 'block';
+}
+
+// Function to save expire selections
+function saveExpireSelections() {
+    // Show loading spinner
+    document.getElementById('loading-spinner').style.display = 'block';
+    
+    // Collect checkbox states
+    const expireSelections = [];
+    document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
+        const index = parseInt(checkbox.dataset.index);
+        const item = allDataChangeItems[index];
+        
+        if (item) {
+            expireSelections.push({
+                contract_number: item['Contract Number'],
+                mfg_part_num: item['Mfg Part Num'],
+                vendor_part_num: item['Vendor Part Num'],
+                do_not_expire: checkbox.checked
+            });
+        }
+    });
+    
+    // Send to backend
+    fetch('/change-simulation/update-expire-selections', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            expire_selections: expireSelections
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('loading-spinner').style.display = 'none';
+        
+        if (data.success) {
+            showAlert('Expire selections saved successfully!', 'success');
+            
+            // Optionally refresh the data to show updated actions
+            if (data.updated_data) {
+                allDataChangeItems = data.updated_data;
+                renderDataChangeTable(allDataChangeItems);
+                attachDataChangeEventListeners();
+            }
+        } else {
+            showAlert('Error saving expire selections: ' + data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        document.getElementById('loading-spinner').style.display = 'none';
+        showAlert('Error saving expire selections: ' + error.message, 'danger');
+        console.error('Error saving expire selections:', error);
+    });
+}
 </script>
