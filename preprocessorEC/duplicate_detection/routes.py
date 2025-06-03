@@ -675,6 +675,22 @@ def apply_resolution():
         # Get policy selection from form
         deduplication_policy = request.form.get('resolution_strategy', 'keep_latest')
 
+        # Get validated data to extract intended actions
+        validated_data = get_validated_data(user_id)
+        upsert_set = set()
+        expire_set = set()
+        
+        if validated_data:
+            for item in validated_data:
+                file_row = item.get('File Row')
+                intended_action = item.get('Intended Action', '').strip()
+                
+                if file_row is not None:
+                    if intended_action == 'Upsert':
+                        upsert_set.add(int(file_row))
+                    elif intended_action == 'Expire':
+                        expire_set.add(int(file_row))
+
         # Get custom sort options if policy is custom
         custom_sort_fields = []
         custom_sort_directions = []
@@ -748,7 +764,9 @@ def apply_resolution():
                 'type': deduplication_policy,
                 'custom_fields': custom_sort_fields,
                 'custom_directions': custom_sort_directions
-            }
+            },
+            'upsert_set': list(upsert_set),
+            'expire_set': list(expire_set)
         })
 
         # Return successful response with data

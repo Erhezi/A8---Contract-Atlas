@@ -433,6 +433,9 @@
                 
                 <!-- Results Table -->
                 <h5 class="mb-0">Duplication Resolution Details</h5>
+                <p style="margin-top: 0px; margin-bottom: 20px;">
+                    <span style="color: red; font-weight: bold;">*</span><small> Only Items with 'Intended Action' marked as 'Upsert' will go through duplication resolution, if the intended action is 'Expire', we will simply expire the item from the designated contract if the item is currently active on CCX without touching other duplicates on other CCX contract(s).</small>
+                </p>
                 <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
                     <table class="table table-sm table-bordered table-hover">
                         <thead class="thead-light sticky-top">
@@ -801,6 +804,10 @@
                 return;
             }
             
+            // Get upsert and expire sets from the data
+            const upsertSet = new Set(data.upsert_set || []);
+            const expireSet = new Set(data.expire_set || []);
+            
             // Group data by File Row
             const groupedData = {};
             data.stacked_data.forEach(item => {
@@ -839,16 +846,24 @@
                 const rank1QOE = rank1Item ? rank1Item['QOE'] : null;
                 const rank1UOM = rank1Item ? rank1Item['UOM'] : null;
                 const rank1EAPrice = rank1Item ? rank1Item['EA Price'] : null;
+                
+                // Determine row styling based on intended action
+                const fileRowNum = parseInt(groupId);
+                const isUpsert = upsertSet.has(fileRowNum);
+                const isExpire = expireSet.has(fileRowNum);
 
                 // Add group items
                 groupedData[groupId].forEach((item, itemIndex) => {
                     const row = document.createElement('tr');
                     
-                    // Add 'rank-1' class to highlight kept records
+                    // Add highlighting class based on intended action and rank
                     if (item['Rank'] === 1) {
-                        row.classList.add('rank-1');
+                        if (isExpire) {
+                            row.style.backgroundColor = '#f8d7da'; // Light red for expire items
+                        } else if (isUpsert) {
+                            row.classList.add('rank-1'); // Keep existing green styling for upsert items
+                        }
                     }
-                    
 
                     // Add Group cell for EVERY row
                     const groupCell = document.createElement('td');
