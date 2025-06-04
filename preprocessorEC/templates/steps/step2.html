@@ -1623,13 +1623,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Select/Deselect all buttons
     selectAllBtn.addEventListener('click', function() {
-        document.querySelectorAll('#items-tbody input[type="checkbox"]').forEach(checkbox => {
+        document.querySelectorAll('#items-tbody tr:not([style*="display: none"]) input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = true;
         });
     });
     
     deselectAllBtn.addEventListener('click', function() {
-        document.querySelectorAll('#items-tbody input[type="checkbox"]').forEach(checkbox => {
+        document.querySelectorAll('#items-tbody tr:not([style*="display: none"]) input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = false;
         });
     });

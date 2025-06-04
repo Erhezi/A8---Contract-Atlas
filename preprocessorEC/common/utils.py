@@ -1736,6 +1736,9 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
             data_change_show_df.at[i, 'Expiration Date'] = today
         elif row['Actual Action'] == 'Expire then Create (Create)':
             data_change_show_df.at[i, 'Effective Date'] = tomorrow
+    
+    # add the initial intended action
+    data_change_show_df['Intended Action'] = data_change_show_df['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
 
     data_change_df = data_change_show_df.copy()
     data_change_df.drop(columns = ['Dataset', 'Quick Check', 'Primary Action', 'Group'], inplace = True)

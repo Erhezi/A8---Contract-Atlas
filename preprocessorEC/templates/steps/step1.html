@@ -603,8 +603,14 @@
                             if (exactMatch !== -1) {
                                 bestMatch = data.headers[exactMatch];
                             } else {
-                                // Try partial match
+                                // Try partial match with exclusions for ERP Vendor ID
                                 for (let i = 0; i < normalizedHeaders.length; i++) {
+                                    // Skip 'vendor' and 'vendor name' for ERP Vendor ID field
+                                    if (fieldName === 'ERP Vendor ID' && 
+                                        (normalizedHeaders[i] === 'vendor' || normalizedHeaders[i] === 'vendor name')) {
+                                        continue;
+                                    }
+                                    
                                     for (let j = 0; j < columnMappings[fieldName].length; j++) {
                                         if (normalizedHeaders[i].includes(columnMappings[fieldName][j]) || 
                                             columnMappings[fieldName][j].includes(normalizedHeaders[i])) {

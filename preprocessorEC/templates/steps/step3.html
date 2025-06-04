@@ -255,6 +255,63 @@
             margin-bottom: 15px;
         }
     }
+
+    .filter-buttons-container {
+        display: flex;
+        justify-content: flex-end;
+        width: 100%;
+        margin-bottom: 0;
+        margin-top: -10px;
+    }
+
+    .table-responsive {
+        max-height: 700px;
+        overflow-y: auto;
+        padding-right: 0;
+    }
+
+    /* Enhanced sticky header styling */
+    .table-responsive thead.sticky-top {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #f3f6f8;
+        border-top: 1px solid #d5dbe0;
+        border-left: 1px solid #d5dbe0;
+        border-right: 1px solid #d5dbe0;
+    }
+
+    .table-responsive thead.sticky-top th {
+        border: 1px solid #d5dbe0;
+        border-bottom: 1px solid #b8c2cc;
+        background-color: #f3f6f8 !important;
+        position: relative;
+        z-index: 10;
+    }
+
+    .table-responsive tbody tr:first-child td {
+        border-top: 2px solid #b8c2cc;
+    }
+
+    /* Add this new style to align buttons with table content */
+    .filter-btn:last-child {
+        margin-right: 17px; /* Apply margin to the last button instead */
+    }
+
+    .filter-btn {
+        font-weight: normal;
+        background-color: #e2e6ea;
+        color: #495057;
+        border: 1px solid #dee2e6;
+        transition: all 0.2s ease;
+    }
+    
+    .filter-btn.active {
+        background-color: #28a745;
+        color: white;
+        font-weight: bold;
+        border-color: #28a745;
+    }
 </style>
 
 
@@ -436,6 +493,31 @@
                 <p style="margin-top: 0px; margin-bottom: 20px;">
                     <span style="color: red; font-weight: bold;">*</span><small> Only Items with 'Intended Action' marked as 'Upsert' will go through duplication resolution, if the intended action is 'Expire', we will simply expire the item from the designated contract if the item is currently active on CCX without touching other duplicates on other CCX contract(s).</small>
                 </p>
+
+                <!-- Intended Action Filter -->
+                <div class="mb-3">
+                    <div class="input-group" style="max-width: 300px;">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text">Intended Action</span>
+                        </div>
+                        <select class="form-control" id="intended-action-filter">
+                            <option value="all" selected>All</option>
+                            <option value="upsert">Upsert</option>
+                            <option value="expire">Expire</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Filter Buttons - Moved to right alignment -->
+                <div class="filter-buttons-container">
+                    <button type="button" class="btn btn-sm filter-btn me-2" id="focus-differences-btn">
+                        Focus on UOM/QOE/Price Differences
+                    </button>
+                    <button type="button" class="btn btn-sm filter-btn" id="show-all-btn">
+                        Show All
+                    </button>
+                </div>
+                
                 <div class="table-responsive" style="max-height: 700px; overflow-y: auto;">
                     <table class="table table-sm table-bordered table-hover">
                         <thead class="thead-light sticky-top">
@@ -489,8 +571,12 @@
         const preferenceSelects = document.querySelectorAll('.preference-select');
         const resolutionForm = document.getElementById('resolution-form');
         const deduplicationResults = document.getElementById('deduplication-results');
+        const focusDifferencesBtn = document.getElementById('focus-differences-btn');
+        const showAllBtn = document.getElementById('show-all-btn');
         const completeStepBtn = document.getElementById('complete-step-btn');
         const saveSelectionsBtn = document.getElementById('save-selections-btn');
+        const intendedActionFilter = document.getElementById('intended-action-filter');
+
         if (saveSelectionsBtn) {
             saveSelectionsBtn.addEventListener('click', saveKeepSelections);
         }
@@ -505,6 +591,16 @@
                }, 1000); // Delay to allow for save completion
             });
         }
+        if (focusDifferencesBtn) {
+            focusDifferencesBtn.addEventListener('click', filterDifferenceGroups);
+        }
+        if (showAllBtn) {
+            showAllBtn.addEventListener('click', showAllGroups);
+        }
+        if (intendedActionFilter) {
+            intendedActionFilter.addEventListener('change', applyIntendedActionFilter);
+        }
+
 
         let draggedItem = null;
 
@@ -731,6 +827,10 @@
                     }
                     // Fetch and display results
                     fetchDeduplicationResults();
+
+                    // Set "Show All" as default active button
+                    document.getElementById('focus-differences-btn').classList.remove('active');
+                    document.getElementById('show-all-btn').classList.add('active');
                     
                     // Scroll to results
                     deduplicationResults.scrollIntoView({ behavior: 'smooth' });
@@ -807,6 +907,10 @@
             // Get upsert and expire sets from the data
             const upsertSet = new Set(data.upsert_set || []);
             const expireSet = new Set(data.expire_set || []);
+
+            // Store globally for filter functions
+            window.currentUpsertSet = upsertSet;
+            window.currentExpireSet = expireSet;
             
             // Group data by File Row
             const groupedData = {};
@@ -1080,6 +1184,140 @@
                 showAlert('danger', 'Error saving selections: ' + error.message);
                 console.error('Error saving keep status:', error);
             });
+        }
+
+        // Function to apply intended action filter
+        function applyIntendedActionFilter() {
+            const selectedAction = intendedActionFilter.value;
+            const tableBody = document.getElementById('results-table-body');
+            const rows = tableBody.querySelectorAll('tr');
+            
+            // Get upsert and expire sets from the data (store these globally when data is loaded)
+            const upsertSet = window.currentUpsertSet || new Set();
+            const expireSet = window.currentExpireSet || new Set();
+            
+            // Track which groups to show
+            const visibleGroups = new Set();
+            
+            // First pass: determine which groups should be visible based on intended action
+            rows.forEach(row => {
+                if (row.classList.contains('group-divider')) return;
+                
+                const groupCell = row.querySelector('td:first-child');
+                const groupId = groupCell ? groupCell.textContent.trim() : null;
+                
+                if (groupId) {
+                    const fileRowNum = parseInt(groupId);
+                    const isUpsert = upsertSet.has(fileRowNum);
+                    const isExpire = expireSet.has(fileRowNum);
+                    
+                    if (selectedAction === 'all' || 
+                        (selectedAction === 'upsert' && isUpsert) ||
+                        (selectedAction === 'expire' && isExpire)) {
+                        visibleGroups.add(groupId);
+                    }
+                }
+            });
+            
+            // Second pass: show/hide rows based on group visibility
+            let currentGroup = null;
+            let hideCurrentGroup = false;
+            
+            rows.forEach(row => {
+                if (row.classList.contains('group-divider')) {
+                    row.style.display = hideCurrentGroup ? 'none' : '';
+                    return;
+                }
+                
+                const groupCell = row.querySelector('td:first-child');
+                const groupId = groupCell ? groupCell.textContent.trim() : null;
+                
+                if (groupId && groupId !== currentGroup) {
+                    currentGroup = groupId;
+                    hideCurrentGroup = !visibleGroups.has(groupId);
+                }
+                
+                row.style.display = hideCurrentGroup ? 'none' : '';
+            });
+            
+            // Reset filter buttons to default state when intended action filter changes
+            document.getElementById('focus-differences-btn').classList.remove('active');
+            document.getElementById('show-all-btn').classList.add('active');
+        }
+
+        // Function to filter and only show groups containing differences
+        function filterDifferenceGroups() {
+            const selectedAction = intendedActionFilter.value;
+            const tableBody = document.getElementById('results-table-body');
+            const rows = tableBody.querySelectorAll('tr');
+            
+            // Get upsert and expire sets
+            const upsertSet = window.currentUpsertSet || new Set();
+            const expireSet = window.currentExpireSet || new Set();
+            
+            // Track which groups have differences AND match intended action filter
+            const groupsWithDifferences = new Set();
+            
+            // First pass: identify groups with differences that match intended action filter
+            rows.forEach(row => {
+                if (row.classList.contains('group-divider')) return;
+                
+                const groupCell = row.querySelector('td:first-child');
+                const groupId = groupCell ? groupCell.textContent.trim() : null;
+                
+                if (groupId) {
+                    const fileRowNum = parseInt(groupId);
+                    const isUpsert = upsertSet.has(fileRowNum);
+                    const isExpire = expireSet.has(fileRowNum);
+                    
+                    // Check if group matches intended action filter
+                    const matchesIntendedAction = selectedAction === 'all' || 
+                                                (selectedAction === 'upsert' && isUpsert) ||
+                                                (selectedAction === 'expire' && isExpire);
+                    
+                    if (matchesIntendedAction) {
+                        const hasDifference = row.querySelector('.different-value, .moderate-price-difference, .significant-price-difference');
+                        if (hasDifference) {
+                            groupsWithDifferences.add(groupId);
+                        }
+                    }
+                }
+            });
+            
+            // Second pass: hide groups without differences or that don't match intended action
+            let currentGroup = null;
+            let hideCurrentGroup = false;
+            
+            rows.forEach(row => {
+                if (row.classList.contains('group-divider')) {
+                    row.style.display = hideCurrentGroup ? 'none' : '';
+                    return;
+                }
+                
+                const groupCell = row.querySelector('td:first-child');
+                const groupId = groupCell ? groupCell.textContent.trim() : null;
+                
+                if (groupId && groupId !== currentGroup) {
+                    currentGroup = groupId;
+                    hideCurrentGroup = !groupsWithDifferences.has(groupId);
+                }
+                
+                row.style.display = hideCurrentGroup ? 'none' : '';
+            });
+            
+            // Update button state
+            document.getElementById('focus-differences-btn').classList.add('active');
+            document.getElementById('show-all-btn').classList.remove('active');
+        }
+
+        // Function to show all groups
+        function showAllGroups() {
+            // Apply intended action filter instead of showing absolutely all
+            applyIntendedActionFilter();
+            
+            // Update button state
+            document.getElementById('focus-differences-btn').classList.remove('active');
+            document.getElementById('show-all-btn').classList.add('active');
         }
         
         function completeStep() {

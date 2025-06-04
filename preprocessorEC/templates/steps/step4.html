@@ -955,13 +955,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Select/Deselect all buttons
     selectAllBtn.addEventListener('click', function() {
-        document.querySelectorAll('#items-tbody-4-1 input[type="checkbox"]').forEach(checkbox => {
+        document.querySelectorAll('#items-tbody-4-1 tr:not([style*="display: none"]) input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = true;
         });
     });
     
     deselectAllBtn.addEventListener('click', function() {
-        document.querySelectorAll('#items-tbody-4-1 input[type="checkbox"]').forEach(checkbox => {
+        document.querySelectorAll('#items-tbody-4-1 tr:not([style*="display: none"]) input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = false;
         });
     });
@@ -1169,7 +1169,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Is exact match with safeguard
                 const isExactMatch = item.same_mfg_part_num === 1;
-                const matchClass = isExactMatch ? 'match' : 'partial-match';
+                const matchClass = isExactMatch ? 'match' : 'no-match';
                 
                 // Safely calculate display confidence score
                 let confidenceScore = '50%'; // Default value
@@ -1646,7 +1646,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Is exact match with safeguard for MFN
                 const isExactMatch = item.same_mfg_part_num === 1;
-                const matchClass = isExactMatch ? 'match' : 'partial-match';
+                const matchClass = isExactMatch ? 'match' : 'no-match';
                 
                 // Check for exact vendor ID match
                 const inforVendorId = item.erp_vendor_id_infor || '';
@@ -1924,8 +1924,7 @@ document.addEventListener('DOMContentLoaded', function() {
        
     if (selectAllBtn42) {
         selectAllBtn42.addEventListener('click', function() {
-            console.log("Select all 4-2 clicked");
-            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+            document.querySelectorAll('#items-tbody-4-2 tr:not([style*="display: none"]) input.false-positive-checkbox').forEach(checkbox => {
                 checkbox.checked = true;
             });
         });
@@ -1933,8 +1932,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (deselectAllBtn42) {
         deselectAllBtn42.addEventListener('click', function() {
-            console.log("Deselect all 4-2 clicked");
-            document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+            document.querySelectorAll('#items-tbody-4-2 tr:not([style*="display: none"]) input.false-positive-checkbox').forEach(checkbox => {
                 checkbox.checked = false;
             });
         });
@@ -2269,7 +2267,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add event listeners for UOM/QOE controls
     if (selectAllUomQoeBtn) {
         selectAllUomQoeBtn.addEventListener('click', function() {
-            document.querySelectorAll('#uom-qoe-tbody input.false-positive-checkbox:not(:checked)').forEach(checkbox => {
+            document.querySelectorAll('#uom-qoe-tbody tr:not([style*="display: none"]) input.false-positive-checkbox:not(:checked)').forEach(checkbox => {
                 checkbox.checked = true;
                 console.log(`Checked checkbox for item ${checkbox.dataset.item}, file row ${checkbox.dataset.fileRow}`);
             });
@@ -2278,7 +2276,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (deselectAllUomQoeBtn) {
         deselectAllUomQoeBtn.addEventListener('click', function() {
-            document.querySelectorAll('#uom-qoe-tbody input.false-positive-checkbox:checked').forEach(checkbox => {
+            document.querySelectorAll('#uom-qoe-tbody tr:not([style*="display: none"]) input.false-positive-checkbox:checked').forEach(checkbox => {
                 checkbox.checked = false;
                 console.log(`Unchecked checkbox for item ${checkbox.dataset.item}, file row ${checkbox.dataset.fileRow}`);
             });

@@ -284,12 +284,14 @@
     }
     
     /* Column-specific styling for better readability */
+    .data-change-table .intended-action-col,
     .data-change-table .primary-action-col,
     .data-change-table .actual-action-col {
-        min-width: 90px;
+        min-width: 70px;
         max-width: 120px;
-        white-space: normal;
+        white-space: normal !important;
         word-break: break-word;
+        overflow-wrap: break-word;
         line-height: 1.2;
     }
     
@@ -447,6 +449,68 @@
         border-radius: 8px;
         margin: 20px 0;
     }
+    
+    /* Add these styles for collapse functionality */
+    .collapse:not(.show) {
+        display: none;
+    }
+    
+    .collapsing {
+        position: relative;
+        height: 0;
+        overflow: hidden;
+        transition: height 0.35s ease;
+    }
+
+    /* Action Reference Guide Table Styling */
+    .action-guide-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        margin-top: 10px;
+    }
+
+    .action-guide-table th {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 8px;
+        text-align: center;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .action-guide-table td {
+        border: 1px solid #dee2e6;
+        padding: 8px;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    /* Background colors for different action types */
+    .action-guide-table .action-create {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .action-guide-table .action-update {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .action-guide-table .action-expire {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .action-guide-table .action-neutral {
+        background-color: #f8f9fa;
+        color: #495057;
+    }
+    
+    /* Add grey text styling for no-change rows */
+    .action-guide-table .action-no-change {
+        color: #6c757d; /* Grey text */
+    }
 </style>
 
 <!-- Change Simulation Content -->
@@ -525,7 +589,7 @@
             <div class="change-stats-column">
                 <div class="change-stat-card ccx-delete-card">
                     <div class="card-body text-center">
-                        <h5 class="card-title">CCX Delete</h5>
+                        <h5 class="card-title">CCX Expire</h5>
                         <div class="stat-value" id="ccx-delete-count">0</div>
                     </div>
                 </div>
@@ -559,7 +623,75 @@
         <!-- Data Change Table Section -->
         <div id="data-change-section" style="margin-top: 30px;">
             <h5>Detailed Change Actions</h5>
-            <p class="text-muted">Review and modify the specific actions that will be taken for each contract line. You can prevent expiration of CCX items by checking "Do Not Expire".</p>
+            <p class="text-muted">Review specific actions that will be taken for affected contract line(s). You can prevent expiration of CCX existing line(s) by checking "Do Not Expire".</p>
+            
+            <!-- Action Reference Guide - Table format with 4 columns, 6 rows -->
+            <div class="mb-3">
+                <div class="card-header" style="background-color: #f8f9fa; cursor: pointer; border: none; padding: 0px 0 0px 0; margin-top: 0px; margin-bottom: -5px;" id="action-guide-header">
+                    <h5 class="mb-0" style="color: #495057;">
+                        <i class="fas fa-info-circle text-primary mr-2"></i>
+                        Action Reference Guide
+                        <small class="text-muted float-right">Click to expand</small>
+                    </h5>
+                </div>
+                <div id="action-guide" class="collapse">
+                    <div style="padding: -15px 0 20px 0;">
+                        <table class="action-guide-table">
+                            <thead>
+                                <tr>
+                                    <th>Intended Action</th>
+                                    <th>Primary Action</th>
+                                    <th>Actual Action</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="action-create">
+                                    <td>Upsert</td>
+                                    <td><strong>Create</strong></td>
+                                    <td>Create</td>
+                                    <td>Adding a brand new item to the contract system</td>
+                                </tr>
+                                <tr class="action-expire">
+                                    <td>Upsert</td>
+                                    <td><strong>Expire</strong></td>
+                                    <td>Expire</td>
+                                    <td>Dropping of the same item from existing contract(s) to remove cross contract duplicates</td>
+                                </tr>
+                                <tr class="action-update">
+                                    <td>Upsert</td>
+                                    <td><strong>Update</strong></td>
+                                    <td>Update (New/Existing)</td>
+                                    <td>Updating item within contract where changes do not affect CCX's item identification key</td>
+                                </tr>
+                                <tr class="action-update">
+                                    <td>Upsert</td>
+                                    <td><strong>Update</strong></td>
+                                    <td>ETC (Expire/Create)</td>
+                                    <td>Updating item within contract where changes affect CCX's item identification key</td>
+                                </tr>
+                                <tr class="action-update action-no-change">
+                                    <td>Upsert</td>
+                                    <td><strong>Update</strong></td>
+                                    <td>No Change</td>
+                                    <td>The intended update action does not result in any actual data change, ignored</td>
+                                </tr>
+                                <tr class="action-expire">
+                                    <td>Expire</td>
+                                    <td><strong>Expire</strong></td>
+                                    <td>Expire</td>
+                                    <td>Expire the item from the designated uploaded contract(s)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="text-center mt-3 pt-2" style="border-top: 1px solid #dee2e6; margin-bottom: 20px;">
+                            <small class="text-muted">
+                                <em>Format: Intended Action → <strong>Primary Action</strong> → Actual Action</em>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- Table Controls - Updated to match step4.html -->
             <div id="data-change-controls" class="data-change-controls">
@@ -569,7 +701,7 @@
                             <option value="contains">Contains</option>
                             <option value="not-contains">Not Contains</option>
                             <option value="contract-only">By Contract Number</option>
-                            <option value="action-only">By Action</option>
+                            <option value="action-only" selected>By Action</option>
                         </select>
                         <input type="text" id="data-change-search" class="data-change-search-input" placeholder="Search changes...">
                         <button id="data-change-clear-search" class="data-change-clear-search-btn">Clear</button>
@@ -587,6 +719,7 @@
                 <table id="data-change-table" class="data-change-table">
                     <thead>
                         <tr>
+                            <th data-sort="Intended Action" class="intended-action-col">Intended Action<span class="sort-indicator"></span></th>
                             <th data-sort="Primary Action" class="primary-action-col">Primary Action<span class="sort-indicator"></span></th>
                             <th data-sort="Actual Action" class="actual-action-col">Actual Action<span class="sort-indicator"></span></th>
                             <th class="checkbox-col">Do Not Expire</th>
@@ -830,6 +963,8 @@ function formatActionText(action) {
         return 'ETC';
     } else if (action === 'Update (Existing)') {
         return 'Update (Curr.)';
+    } else if (action === 'Expire CCX') {
+        return 'Expire';
     }
     
     // Return original text for other actions
@@ -908,6 +1043,7 @@ function renderDataChangeTable(items) {
             
             // Rearranged columns according to new order
             row.innerHTML = `
+                <td>${item['Intended Action'] || ''}</td>
                 <td>${formattedPrimaryAction}</td>
                 <td>${formattedActualAction}</td>
                 <td class="checkbox-col">${checkboxHtml}</td>
@@ -925,12 +1061,95 @@ function renderDataChangeTable(items) {
             
             tbody.appendChild(row);
         });
+
+        // Apply current filter after rendering
+        filterDataChangeTable();
         
     } catch (err) {
         console.error("Error rendering data change table:", err);
         tbody.innerHTML = '<tr><td colspan="13" class="text-center">Error rendering table data</td></tr>';
     }
 }
+
+// Add new function to apply current filter without re-rendering
+function applyCurrentFilter() {
+    const searchTerm = document.getElementById('data-change-search').value.toLowerCase();
+    const searchType = document.getElementById('data-change-search-type').value;
+    
+    // Only apply filter if there's a search term
+    if (searchTerm.trim() === '') {
+        // Show all rows if no search term
+        document.querySelectorAll('#data-change-tbody tr').forEach(row => {
+            row.style.display = '';
+        });
+        return;
+    }
+    
+    const tableRows = document.querySelectorAll('#data-change-tbody tr');
+    let visibleCount = 0;
+    
+    tableRows.forEach(row => {
+        let match = false;
+        
+        if (searchType === 'contains' || searchType === 'not-contains') {
+            // Search in all cells
+            const rowText = row.textContent.toLowerCase();
+            match = rowText.includes(searchTerm);
+            
+            // Invert match for not-contains
+            if (searchType === 'not-contains') {
+                match = !match;
+            }
+        } else if (searchType === 'contract-only') {
+            // Search only in Contract Number column
+            const contractCell = row.cells[4];
+            if (contractCell) {
+                const contractText = contractCell.textContent.toLowerCase();
+                match = contractText.includes(searchTerm);
+            }
+        } else if (searchType === 'action-only') {
+            // Search in Action columns
+            const primaryActionCell = row.cells[0];
+            const actualActionCell = row.cells[1];
+            
+            if (primaryActionCell && actualActionCell) {
+                const primaryActionText = primaryActionCell.textContent.toLowerCase();
+                const actualActionText = actualActionCell.textContent.toLowerCase();
+                match = primaryActionText.includes(searchTerm) || actualActionText.includes(searchTerm);
+            }
+        }
+        
+        // Show/hide row based on match
+        row.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+    });
+    
+    // Show/hide no data message based on visible rows
+    document.getElementById('no-data-message').style.display = visibleCount > 0 ? 'none' : 'block';
+}
+
+// Update the sort click handler to not call attachDataChangeEventListeners
+document.querySelectorAll('#data-change-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', function() {
+        const field = this.dataset.sort;
+        
+        if (field === sortFieldDataChange) {
+            sortDirectionDataChange = sortDirectionDataChange === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortFieldDataChange = field;
+            sortDirectionDataChange = 'asc';
+        }
+        
+        // Update sort indicators
+        document.querySelectorAll('#data-change-table th').forEach(header => {
+            header.classList.remove('sort-asc', 'sort-desc');
+        });
+        this.classList.add(sortDirectionDataChange === 'asc' ? 'sort-asc' : 'sort-desc');
+        
+        // Re-render table with new sort (filter will be applied automatically)
+        renderDataChangeTable(allDataChangeItems);
+    });
+});
 
 // Function to attach event listeners for data change table
 // Added parameter to optionally remove existing listeners first
@@ -1015,13 +1234,13 @@ function clearSearchHandler() {
 }
 
 function selectAllHandler() {
-    document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
+    document.querySelectorAll('#data-change-tbody tr:not([style*="display: none"]) .expire-checkbox').forEach(checkbox => {
         checkbox.checked = true;
     });
 }
 
 function deselectAllHandler() {
-    document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
+    document.querySelectorAll('#data-change-tbody tr:not([style*="display: none"]) .expire-checkbox').forEach(checkbox => {
         checkbox.checked = false;
     });
 }
@@ -1055,13 +1274,17 @@ function filterDataChangeTable() {
             }
         } else if (searchType === 'action-only') {
             // Search in Action columns (1st and 2nd columns in the new structure)
-            const primaryActionCell = row.cells[0]; // Primary Action
-            const actualActionCell = row.cells[1]; // Actual Action
+            const IntendedActionCell = row.cells[0]; // Intended Action
+            const primaryActionCell = row.cells[1]; // Primary Action
+            const actualActionCell = row.cells[2]; // Actual Action
             
             if (primaryActionCell && actualActionCell) {
                 const primaryActionText = primaryActionCell.textContent.toLowerCase();
                 const actualActionText = actualActionCell.textContent.toLowerCase();
-                match = primaryActionText.includes(searchTerm) || actualActionText.includes(searchTerm);
+                const intendedActionText = IntendedActionCell.textContent.toLowerCase();
+                match = primaryActionText.includes(searchTerm) || 
+                actualActionText.includes(searchTerm) ||
+                intendedActionText.includes(searchTerm);
             }
         }
         
@@ -1128,4 +1351,34 @@ function saveExpireSelections() {
         console.error('Error saving expire selections:', error);
     });
 }
+
+// Manual collapse toggle for Action Reference Guide
+document.addEventListener('DOMContentLoaded', function() {
+    const actionGuideHeader = document.getElementById('action-guide-header');
+    const actionGuide = document.getElementById('action-guide');
+    
+    if (actionGuideHeader && actionGuide) {
+        // Initialize - ensure it's collapsed by default
+        if (actionGuide.classList.contains('show')) {
+            actionGuide.classList.remove('show');
+        }
+        
+        actionGuideHeader.addEventListener('click', function() {
+            // Toggle the collapse
+            if (actionGuide.classList.contains('show')) {
+                actionGuide.classList.remove('show');
+                const headerText = actionGuideHeader.querySelector('small');
+                if (headerText) {
+                    headerText.textContent = 'Click to expand';
+                }
+            } else {
+                actionGuide.classList.add('show');
+                const headerText = actionGuideHeader.querySelector('small');
+                if (headerText) {
+                    headerText.textContent = 'Click to collapse';
+                }
+            }
+        });
+    }
+});
 </script>

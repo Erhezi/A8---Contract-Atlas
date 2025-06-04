@@ -150,6 +150,7 @@ def show_changes():
                 'original_graph_data': original_graph_json,
                 'modified_graph_data': modified_graph_json,
                 'data_change_show': changes_to_show_df.to_dict(orient='records'),
+                'reference_for_expire_rows': reference_for_expire_rows.to_dict(orient='records') if not reference_for_expire_rows.empty else [],
                 'line_count_before_after': line_count_before_after.to_dict(orient='records') if not line_count_before_after.empty else [],
                 'ccx_line_count_cal': ccx_line_count_cal.to_dict(orient='records') if not ccx_line_count_cal.empty else [],
                 'tp_line_count_cal': tp_line_count_cal.to_dict(orient='records') if not tp_line_count_cal.empty else []
