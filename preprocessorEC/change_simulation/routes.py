@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, flash, current_app, redirect, url_for
 from flask_login import login_required, current_user
-from ..common.session import get_validated_data, get_deduped_results, get_uom_qoe_validation
+from ..common.session import get_validated_data, get_deduped_results, get_infor_cl_matches
 from ..common.utils import compute_changes_to_show, apply_change, change_simulation_stage1, change_simulation_stage2, change_simulation_stage3, generate_network_graph
 import os
 import json
@@ -37,12 +37,9 @@ def show_changes():
         
         # Get stacked data from step3 (deduplication results)
         # this can be empty if there is no duplicates found, and the stacked data in this case need to be handled gracefully
-        deduped_results = get_deduped_results(user_id)
-        if not deduped_results:
-            flash("No deduplicated results found. Please complete the deduplication step first.", "warning")
-            deduped_results = {}
-            # stacked_df in this case will simply take the validated data as the base, and we will map the columns to fit the stacked_df's structure
-            stacked_data = []
+        stacked_data = get_deduped_results(user_id).get('stacked_data', [])
+        if not stacked_data or stacked_data == []:
+            flash("No duplicates found in duplication dection step, procecedding with validated data only.", "info")
             for item in validated_data:
                 row = {
                     'Buyer Part Num': item.get('Buyer Part Num', ''),
@@ -67,21 +64,19 @@ def show_changes():
                     'Vendor Part Num': item.get('Vendor Part Num', '')
                 }
                 stacked_data.append(row)
-            deduped_results['stacked_data'] = stacked_data
         
         # get uom_qoe_validation restults from step4 (uom_qoe_validation)
         # this can be empty if there nothing to be validated (no item master matching found for items)
-        uom_qoe_validation = get_uom_qoe_validation(user_id)
-        if not uom_qoe_validation:
-            flash("No UOM/QOE validation results found. Please complete the validation step first.", "warning")
-            uom_qoe_validation = {}
+        merged_data = get_infor_cl_matches(user_id).get("merged_df", [])
+        if not merged_data or merged_data == []:
+            flash("No Item Master Item seems to attach to these screened items.", "info")
         
         # Convert data to DataFrames
         validated_df = pd.DataFrame(validated_data)
         # The stacked data should be the deduplicated results from step3
-        stacked_df = pd.DataFrame(deduped_results.get('stacked_data', []))
-        # analyzed_df from uom_qoe_validation
-        analyzed_df = pd.DataFrame(uom_qoe_validation.get('analyzed_df', []))
+        stacked_df = pd.DataFrame(stacked_data)
+        # items from step4 when matching to infor contract line with item numbers
+        merged_df = pd.DataFrame(merged_data)
 
         
         # multiple stages to process the change simulation
@@ -136,7 +131,7 @@ def show_changes():
         modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=master_pos, show_IUD=True)
         
 
-        changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, analyzed_df)
+        changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, merged_df)
         
         # Store simulation results in the session if needed
         # session.store_simulation_results(user_id, simulation_results)

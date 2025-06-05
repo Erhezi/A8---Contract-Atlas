@@ -1984,13 +1984,13 @@ def change_simulation_stage3(ccx_merge, tp_merge):
     return df_cross_new, ccx_line_count_cal, tp_line_count_cal, line_count_before_after
 
 
-def compute_changes_to_show(data_change_show_df, analyzed_df):
+def compute_changes_to_show(data_change_show_df, merged_df):
     """
     Compute changes to show in the UI based on the data change DataFrame and analyzed DataFrame.
     
     Args:
         data_change_show_df: DataFrame with changes to show from change simulation
-        analyzed_df: DataFrame contains finalized item matching results
+        merged_df: DataFrame contains finalized item matching results to infor
     
     Returns:
         changes_simulation_result_df: DataFrame with changes to show in the UI
@@ -1998,25 +1998,43 @@ def compute_changes_to_show(data_change_show_df, analyzed_df):
     
     base_df = data_change_show_df.copy()
 
-    # if analyzed_df is empty then the item matching will just be empty string
-    if analyzed_df.empty:
-        base_df.loc[:, 'Item'] = ''
+    im_df = merged_df[merged_df['False Positive'] ==  False][['File_Row', 
+                                                              'contract_number_infor', 
+                                                              'item_number_infor']].copy()
+    im_df.rename(columns = {'File_Row': 'File Row',
+                            'contract_number_infor': 'Contract Number',
+                            'item_number_infor': 'Item'}, inplace = True)
     
-    im_label_df = analyzed_df[analyzed_df['False Positive'] == False].copy()
-    im_label_df = im_label_df[['File Row', 'Item', 'Validation']].drop_duplicates()
-    im_label_df.loc[:, 'Item Validation'] = im_label_df['Item'] + ' (' + im_label_df['Validation'] + ')'
-    im_label_by_file_row = im_label_df.groupby('File Row')['Item Validation'].apply(lambda x: ', '.join(x)).reset_index()
-    im_label_by_file_row.rename(columns = {'Item Validation': 'Item'}, inplace = True)
-    changes_simulation_result_df = base_df.merge(im_label_by_file_row, on='File Row', how='left')
-    changes_simulation_result_df.loc[:, 'Item'] = changes_simulation_result_df['Item'].fillna('')
+    im_df = im_df[im_df['Item'] != ''].copy()  # Exclude false positives
+    im_df = im_df.drop_duplicates(subset=['File Row', 'Contract Number'], keep='first').copy()
+    im_df_fr = im_df[['File Row', 'Item']].copy()
+    im_df_fr.rename(columns = {'Item': 'Item_fr'}, inplace = True)
+    im_df_fr.drop_duplicates(subset=['File Row'], keep='first', inplace=True)
 
-    # take the portion of want to display
-    changes_simulation_result_df = changes_simulation_result_df[changes_simulation_result_df['Actual Action'].isin(['Create', 
-                                                                                        'Update (New)',
-                                                                                        'Update (Existing)',
-                                                                                        'Expire then Create (Expire)',
-                                                                                        'Expire then Create (Create)',
-                                                                                        'Expire'])].copy()
+    # if im_df is empty then the item matching will just be empty string
+    if im_df.empty:
+        base_im_df = base_df.copy()
+        base_im_df.loc[:, 'Item'] = ''
+    else:
+        base_im_df = base_df.merge(im_df, on=['File Row',
+                                          'Contract Number'], how='left')\
+                            .merge(im_df_fr,
+                                          on='File Row', how='left')
+        base_im_df.loc[:, 'Item'] = base_im_df['Item'].fillna('')
+        base_im_df.loc[:, 'Item_fr'] = base_im_df['Item_fr'].fillna('')
+        # find out item_fr has value but item does not, in this case, copy over item_fr value to item but add bracket (item_fr)
+        base_im_df.loc[base_im_df['Item'] == '', 'Item'] = base_im_df['Item_fr'].apply(lambda x: f'({x})' if x != '' else '')
+        # drop the item_fr column
+        base_im_df.drop(columns=['Item_fr'], inplace=True)
+
+
+    # take the portion of not no change to display
+    changes_simulation_result_df = base_im_df[base_im_df['Actual Action'].isin(['Create', 
+                                                                                'Update (New)',
+                                                                                'Update (Existing)',
+                                                                                'Expire then Create (Expire)',
+                                                                                'Expire then Create (Create)',
+                                                                                'Expire'])].copy()
 
     # add column to let user forgive the expiration of the item by mark 'Do Not Expire' as true (default to False)
     # for anything that are not set up as 'Expire CCX' under primary action, we will set it to nan
@@ -2025,7 +2043,7 @@ def compute_changes_to_show(data_change_show_df, analyzed_df):
     
     # extract the reference line for items to be expired
     file_rows_to_expire = set(changes_simulation_result_df[changes_simulation_result_df['Primary Action'] == 'Expire CCX']['File Row'])
-    reference_for_expire_rows = base_df[(base_df['File Row'].isin(file_rows_to_expire)) & (base_df['Group'] == 'Keep')].copy()
+    reference_for_expire_rows = base_im_df[(base_im_df['File Row'].isin(file_rows_to_expire)) & (base_im_df['Group'] == 'Keep')].copy()
 
     changes_simulation_result_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'changes_simulation_result_df.xlsx'), index=False) #debug
     reference_for_expire_rows.to_excel(os.path.join(current_app.root_path, 'temp_files', 'reference_for_expire_rows.xlsx'), index=False) #debug

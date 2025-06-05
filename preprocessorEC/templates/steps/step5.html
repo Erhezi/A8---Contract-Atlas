@@ -670,7 +670,7 @@
                                 </tr>
                                 <tr class="action-expire">
                                     <td>Upsert</td>
-                                    <td><strong>Expire</strong></td>
+                                    <td><strong>Expire CCX</strong></td>
                                     <td>Expire</td>
                                     <td>Dropping of the same item from existing contract(s) to remove cross contract duplicates</td>
                                 </tr>
@@ -694,7 +694,7 @@
                                 </tr>
                                 <tr class="action-expire">
                                     <td>Expire</td>
-                                    <td><strong>Expire</strong></td>
+                                    <td><strong>Expire CCX</strong></td>
                                     <td>Expire</td>
                                     <td>Expire the item from the designated uploaded contract(s)</td>
                                 </tr>
@@ -1021,8 +1021,6 @@ function formatActionText(action) {
         return 'ETC';
     } else if (action === 'Update (Existing)') {
         return 'Update (Curr.)';
-    } else if (action === 'Expire CCX') {
-        return 'Expire';
     }
     
     // Return original text for other actions
