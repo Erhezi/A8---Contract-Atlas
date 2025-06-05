@@ -694,11 +694,11 @@
         <div class="contract-legend">
             <div class="legend-item">
                 <div class="color-box included-color"></div>
-                <span>Included Contracts</span>
+                <span>Included</span>
             </div>
             <div class="legend-item">
                 <div class="color-box excluded-color"></div>
-                <span>Excluded Contracts</span>
+                <span>Excluded</span>
             </div>
             <div class="search-wrapper">
                 <select id="search-type" class="search-type-select">
@@ -708,6 +708,12 @@
                 <input type="text" id="contract-search" class="search-input" placeholder="Filter results...">
                 <button type="button" id="contract-clear-search-btn" class="clear-search-btn" title="Clear search">Clear</button>
             </div>
+        </div>
+
+        <!-- Include all Exclude all-->
+        <div id="batch-contract-actions" style="margin-left: 20px;">
+            <button id="batch-include-btn" class="btn btn-success btn-sm">Include All Visible</button>
+            <button id="batch-exclude-btn" class="btn btn-danger btn-sm">Exclude All Visible</button>
         </div>
         
         <!-- Included contracts tags -->
@@ -887,6 +893,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const deselectAllBtn = document.getElementById('deselect-all-btn');
     const saveSelectionsBtn = document.getElementById('save-selections-btn');
 
+    const batchIncludeBtn = document.getElementById('batch-include-btn');
+    const batchExcludeBtn = document.getElementById('batch-exclude-btn');
+    const batchContractActions = document.getElementById('batch-contract-actions');
+
+
     // Contract-Level Duplication Review Elements
     const loadingOverlaySpinner = document.getElementById('loading-overlay-spinner');
     const startAnalysisBtn = document.getElementById('start-analysis-btn');
@@ -919,11 +930,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const progressMessage = document.getElementById('progress-message');
     const itemsProcessed = document.getElementById('items-processed');
 
+
+    // Add these event listeners for batch buttons
+    batchIncludeBtn.addEventListener('click', function() {
+        batchToggleContracts(true);
+    });
+
+    batchExcludeBtn.addEventListener('click', function() {
+        batchToggleContracts(false);
+    });
     
-    // Track included/excluded contracts
-    let includedContracts = [];
-    let excludedContracts = [];
-    let allContracts = [];
+    // Function to handle batch include/exclude
+    let state = {
+        allContracts: [],
+        includedContracts: [],
+        excludedContracts: [],
+        isLoaded: false
+    };
     
     // 2.2 Item-Level Comparison Variables
     let currentItems = [];
@@ -931,7 +954,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let sortField = null;
     let sortDirection = 'asc';
 
-    
+    // start analysis
     startAnalysisBtn.addEventListener('click', function() {
         // Show loading overlay
         loadingOverlaySpinner.style.display = 'flex';
@@ -946,10 +969,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (data.success) {
                 // Store contracts
-                allContracts = data.contracts;
+                state.allContracts = data.contracts;;
                 
                 // Display contracts
-                displayContracts(allContracts);
+                displayContracts(state.allContracts);
                 
                 // Show review actions
                 document.querySelector('.review-actions').style.display = 'block';
@@ -964,18 +987,70 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    loadingOverlaySpinner.style.display = 'flex';
+
+    // 1. First, fetch the contract state
+    fetch('/duplicate-detection/get-contract-state')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                state.includedContracts = data.included_contracts || [];
+                state.excludedContracts = data.excluded_contracts || [];
+                
+                console.log("Loaded contract state:", {
+                    included: state.includedContracts.length,
+                    excluded: state.excludedContracts.length
+                });
+                
+                // 2. If we have included contracts, load the contract data
+                if (state.includedContracts.length > 0) {
+                    return loadContractData();
+                } else {
+                    // No included contracts, so we can render the UI now
+                    state.isLoaded = true;
+                    return { contracts: [] };
+                }
+            } else {
+                throw new Error("Failed to load contract state: " + data.message);
+            }
+        })
+        .then(data => {
+            // 3. Store the contracts and mark as loaded
+            if (data && data.contracts) {
+                state.allContracts = data.contracts;
+            }
+            state.isLoaded = true;
+            
+            // 4. Now we can display the UI
+            displayContracts();
+        })
+        .catch(error => {
+            console.error("Error initializing page:", error);
+            state.isLoaded = true;
+            displayContracts();
+        })
+        .finally(() => {
+            // Hide the loading spinner regardless of outcome
+            loadingOverlaySpinner.style.display = 'none';
+        });
+
+    // Function to load contract data - returns a Promise
+    function loadContractData() {
+        return fetch('/duplicate-detection/process-duplicates', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.message);
+            }
+            return data;
+        });
+    }
     
-    contractClearSearchBtn.addEventListener('click', function() {
-        // Clear the search input
-        contractSearch.value = '';
-        // Reset search type to "contains"
-        searchTypeSelect.value = 'contains';
-        // Trigger filtering to show all contracts
-        filterContracts();
-    });
 
     function initializeIncludedContracts() {
-        console.log("Saving included contracts:", includedContracts);
+        console.log("Saving included contracts:", state.includedContracts);
         
         // Send included contracts to the server
         fetch('/duplicate-detection/initialize-included-contracts', {
@@ -984,15 +1059,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                contract_numbers: includedContracts
+                contract_numbers: state.includedContracts
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 console.log("Successfully saved included contracts:", data);
-                includedContracts = data.included_contracts;
-                excludedContracts = data.excluded_contracts;
+                state.includedContracts = data.included_contracts;
+                state.excludedContracts = data.excluded_contracts;
             } else {
                 console.error("Error saving included contracts");
             }
@@ -1002,135 +1077,180 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+
+    contractClearSearchBtn.addEventListener('click', function() {
+        // Clear the search input
+        contractSearch.value = '';
+        // Reset search type to "contains"
+        searchTypeSelect.value = 'contains';
+        // Trigger filtering to show all contracts
+        filterContracts();
+    });
+
     
-    function displayContracts(contracts) {
+    function displayContracts(contractsToDisplay) {
         contractCardsContainer.innerHTML = '';
         
-        if (contracts.length === 0) {
-            contractCardsContainer.innerHTML = `
-                <div class="no-results">
-                    <h4>No matching contracts found on CCX</h4>
-                    <p>Mostly there is no duplication for your uploaded items on CCX, we can skip step2 and 3.</p>
-                    <div class="action-buttons" style="margin-top: 20px; text-align: center;">
-                        <form method="POST" action="{{ url_for('common.process_step', step_id=4) }}">
-                            <input type="hidden" name="skip_steps" value="2,3">
-                            <input type="hidden" name="step_completed" value="true">
-                            <button type="submit" class="btn btn-success">Skip to Step 4</button>
-                        </form>
-                    </div>
-                </div>
-            `;
+        // Get contracts to display - use parameter if provided, otherwise filter all contracts
+        const contracts = contractsToDisplay || filterContracts();
             
-            // Also show the "review actions" container since we need to provide a way to proceed
-            document.querySelector('.review-actions').style.display = 'none';
-            document.querySelector('.contracts-status-section').style.display = 'none';
-            return;
-        }
-        
-        // Automatically include all contracts by default if not explicitly excluded
-        contracts.forEach(contract => {
-            if (!excludedContracts.includes(contract.contract_number) && 
-                !includedContracts.includes(contract.contract_number)) {
-                includedContracts.push(contract.contract_number);
-            }
-        });
-        
-        // Sync the included contracts with the server
-        fetch('/duplicate-detection/initialize-included-contracts', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contract_numbers: includedContracts
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Update local variables with server data
-                includedContracts = data.included_contracts;
-                excludedContracts = data.excluded_contracts;
-            } else {
-                console.error('Error initializing contracts:', data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error initializing contracts:', error);
-        });
-        
-        // Update included contracts tags display
-        updateIncludedContractsTags();
-        
-        contracts.forEach(contract => {
-            const isExcluded = excludedContracts.includes(contract.contract_number);
-            
-            const card = document.createElement('div');
-            card.className = `contract-card ${isExcluded ? 'excluded' : 'selected'}`;
-            card.dataset.contractNumber = contract.contract_number;
-            
-            card.innerHTML = `
-                <div class="card-header">
-                    <div>
-                        <h4 class="card-title">${contract.contract_number}</h4>
-                        <div class="card-subtitle">${contract.contract_description || 'No description'}</div>
-                        <div class="card-subtitle">Manufacturer: <strong>${contract.manufacturer_name || 'Unknown'}</strong></div>
-                    </div>
-                    <div class="status-indicator">
-                        <span class="status-text ${isExcluded ? 'status-excluded' : 'status-included'}">
-                            ${isExcluded ? 'Excluded' : 'Included'}
-                        </span>
-                        <button type="button" class="toggle-action-btn" data-contract="${contract.contract_number}">
-                            ${isExcluded ? 'Include' : 'Exclude'}
-                        </button>
-                    </div>
-                </div>
-                <div class="card-stats">
-                    <div class="card-stat">
-                        <div class="stat-value">${contract.total_matches}</div>
-                        <div class="stat-label">Total Matches</div>
-                    </div>
-                    <div class="card-stat">
-                        <div class="stat-value">${contract.exact_matches}</div>
-                        <div class="stat-label">Exact MFN Matches</div>
-                    </div>
-                    <div class="card-stat">
-                        <div class="stat-value">${contract.total_line_count_ccx || 'N/A'}</div>
-                        <div class="stat-label">Total CCX Lines</div>
-                    </div>
-                </div>
-            `;
-            
-            contractCardsContainer.appendChild(card);
-        });
-        
-        // Add click event to card for details view
-        document.querySelectorAll('.contract-card').forEach(card => {
-            card.addEventListener('click', function(e) {
-                // Ignore clicks on the toggle button
-                if (e.target.classList.contains('toggle-action-btn') || 
-                    e.target.closest('.toggle-action-btn')) {
-                    return;
+            if (contracts.length === 0) {
+                // Choose the appropriate message based on our state
+                if (state.allContracts.length === 0) {
+                    // No contracts exist at all
+                    contractCardsContainer.innerHTML = `
+                        <div class="no-results">
+                            <h4>No matching contracts found on CCX</h4>
+                            <p>Mostly there is no duplication for your uploaded items on CCX, we can skip step2 and 3.</p>
+                            <div class="action-buttons" style="margin-top: 20px; text-align: center;">
+                                <form method="POST" action="{{ url_for('common.process_step', step_id=4) }}">
+                                    <input type="hidden" name="skip_steps" value="2,3">
+                                    <input type="hidden" name="step_completed" value="true">
+                                    <button type="submit" class="btn btn-success">Skip to Step 4</button>
+                                </form>
+                            </div>
+                        </div>
+                    `;
+                } else if (state.includedContracts.length === 0 && state.isLoaded) {
+                    // We have contracts but none are included
+                    contractCardsContainer.innerHTML = `
+                        <div class="no-results">
+                            <h4>No contracts are currently included</h4>
+                            <p>All contracts have been excluded. You can include some contracts or skip to step 4.</p>
+                            <div class="action-buttons" style="margin-top: 20px; text-align: center;">
+                                <form method="POST" action="{{ url_for('common.process_step', step_id=4) }}">
+                                    <input type="hidden" name="skip_steps" value="2,3">
+                                    <input type="hidden" name="step_completed" value="true">
+                                    <button type="submit" class="btn btn-success">Skip to Step 4</button>
+                                </form>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // We're just filtering and no contracts match the filter
+                    contractCardsContainer.innerHTML = `
+                        <div class="no-results">
+                            <h4>No contracts match your search criteria</h4>
+                            <p>Try changing your filter or clear the search to see all available contracts.</p>
+                        </div>
+                    `;
                 }
                 
-                // Show contract details
-                showContractDetails(this.dataset.contractNumber);
+                // Set visibility of UI sections
+                document.querySelector('.review-actions').style.display = 'none';
+                document.querySelector('.contracts-status-section').style.display = 'block';
+                batchContractActions.style.display = 'flex';
+                return;
+            }
+
+            // Automatically include all contracts by default if not explicitly excluded
+            contracts.forEach(contract => {
+                if (!state.excludedContracts.includes(contract.contract_number) && 
+                    !state.includedContracts.includes(contract.contract_number)) {
+                    state.includedContracts.push(contract.contract_number);
+                }
             });
-        });
-        
-        // Add click event to toggle buttons - fixed to use proper selector
-        document.querySelectorAll('.toggle-action-btn').forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation(); // Prevent opening the modal
-                
-                const contractNum = this.dataset.contract;
-                const isExcluded = excludedContracts.includes(contractNum);
-                
-                // Toggle inclusion state
-                toggleContractInclusion(contractNum, isExcluded);
+            
+            // Sync the included contracts with the server
+            fetch('/duplicate-detection/initialize-included-contracts', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    contract_numbers: state.includedContracts
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update local variables with server data
+                    state.includedContracts = data.included_contracts;
+                    state.excludedContracts = data.excluded_contracts;
+                } else {
+                    console.error('Error initializing contracts:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error initializing contracts:', error);
             });
-        });
-    }
+            
+            // Update included contracts tags display
+            updateIncludedContractsTags();
+            
+            contracts.forEach(contract => {
+                const isExcluded = state.excludedContracts.includes(contract.contract_number);
+                
+                const card = document.createElement('div');
+                card.className = `contract-card ${isExcluded ? 'excluded' : 'selected'}`;
+                card.dataset.contractNumber = contract.contract_number;
+                
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div>
+                            <h4 class="card-title">${contract.contract_number}</h4>
+                            <div class="card-subtitle">${contract.contract_description || 'No description'}</div>
+                            <div class="card-subtitle">Manufacturer: <strong>${contract.manufacturer_name || 'Unknown'}</strong></div>
+                        </div>
+                        <div class="status-indicator">
+                            <span class="status-text ${isExcluded ? 'status-excluded' : 'status-included'}">
+                                ${isExcluded ? 'Excluded' : 'Included'}
+                            </span>
+                            <button type="button" class="toggle-action-btn" data-contract="${contract.contract_number}">
+                                ${isExcluded ? 'Include' : 'Exclude'}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-stats">
+                        <div class="card-stat">
+                            <div class="stat-value">${contract.total_matches}</div>
+                            <div class="stat-label">Total Matches</div>
+                        </div>
+                        <div class="card-stat">
+                            <div class="stat-value">${contract.exact_matches}</div>
+                            <div class="stat-label">Exact MFN Matches</div>
+                        </div>
+                        <div class="card-stat">
+                            <div class="stat-value">${contract.total_line_count_ccx || 'N/A'}</div>
+                            <div class="stat-label">Total CCX Lines</div>
+                        </div>
+                    </div>
+                `;
+                
+                contractCardsContainer.appendChild(card);
+            });
+            
+            // Add click event to card for details view
+            document.querySelectorAll('.contract-card').forEach(card => {
+                card.addEventListener('click', function(e) {
+                    // Ignore clicks on the toggle button
+                    if (e.target.classList.contains('toggle-action-btn') || 
+                        e.target.closest('.toggle-action-btn')) {
+                        return;
+                    }
+                    
+                    // Show contract details
+                    showContractDetails(this.dataset.contractNumber);
+                });
+            });
+            
+            // Add click event to toggle buttons - fixed to use proper selector
+            document.querySelectorAll('.toggle-action-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation(); // Prevent opening the modal
+                    
+                    const contractNum = this.dataset.contract;
+                    const isExcluded = state.excludedContracts.includes(contractNum);
+                    
+                    // Toggle inclusion state
+                    toggleContractInclusion(contractNum, isExcluded);
+                });
+            });
+
+            document.querySelector('.review-actions').style.display = 'block';
+            document.querySelector('.contracts-status-section').style.display = 'block';
+            batchContractActions.style.display = 'flex';
+        }
 
     // Add this new function to update the tags display
     function updateIncludedContractsTags() {
@@ -1139,12 +1259,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         tagsContainer.innerHTML = '';
         
-        if (includedContracts.length === 0) {
+        if (state.includedContracts.length === 0) {
             tagsContainer.innerHTML = '<span class="empty-tag">No contracts included</span>';
             return;
         }
         
-        includedContracts.forEach(contractNum => {
+        state.includedContracts.forEach(contractNum => {
             const tag = document.createElement('span');
             tag.className = 'contract-tag';
             tag.textContent = contractNum;
@@ -1174,12 +1294,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (data.success) {
                 // Update local arrays
-                includedContracts = data.included_contracts;
-                excludedContracts = data.excluded_contracts;
+                state.includedContracts = data.included_contracts;
+                state.excludedContracts = data.excluded_contracts;
                 
                 const card = document.querySelector(`.contract-card[data-contract-number="${contractNum}"]`);
                 if (card) {
-                    const isExcluded = excludedContracts.includes(contractNum);
+                    const isExcluded = state.excludedContracts.includes(contractNum);
                     
                     // Update card class
                     card.className = `contract-card ${isExcluded ? 'excluded' : 'selected'}`;
@@ -1219,16 +1339,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const searchTerm = contractSearch.value.toLowerCase();
         const searchType = searchTypeSelect.value;
         
-        if (!allContracts.length) return;
-        
-        // If search term is empty, show all contracts regardless of search type
+        if (!state.allContracts || !state.allContracts.length) return [];
+    
+        // If search term is empty, show all contracts
         if (!searchTerm.trim()) {
-            displayContracts(allContracts);
-            return;
+            // Changed this line to display all contracts instead of just returning them
+            displayContracts(state.allContracts);
+            return state.allContracts;
         }
         
         // Filter contracts by search term and type
-        const filteredContracts = allContracts.filter(contract => {
+        const filteredContracts = state.allContracts.filter(contract => {
             // Check if contract info contains search term
             const contractInfo = [
                 contract.contract_number,
@@ -1247,7 +1368,73 @@ document.addEventListener('DOMContentLoaded', function() {
         
         displayContracts(filteredContracts);
     }
-    
+
+
+    // Function to batch toggle all visible contracts
+    function batchToggleContracts(include) {
+        // Show loading overlay
+        loadingOverlaySpinner.style.display = 'flex';
+        
+        // Get all visible contract cards
+        const visibleCards = Array.from(document.querySelectorAll('.contract-card:not([style*="display: none"])'));
+        const contractNumbers = visibleCards.map(card => card.dataset.contractNumber);
+        
+        if (contractNumbers.length === 0) {
+            loadingOverlaySpinner.style.display = 'none';
+            return;
+        }
+        
+        // Send batch update request to server
+        fetch('/duplicate-detection/batch-update-contracts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contract_numbers: contractNumbers,
+                include: include
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingOverlaySpinner.style.display = 'none';
+            
+            if (data.success) {
+                // Update local arrays
+                state.includedContracts = data.included_contracts;
+                state.excludedContracts = data.excluded_contracts;
+                
+                // Update UI for all affected cards
+                visibleCards.forEach(card => {
+                    const contractNum = card.dataset.contractNumber;
+                    const isExcluded = state.excludedContracts.includes(contractNum);
+                    
+                    // Update card class
+                    card.className = `contract-card ${isExcluded ? 'excluded' : 'selected'}`;
+                    
+                    // Update status text
+                    const statusText = card.querySelector('.status-text');
+                    statusText.className = `status-text ${isExcluded ? 'status-excluded' : 'status-included'}`;
+                    statusText.textContent = isExcluded ? 'Excluded' : 'Included';
+                    
+                    // Update toggle button text
+                    const toggleBtn = card.querySelector('.toggle-action-btn');
+                    toggleBtn.textContent = isExcluded ? 'Include' : 'Exclude';
+                });
+                
+                // Update included contracts tags
+                updateIncludedContractsTags();
+            } else {
+                alert('Error updating contracts: ' + data.message);
+            }
+        })
+        .catch(error => {
+            loadingOverlaySpinner.style.display = 'none';
+            console.error('Error batch updating contracts:', error);
+            alert('Error updating contracts: ' + error);
+        });
+    }
+        
     
     function showContractDetails(contractNum) {
         // Show loading
@@ -1328,7 +1515,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // this triggers the item level comparison
     // we have SSE call here to get the progress of the item level comparison
     continueBtn.addEventListener('click', function() {
-        if (includedContracts.length === 0) {
+        if (state.includedContracts.length === 0) {
             alert('Please include at least one contract before proceeding.');
             return;
         }
@@ -1437,7 +1624,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add a new function to make initialization synchronous with callback
     function initializeIncludedContractsWithCallback(callback) {
-        console.log("Saving included contracts with callback:", includedContracts);
+        console.log("Saving included contracts with callback:", state.includedContracts);
         
         // Send included contracts to the server
         fetch('/duplicate-detection/initialize-included-contracts', {
@@ -1446,15 +1633,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                contract_numbers: includedContracts
+                contract_numbers: state.includedContracts
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 console.log("Successfully saved included contracts:", data);
-                includedContracts = data.included_contracts;
-                excludedContracts = data.excluded_contracts;
+                state.includedContracts = data.included_contracts;
+                state.excludedContracts = data.excluded_contracts;
                 
                 // Execute callback after successful initialization
                 if (typeof callback === 'function') {

@@ -1611,6 +1611,7 @@ def final_data_helper(row, group = 'keep',
             'QOE': row['QOE_keep'],
             'Effective Date': row['Effective Date_keep'],
             'Expiration Date': row['Expiration Date_keep'],
+            'ERP Vendor ID': row['ERP Vendor ID_keep'],
             'Actual Action': actual_action,
             'Quick Check': quick_check,
             'Primary Action': primary_action,
@@ -1630,6 +1631,7 @@ def final_data_helper(row, group = 'keep',
             'QOE': row['QOE_drop'],
             'Effective Date': row['Effective Date_drop'],
             'Expiration Date': row['Expiration Date_drop'],
+            'ERP Vendor ID': row['ERP Vendor ID_drop'],
             'Actual Action': actual_action,
             'Quick Check': quick_check,
             'Primary Action': primary_action,
@@ -1637,6 +1639,7 @@ def final_data_helper(row, group = 'keep',
         }
     else:
         raise ValueError("Invalid group specified. Use 'keep' or 'drop'.")
+
 
 def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new'):
     upsert_file_row = set(validated_df[validated_df['Intended Action'] == 'Upsert']['File Row'])
@@ -1747,6 +1750,7 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
 
     return data_change_show_df, data_change_df
 
+
 def apply_change(data_change_df,
                  validated_df,
                  stacked_df):
@@ -1801,6 +1805,7 @@ def apply_change(data_change_df,
     tp_merge.to_excel(os.path.join(current_app.root_path, 'temp_files', 'tp_merge.xlsx'), index=False) #debug
 
     return ccx_merge, tp_merge
+
 
 def change_simulation_stage3(ccx_merge, tp_merge):
     """
@@ -1913,8 +1918,12 @@ def change_simulation_stage3(ccx_merge, tp_merge):
 
     ccx_change_cols = [col for col in ccx_merge.columns if col.endswith('_change')]
     tp_change_cols = [col for col in tp_merge.columns if col.endswith('_change')]
-    ccx_cols_to_keep = ccx_change_cols + ['ERP Vendor ID', 'Actual Action', 'File Row', 'Contract Number', 'File Row Modified']
-    tp_cols_to_keep = tp_change_cols + ['ERP Vendor ID', 'Actual Action', 'File Row', 'Contract Number', 'File Row Modified']
+    ccx_cols_to_keep = ccx_change_cols + ['Actual Action', 
+                                          'File Row', 'Contract Number', 
+                                          'File Row Modified']
+    tp_cols_to_keep = tp_change_cols + ['Actual Action', 
+                                        'File Row', 'Contract Number', 
+                                        'File Row Modified']
     ccx_final = ccx_final[ccx_cols_to_keep].copy()
     tp_final = tp_final[tp_cols_to_keep].copy()
     # rename the columns to make them consistent
@@ -1974,6 +1983,7 @@ def change_simulation_stage3(ccx_merge, tp_merge):
 
     return df_cross_new, ccx_line_count_cal, tp_line_count_cal, line_count_before_after
 
+
 def compute_changes_to_show(data_change_show_df, analyzed_df):
     """
     Compute changes to show in the UI based on the data change DataFrame and analyzed DataFrame.
@@ -2021,6 +2031,7 @@ def compute_changes_to_show(data_change_show_df, analyzed_df):
     reference_for_expire_rows.to_excel(os.path.join(current_app.root_path, 'temp_files', 'reference_for_expire_rows.xlsx'), index=False) #debug
     
     return changes_simulation_result_df, reference_for_expire_rows
+
 
 def generate_network_graph(network_df, 
                            fixed_pos = None,

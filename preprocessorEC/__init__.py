@@ -1,5 +1,5 @@
 # Application Factory for preprocessorEC
-from flask import Flask, redirect, url_for, session, flash, request
+from flask import Flask, redirect, url_for, session, flash, request, render_template
 from flask_login import LoginManager, current_user
 from sqlalchemy import create_engine
 from sqlalchemy.pool import QueuePool
@@ -117,7 +117,11 @@ def create_app(config_name=None, test_config=None):
     # Basic routes
     @app.route('/')
     def index():
-        return redirect(url_for('common.home'))
+        if current_user.is_authenticated:
+            return render_template('index.html')
+        else:
+            flash("Please log in to access the application.", "info")
+            return redirect(url_for('auth.landing'))
     
     # Load models
     with app.app_context():

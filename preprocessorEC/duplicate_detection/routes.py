@@ -195,6 +195,64 @@ def include_exclude_contract():
         'excluded_contracts': excluded
     })
 
+@duplicate_bp.route('/get-contract-state', methods=['GET'])
+@login_required
+def get_contract_state():
+    """Get the current state of included and excluded contracts"""
+    user_id = current_user.id
+    
+    # Get current inclusions from session using your helper functions
+    included_contracts = get_included_contracts(user_id)
+    excluded_contracts = get_excluded_contracts(user_id)
+    
+    return jsonify({
+        'success': True,
+        'included_contracts': included_contracts,
+        'excluded_contracts': excluded_contracts
+    })
+
+@duplicate_bp.route('/batch-update-contracts', methods=['POST'])
+@login_required
+def batch_update_contracts():
+    """Update multiple contracts' inclusion status at once"""
+    user_id = current_user.id  # Get user_id - THIS WAS MISSING
+    
+    data = request.get_json()
+    
+    if not data or 'contract_numbers' not in data or 'include' not in data:
+        return jsonify({'success': False, 'message': 'Invalid request data'})
+    
+    contract_numbers = data['contract_numbers']
+    include = data['include']
+    
+    # Get current inclusions from session USING HELPERS
+    included_contracts = get_included_contracts(user_id)
+    excluded_contracts = get_excluded_contracts(user_id)
+    
+    # Update the inclusion status for all specified contracts
+    for contract_num in contract_numbers:
+        # Remove from both lists first to avoid duplicates
+        if contract_num in included_contracts:
+            included_contracts.remove(contract_num)
+        if contract_num in excluded_contracts:
+            excluded_contracts.remove(contract_num)
+        
+        # Add to appropriate list
+        if include:
+            included_contracts.append(contract_num)
+        else:
+            excluded_contracts.append(contract_num)
+    
+    # Update session USING HELPERS
+    store_included_contracts(user_id, included_contracts)
+    store_excluded_contracts(user_id, excluded_contracts)
+    
+    return jsonify({
+        'success': True,
+        'included_contracts': included_contracts,
+        'excluded_contracts': excluded_contracts
+    })
+
 @duplicate_bp.route('/initialize-included-contracts', methods=['POST'])
 @login_required
 def initialize_included_contracts():
