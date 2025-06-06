@@ -2415,12 +2415,14 @@ def generate_network_graph(network_df,
             zeroline=False, 
             showticklabels=False,
             scaleanchor="y",
-            scaleratio=1
+            scaleratio=1,
+            range = [-1.3, 1.3]  # Adjust range to fit the circular layout
         ),
         yaxis=dict(
             showgrid=False, 
             zeroline=False, 
-            showticklabels=False
+            showticklabels=False,
+            range = [-1.3, 1.3]  # Adjust range to fit the circular layout
         ),
         showlegend=False,
         plot_bgcolor='rgba(245, 245, 252, 1)'

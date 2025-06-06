@@ -57,7 +57,7 @@
     
     /* Network graph container styling */
     #network-graph-container {
-        margin-top: 20px;
+        margin-top: 0px;
         padding: 15px;
         border: 1px solid #ddd;
         border-radius: 5px;
@@ -197,15 +197,15 @@
         overflow-x: auto;
         overflow-y: auto;
         max-width: 100%;
-        max-height: 600px;
+        max-height: 500px;
         border: 1px solid #eee;
-        display: none; /* Hidden initially */
+        display: none;
     }
     
     .data-change-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.75rem; 
+        font-size: 0.75rem;
     }
 
     .data-change-table th, 
@@ -213,7 +213,8 @@
         padding: 6px; 
         text-align: left;
         border-bottom: 1px solid #ddd;
-        white-space: nowrap;
+        white-space: wrap;
+        vertical-align: middle;
     }
     
     .data-change-table th {
@@ -224,7 +225,7 @@
         cursor: pointer;
         padding: 6px;
         text-align: left;
-        white-space: normal; /* Allow text wrapping */
+        white-space: normal;
         height: auto;
         vertical-align: middle;
     }
@@ -275,8 +276,8 @@
     }
     
     .data-change-table td.description-col {
-        white-space: normal;
-        min-width: 200px;
+        white-space: normal !important;
+        min-width: 220px;
         max-width: 250px;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -288,13 +289,27 @@
     .data-change-table .primary-action-col,
     .data-change-table .actual-action-col {
         min-width: 70px;
-        max-width: 120px;
+        max-width: 110px;
         white-space: normal !important;
         word-break: break-word;
         overflow-wrap: break-word;
         line-height: 1.2;
     }
-    
+
+    .data-change-table .erp-vendor-id-col {
+        min-width: 65px;
+        max-width: 75px;
+        white-space: normal !important;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        vertical-align: middle;
+        line-height: 1.2;
+    }
+
+    .data-change-table th.erp-vendor-id-col {
+        vertical-align: middle !important;
+    }
+        
     .data-change-table .contract-col {
         min-width: 120px;
         max-width: 140px;
@@ -303,8 +318,8 @@
     }
     
     .data-change-table .item-col {
-        min-width: 60px;
-        max-width: 80px;
+        min-width: 50px;
+        max-width: 60px;
         white-space: normal;
         word-break: break-word;
     }
@@ -527,6 +542,128 @@
     .data-change-table tbody tr {
         cursor: pointer;
     }
+    
+    /* Color coding for table cells */
+    /* Intended Action text background colors */
+    .intended-action-expire { 
+        background-color: #f8d7da !important; 
+        color: #721c24 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    .intended-action-upsert { 
+        background-color: #d4edda !important; 
+        color: #155724 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Primary Action text background colors */
+    .primary-action-expire { 
+        background-color: #f8d7da !important; 
+        color: #721c24 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    .primary-action-create { 
+        background-color: #d4edda !important; 
+        color: #155724 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    .primary-action-update { 
+        background-color: #fff3cd !important; 
+        color: #856404 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    
+    .actual-action-expire { 
+        background-color: #f8d7da !important; 
+        color: #721c24 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    .actual-action-create { 
+        background-color: #d4edda !important; 
+        color: #155724 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    
+    .actual-action-etc-create { 
+        background-color: #d4edda !important;
+        color: #155724 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    
+    .actual-action-etc-expire { 
+        background-color: #f8d7da !important; 
+        color: #721c24 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    .actual-action-update-existing { 
+        background-color: #e2e4e6 !important;
+        color: #626a72 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    .actual-action-update-new { 
+        background-color: #fff3cd !important; 
+        color: #856404 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+    .actual-action-no-change { 
+        background-color: #e2e4e6 !important;
+        color: #626a72 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-style: italic !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Styling for field differences highlighting */
+    .field-difference {
+        background-color: #fff3cd !important;
+        font-weight: bold !important;
+        color: #856404 !important;
+        padding: 2px 4px !important;
+        border-radius: 3px !important;
+        border: 1px solid #ffeaa7 !important;
+    }
+    
+    /* Reset highlighting for selected rows */
+    .data-change-table tbody tr.table-active .field-difference {
+        background-color: #ffc107 !important;
+        color: #212529 !important;
+        border-color: #ffca2c !important;
+    }
 </style>
 
 <!-- Change Simulation Content -->
@@ -718,6 +855,7 @@
                             <option value="not-contains">Not Contains</option>
                             <option value="contract-only">By Contract Number</option>
                             <option value="action-only" selected>By Action</option>
+                            <option value="item-only">By Item</option>
                         </select>
                         <input type="text" id="data-change-search" class="data-change-search-input" placeholder="Search changes...">
                         <button id="data-change-clear-search" class="data-change-clear-search-btn">Clear</button>
@@ -740,6 +878,7 @@
                             <th data-sort="Actual Action" class="actual-action-col">Actual Action<span class="sort-indicator"></span></th>
                             <th class="checkbox-col">Do Not Expire</th>
                             <th data-sort="Item" class="item-col">Item<span class="sort-indicator"></span></th>
+                            <th data-sort="ERP Vendor ID" class="erp-vendor-id-col">ERP Vendor ID<span class="sort-indicator"></span></th>
                             <th data-sort="Contract Number" class="contract-col">Contract Number<span class="sort-indicator"></span></th>
                             <th data-sort="Mfg Part Num" class="part-num-col">Mfg Part Num<span class="sort-indicator"></span></th>
                             <th data-sort="Vendor Part Num" class="part-num-col">Vendor Part Num<span class="sort-indicator"></span></th>
@@ -758,11 +897,11 @@
             </div>
             
             <!-- Reference Table Section -->
-            <div id="reference-table-section" style="margin-top: 20px; display: none;">
-                <h5>Reference Record for (Upsert/Expire - Expire - Expire) Row Selected</h5>
+            <div id="reference-table-section" style="margin-top: 10px; display: none;">
+                <h5 style="font-size: 0.75rem; color: #495057;">Reference upsert record for highlighting 'Expire CCX' row, check carefully to exempt any un-wanted item expiration.</h5>
                 
                 <!-- Reference Table -->
-                <div id="reference-table-container" class="data-change-table-container" style="display: block; max-height: 180px;">
+                <div id="reference-table-container" class="data-change-table-container" style="display: block; max-height: 180px; margin-top: 10px;">
                     <table id="reference-table" class="data-change-table">
                         <thead>
                             <tr>
@@ -771,6 +910,7 @@
                                 <th class="actual-action-col">Actual Action</th>
                                 <th class="checkbox-col">Do Not Expire</th>
                                 <th class="item-col">Item</th>
+                                <th class="erp-vendor-id-col">ERP Vendor ID</th>
                                 <th class="contract-col">Contract Number</th>
                                 <th class="part-num-col">Mfg Part Num</th>
                                 <th class="part-num-col">Vendor Part Num</th>
@@ -789,7 +929,7 @@
                 </div>
                 
                 <!-- Empty reference message -->
-                <div id="no-reference-message" class="no-data-message" style="display:none;">
+                <div id="no-reference-message" class="no-data-message" style="display:none; max-height: 100px; margin-top: 10px;">
                     <h4>No reference record to display</h4>
                     <p>we only checks on items that will get expired due to duplication.</p>
                 </div>
@@ -1027,6 +1167,59 @@ function formatActionText(action) {
     return action;
 }
 
+// Function to get CSS class for Intended Action
+function getIntendedActionClass(action) {
+    if (!action) return '';
+    const actionLower = action.toLowerCase();
+    if (actionLower.includes('expire')) return 'intended-action-expire';
+    if (actionLower.includes('upsert')) return 'intended-action-upsert';
+    return '';
+}
+
+// Function to get CSS class for Primary Action
+function getPrimaryActionClass(action) {
+    if (!action) return '';
+    const actionLower = action.toLowerCase();
+    if (actionLower.includes('expire')) return 'primary-action-expire';
+    if (actionLower.includes('create')) return 'primary-action-create';
+    if (actionLower.includes('update')) return 'primary-action-update';
+    return '';
+}
+
+// Function to get CSS class for Actual Action
+function getActualActionClass(action) {
+    if (!action) return '';
+    const actionLower = action.toLowerCase();
+    
+    // More specific checks first
+    if (actionLower === 'expire then create (create)') {
+        return 'actual-action-etc-create';
+    }
+    
+    if (actionLower === 'expire then create (expire)') {
+        return 'actual-action-etc-expire';
+    }
+    
+    // Handle pattern matching for various formats
+    if (actionLower.includes('etc') && actionLower.includes('create')) {
+        return 'actual-action-etc-create';
+    }
+    
+    if (actionLower.includes('etc') && actionLower.includes('expire')) {
+        return 'actual-action-etc-expire';
+    }
+    
+    // Generic cases - order matters here
+    if (actionLower.includes('no change')) return 'actual-action-no-change';
+    if (actionLower.includes('update') && actionLower.includes('existing')) return 'actual-action-update-existing';
+    if (actionLower.includes('update') && actionLower.includes('new')) return 'actual-action-update-new';
+    // These need to be last since they're more general
+    if (actionLower.includes('expire')) return 'actual-action-expire';
+    if (actionLower.includes('create')) return 'actual-action-create';
+    
+    return '';
+}
+
 // Function to render data change table
 function renderDataChangeTable(items) {
     const tbody = document.getElementById('data-change-tbody');
@@ -1109,18 +1302,24 @@ function renderDataChangeTable(items) {
             const formattedPrimaryAction = formatActionText(item['Primary Action'] || '');
             const formattedActualAction = formatActionText(item['Actual Action'] || '');
             
-            // Get description from Description field and limit to 60 chars (increased from 45)
-            const description = item['Description'] || '';
-            const displayDescription = description.length > 60 ? 
-                description.substring(0, 60) + '...' : description;
+            // Get CSS classes for color coding
+            const intendedActionClass = getIntendedActionClass(item['Intended Action']);
+            const primaryActionClass = getPrimaryActionClass(item['Primary Action']);
+            const actualActionClass = getActualActionClass(item['Actual Action']);
             
-            // Rearranged columns according to new order
+            // Get description from Description field and limit to 40 chars
+            const description = item['Description'] || '';
+            const displayDescription = description.length > 40 ? 
+                description.substring(0, 37) + '...' : description;
+            
+            // Rearranged columns according to new order with color classes wrapped in spans
             row.innerHTML = `
-                <td>${item['Intended Action'] || ''}</td>
-                <td>${formattedPrimaryAction}</td>
-                <td>${formattedActualAction}</td>
+                <td><span class="${intendedActionClass}">${item['Intended Action'] || ''}</span></td>
+                <td><span class="${primaryActionClass}">${formattedPrimaryAction}</span></td>
+                <td><span class="${actualActionClass}">${formattedActualAction}</span></td>
                 <td class="checkbox-col">${checkboxHtml}</td>
                 <td class="item-col">${item['Item'] || ''}</td>
+                <td class="erp-vendor-id-col">${item['ERP Vendor ID'] || ''}</td>
                 <td class="contract-col">${item['Contract Number'] || ''}</td>
                 <td class="part-num-col">${item['Mfg Part Num'] || ''}</td>
                 <td class="part-num-col">${item['Vendor Part Num'] || ''}</td>
@@ -1339,14 +1538,14 @@ function filterDataChangeTable() {
                 match = !match;
             }
         } else if (searchType === 'contract-only') {
-            // Search only in Contract Number column (5th column in the new structure)
-            const contractCell = row.cells[4];
+            // Search only in Contract Number column (7th column in the new structure)
+            const contractCell = row.cells[6];
             if (contractCell) {
                 const contractText = contractCell.textContent.toLowerCase();
                 match = contractText.includes(searchTerm);
             }
         } else if (searchType === 'action-only') {
-            // Search in Action columns (1st and 2nd columns in the new structure)
+            // Search in Action columns (1st, 2nd, and 3rd columns in the new structure)
             const IntendedActionCell = row.cells[0]; // Intended Action
             const primaryActionCell = row.cells[1]; // Primary Action
             const actualActionCell = row.cells[2]; // Actual Action
@@ -1358,6 +1557,13 @@ function filterDataChangeTable() {
                 match = primaryActionText.includes(searchTerm) || 
                 actualActionText.includes(searchTerm) ||
                 intendedActionText.includes(searchTerm);
+            }
+        } else if (searchType === 'item-only') {
+            // Search only in Item column (5th column in the new structure)
+            const itemCell = row.cells[4];
+            if (itemCell) {
+                const itemText = itemCell.textContent.toLowerCase();
+                match = itemText.includes(searchTerm);
             }
         }
         
@@ -1478,6 +1684,12 @@ function showReferenceForRow(selectedItem) {
         referenceContainer.style.display = 'block';
         noReferenceMessage.style.display = 'none';
         
+        // Clear any existing highlighting in the main table
+        clearFieldDifferenceHighlighting();
+        
+        // Highlight differences in the selected row
+        highlightFieldDifferences(selectedItem, matchingReference);
+        
         // Populate reference table
         referenceTbody.innerHTML = '';
         const row = document.createElement('tr');
@@ -1490,23 +1702,29 @@ function showReferenceForRow(selectedItem) {
         const formattedPrimaryAction = formatActionText(matchingReference['Primary Action'] || '');
         const formattedActualAction = formatActionText(matchingReference['Actual Action'] || '');
         
+        // Get CSS classes for color coding
+        const intendedActionClass = getIntendedActionClass(matchingReference['Intended Action']);
+        const primaryActionClass = getPrimaryActionClass(matchingReference['Primary Action']);
+        const actualActionClass = getActualActionClass(matchingReference['Actual Action']);
+        
         // Get description and limit to 60 chars
         const description = matchingReference['Description'] || '';
         const displayDescription = description.length > 60 ? 
             description.substring(0, 60) + '...' : description;
         
         row.innerHTML = `
-            <td>${matchingReference['Intended Action'] || ''}</td>
-            <td>${formattedPrimaryAction}</td>
-            <td>${formattedActualAction}</td>
+            <td><span class="${intendedActionClass}">${matchingReference['Intended Action'] || ''}</span></td>
+            <td><span class="${primaryActionClass}">${formattedPrimaryAction}</span></td>
+            <td><span class="${actualActionClass}">${formattedActualAction}</span></td>
             <td class="checkbox-col"><span class="text-muted">N/A</span></td>
             <td class="item-col">${matchingReference['Item'] || ''}</td>
+            <td class="erp-vendor-id-col">${matchingReference['ERP Vendor ID'] || ''}</td>
             <td class="contract-col">${matchingReference['Contract Number'] || ''}</td>
             <td class="part-num-col">${matchingReference['Mfg Part Num'] || ''}</td>
             <td class="part-num-col">${matchingReference['Vendor Part Num'] || ''}</td>
-            <td>${matchingReference['UOM'] || ''}</td>
-            <td>${matchingReference['QOE'] || ''}</td>
-            <td>${contractPrice}</td>
+            <td class="uom-col">${matchingReference['UOM'] || ''}</td>
+            <td class="qoe-col">${matchingReference['QOE'] || ''}</td>
+            <td class="price-col">${contractPrice}</td>
             <td class="date-col">${matchingReference['Effective Date'] || ''}</td>
             <td class="date-col">${matchingReference['Expiration Date'] || ''}</td>
             <td class="description-col" title="${description}">${displayDescription}</td>
@@ -1517,6 +1735,77 @@ function showReferenceForRow(selectedItem) {
         // Hide reference table and show no-data message
         referenceContainer.style.display = 'none';
         noReferenceMessage.style.display = 'block';
+        
+        // Clear any existing highlighting since there's no reference
+        clearFieldDifferenceHighlighting();
     }
+}
+
+// Function to clear field difference highlighting
+function clearFieldDifferenceHighlighting() {
+    // Remove highlighting from all cells in the main table
+    document.querySelectorAll('#data-change-tbody td').forEach(cell => {
+        // Remove field-difference class from cell content
+        const content = cell.innerHTML;
+        if (content.includes('field-difference')) {
+            // Extract the text content and restore it without the highlighting span
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            const highlightedSpan = tempDiv.querySelector('.field-difference');
+            if (highlightedSpan) {
+                cell.innerHTML = content.replace(/<span class="field-difference[^>]*>([^<]*)<\/span>/g, '$1');
+            }
+        }
+    });
+}
+
+// Function to highlight field differences between selected item and reference
+function highlightFieldDifferences(selectedItem, referenceItem) {
+    // Find the selected row in the table
+    const selectedRow = document.querySelector('#data-change-tbody tr.table-active');
+    if (!selectedRow) return;
+    
+    // Fields to compare (excluding action fields and dates)
+    const fieldsToCompare = [
+        { field: 'Item', cellIndex: 4 },
+        { field: 'ERP Vendor ID', cellIndex: 5 },
+        { field: 'Contract Number', cellIndex: 6 },
+        { field: 'Mfg Part Num', cellIndex: 7 },
+        { field: 'Vendor Part Num', cellIndex: 8 },
+        { field: 'UOM', cellIndex: 9 },
+        { field: 'QOE', cellIndex: 10 },
+        { field: 'Contract Price', cellIndex: 11 }
+    ];
+    
+    fieldsToCompare.forEach(({ field, cellIndex }) => {
+        const selectedValue = selectedItem[field] || '';
+        const referenceValue = referenceItem[field] || '';
+        
+        // Compare values (handle Contract Price specially for formatting)
+        let isDifferent = false;
+        
+        if (field === 'Contract Price') {
+            // Compare numeric values for contract price
+            const selectedPrice = parseFloat(selectedValue) || 0;
+            const referencePrice = parseFloat(referenceValue) || 0;
+            isDifferent = Math.abs(selectedPrice - referencePrice) > 0.001; // Small tolerance for floating point
+        } else {
+            // String comparison for other fields
+            isDifferent = selectedValue.toString().trim() !== referenceValue.toString().trim();
+        }
+        
+        if (isDifferent) {
+            const cell = selectedRow.cells[cellIndex];
+            if (cell) {
+                // Wrap the cell content in a highlighting span
+                const currentContent = cell.innerHTML;
+                
+                // Check if it's already highlighted to avoid double-wrapping
+                if (!currentContent.includes('field-difference')) {
+                    cell.innerHTML = `<span class="field-difference">${currentContent}</span>`;
+                }
+            }
+        }
+    });
 }
 </script>
