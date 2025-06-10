@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, current_app, redirect, url_for
+from flask import Blueprint, session, render_template, request, jsonify, flash, current_app, redirect, url_for
 from flask_login import login_required, current_user
 from ..common.session import (get_validated_data, get_deduped_results, get_infor_cl_matches, 
 store_change_simulation_results, get_change_simulation_results)
@@ -7,6 +7,7 @@ from ..common.utils import (compute_changes_to_show,
                             change_simulation_stage1, 
                             change_simulation_stage2, 
                             change_simulation_stage3, 
+                            compute_dataset_changes_df,
                             generate_network_graph)
 from ..common.db import get_db_connection, get_relevant_contract_line
 import os
@@ -173,16 +174,9 @@ def show_changes():
         changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, merged_df)
 
         # retrun the dataframes to the frontend for display for each change stats card
-        ccx_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create TP') & (data_change_show_df['Actual Action'] == 'Create')) | 
-                                         (data_change_show_df['Actual Action'] == 'Expire then Create (Create)')].copy()
-        ccx_update = data_change_show_df[(data_change_show_df['Actual Action'] == 'Update (New)')].copy()
-        ccx_expire = data_change_show_df[(data_change_show_df['Actual Action'] == 'Expire') | 
-                                         (data_change_show_df['Actual Action'] == 'Expire then Create (Expire)')].copy()
-        tp_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create') & (data_change_show_df['Actual Action'] == 'Create'))].copy()
-        tp_mute = data_change_show_df[data_change_show_df['Actual Action'] == 'Mute'].copy()
-        tp_merged = data_change_show_df[(data_change_show_df['Dataset'] == 'TP') & 
-                                        ~(data_change_show_df['Actual Action'].isin(['Create', 'Mute']))].copy()
+        ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged = compute_dataset_changes_df(data_change_show_df)
         
+        data_change_show_df.loc[:, 'Do Not Expire'] = False
         # Store simulation results in the session if needed
         simulation_results = {
             'update_action_mode': update_action_mode,
@@ -223,3 +217,146 @@ def show_changes():
     finally:
         if conn:
             conn.close()
+
+
+@change_simulation_bp.route("/update-expire-selections", methods=["POST"])
+@login_required
+def update_expire_selections():
+    """Update the 'Do Not Expire' selections in session data"""
+    try:
+        user_id = current_user.id
+        
+        # Get the posted data
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({
+                'success': False,
+                'message': "No selection data provided."
+            }), 400
+            
+        expire_selections = request_data.get('expire_selections', [])
+        
+        # Get simulation results from session
+        simulation_results = get_change_simulation_results(user_id)
+        if not simulation_results:
+            return jsonify({
+                'success': False,
+                'message': "No simulation results found in session. Please run the simulation first."
+            }), 404
+        
+        # Update both changes_to_show and all_changes data
+        changes_to_show = simulation_results.get('changes_to_show', [])
+        all_changes = simulation_results.get('all_changes', [])
+        
+        # Track updates for logging
+        update_count = 0
+        
+        # Create lookup dictionaries with enhanced composite key for faster matching
+        update_lookup = {}
+        for selection in expire_selections:
+            # Create an enhanced composite key with UOM added
+            key = (
+                selection.get('contract_number', '').strip(),
+                selection.get('erp_vendor_id', '').strip(),
+                selection.get('mfg_part_num', '').strip(),
+                selection.get('vendor_part_num', '').strip(),
+                selection.get('uom', '').strip()  # Add UOM to the key
+            )
+            update_lookup[key] = selection.get('do_not_expire', False)
+        
+        # Update changes_to_show first
+        for item in changes_to_show:
+            if item.get('Primary Action') == 'Expire CCX':
+                # Create the same enhanced composite key for lookup
+                key = (
+                    str(item.get('Contract Number', '')).strip(),
+                    str(item.get('ERP Vendor ID', '')).strip(),
+                    str(item.get('Mfg Part Num', '')).strip(),
+                    str(item.get('Vendor Part Num', '')).strip(),
+                    str(item.get('UOM', '')).strip()  # Add UOM to the key
+                )
+                if key in update_lookup:
+                    item['Do Not Expire'] = update_lookup[key]
+                    update_count += 1
+        
+        # Then update all_changes
+        for item in all_changes:
+            if item.get('Primary Action') == 'Expire CCX':
+                # Create the same enhanced composite key for lookup
+                key = (
+                    str(item.get('Contract Number', '')).strip(),
+                    str(item.get('ERP Vendor ID', '')).strip(),
+                    str(item.get('Mfg Part Num', '')).strip(),
+                    str(item.get('Vendor Part Num', '')).strip(),
+                    str(item.get('UOM', '')).strip()  # Add UOM to the key
+                )
+                if key in update_lookup:
+                    item['Do Not Expire'] = update_lookup[key]
+        
+        # Save updated data back to session
+        simulation_results['changes_to_show'] = changes_to_show
+        simulation_results['all_changes'] = all_changes
+        store_change_simulation_results(user_id, simulation_results)
+        session.modified = True
+
+        # update ccx_update after the changes applied
+        all_changes_df = pd.DataFrame(all_changes)
+        ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged = compute_dataset_changes_df(all_changes_df)
+        print(ccx_expire.shape) #debug
+
+        current_app.logger.info(f"User {user_id} updated {update_count} 'Do Not Expire' selections")
+        
+        # Return the updated data for refreshing the UI
+        return jsonify({
+            'success': True,
+            'message': f"Successfully saved {update_count} 'Do Not Expire' selections.",
+            'updated_data': changes_to_show,  # Return the updated data
+            'ccx_expire': ccx_expire.to_dict(orient='records') if not ccx_expire.empty else []
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error updating expire selections: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f"An error occurred: {str(e)}"
+        }), 500
+    
+
+@change_simulation_bp.route("/finalize-changes", methods=["POST"])
+@login_required
+def finalize_changes():
+    """
+    Perform safety checks on the changes, especially on 'Do Not Expire' items,
+    before allowing the user to proceed to the next step.
+    """
+    try:
+        user_id = current_user.id
+        
+        # Get simulation results from session
+        simulation_results = get_change_simulation_results(user_id)
+        if not simulation_results:
+            return jsonify({
+                'success': False,
+                'message': "No simulation results found in session. Please run the simulation first."
+            }), 404
+        
+        all_changes = simulation_results.get('all_changes', [])
+        
+        modified_network = simulation_results.get('modified_network_df', [])
+        fixed_pos = simulation_results.get('fixed_pos', {})
+
+        return jsonify({
+            'success': True,
+            'message': "Changes finalized successfully.",
+            'result': {
+                'all_changes': all_changes,
+                'modified_network': modified_network
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"Error in finalize_changes: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f"An error occurred: {str(e)}"
+        }), 500

@@ -2037,6 +2037,20 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
 
     return df_cross_new, ccx_line_count_cal, tp_line_count_cal, line_count_before_after
 
+def compute_dataset_changes_df(data_change_show_df):
+    if 'Do Not Expire' in data_change_show_df.columns:
+        data_change_show_df = data_change_show_df[data_change_show_df['Do Not Expire'] != True].copy()
+    # retrun the dataframes to the frontend for display for each change stats card
+    ccx_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create TP') & (data_change_show_df['Actual Action'] == 'Create')) | 
+                                        (data_change_show_df['Actual Action'] == 'Expire then Create (Create)')].copy()
+    ccx_update = data_change_show_df[(data_change_show_df['Actual Action'] == 'Update (New)')].copy()
+    ccx_expire = data_change_show_df[(data_change_show_df['Actual Action'] == 'Expire') | 
+                                        (data_change_show_df['Actual Action'] == 'Expire then Create (Expire)')].copy()
+    tp_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create') & (data_change_show_df['Actual Action'] == 'Create'))].copy()
+    tp_mute = data_change_show_df[data_change_show_df['Actual Action'] == 'Mute'].copy()
+    tp_merged = data_change_show_df[(data_change_show_df['Dataset'] == 'TP') & 
+                                    ~(data_change_show_df['Actual Action'].isin(['Create', 'Mute']))].copy()
+    return ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged
 
 def compute_changes_to_show(data_change_show_df, merged_df):
     """

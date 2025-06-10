@@ -1070,10 +1070,17 @@
         </div>
     </div>
     
-    <div class="action-buttons">
-        <form method="POST" action="{{ url_for('common.process_step', step_id=5) }}">
-            <button type="submit" class="btn btn-success">Complete Step 5</button>
-        </form>
+    <div class="finalize-actions" style="margin-top: 30px; display: flex; justify-content: flex-end;">
+        <button id="finalize-changes-btn" class="btn btn-primary me-2">Finalize Changes</button>
+        
+        <!-- Initially hidden Complete Step button -->
+        <div id="complete-step-container" style="display: none;">
+            <form method="POST" action="{{ url_for('common.process_step', step_id=5) }}">
+                <input type="hidden" name="substep_completed" value="5.1">
+                <input type="hidden" name="step_completed" value="true">
+                <button type="submit" id="complete-step-btn" class="btn btn-success">Complete Step 5</button>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -1096,6 +1103,13 @@ document.addEventListener('DOMContentLoaded', function() {
             selectedDesc.classList.add('active-description');
         }
     });
+
+    const finalizeChangesBtn = document.getElementById('finalize-changes-btn');
+    if (finalizeChangesBtn) {
+        finalizeChangesBtn.addEventListener('click', function() {
+            finalizeChanges();
+        });
+    }
 });
 
 // Replace the existing showAlert function with this one
@@ -1934,8 +1948,12 @@ function saveExpireSelections() {
         if (item) {
             expireSelections.push({
                 contract_number: item['Contract Number'],
+                erp_vendor_id: item['ERP Vendor ID'],
                 mfg_part_num: item['Mfg Part Num'],
                 vendor_part_num: item['Vendor Part Num'],
+                uom: item['UOM'],
+                primary_action: item['Primary Action'],
+                file_row: item['File Row'],
                 do_not_expire: checkbox.checked
             });
         }
@@ -1956,21 +1974,47 @@ function saveExpireSelections() {
         document.getElementById('loading-spinner').style.display = 'none';
         
         if (data.success) {
-            showAlert('Expire selections saved successfully!', 'success');
-            
-            // Optionally refresh the data to show updated actions
+            // Update local data with server response
             if (data.updated_data) {
                 allDataChangeItems = data.updated_data;
-                renderDataChangeTable(allDataChangeItems);
-                attachDataChangeEventListeners();
+                
+                // Update checkboxes to reflect saved state
+                document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
+                    const index = parseInt(checkbox.dataset.index);
+                    const item = allDataChangeItems[index];
+                    if (item && item['Primary Action'] === 'Expire CCX') {
+                        checkbox.checked = item['Do Not Expire'] === true;
+                        
+                        // Also update row styling to indicate saved state
+                        const row = checkbox.closest('tr');
+                        if (item['Do Not Expire'] === true) {
+                            row.classList.add('do-not-expire-selected');
+                        } else {
+                            row.classList.remove('do-not-expire-selected');
+                        }
+                    }
+                });
             }
+            
+            // Update CCX update card with new data
+            if (data.ccx_expire) {
+                // Update the stored data for modal display
+                window.changeStatsData.ccxExpire = data.ccx_expire;
+                
+                // Update the count on the card
+                document.getElementById('ccx-delete-count').textContent = data.ccx_expire.length;
+            }
+            
+            // Show alert message
+            alert('Expire selections saved successfully!');
         } else {
-            showAlert('Error saving expire selections: ' + data.message, 'danger');
+            // Show error alert
+            alert('Error saving expire selections: ' + data.message);
         }
     })
     .catch(error => {
         document.getElementById('loading-spinner').style.display = 'none';
-        showAlert('Error saving expire selections: ' + error.message, 'danger');
+        alert('Error: ' + error.message);
         console.error('Error saving expire selections:', error);
     });
 }
