@@ -1,7 +1,14 @@
 from flask import Blueprint, render_template, request, jsonify, flash, current_app, redirect, url_for
 from flask_login import login_required, current_user
-from ..common.session import get_validated_data, get_deduped_results, get_infor_cl_matches
-from ..common.utils import compute_changes_to_show, apply_change, change_simulation_stage1, change_simulation_stage2, change_simulation_stage3, generate_network_graph
+from ..common.session import (get_validated_data, get_deduped_results, get_infor_cl_matches, 
+store_change_simulation_results, get_change_simulation_results)
+from ..common.utils import (compute_changes_to_show, 
+                            apply_change, 
+                            change_simulation_stage1, 
+                            change_simulation_stage2, 
+                            change_simulation_stage3, 
+                            generate_network_graph)
+from ..common.db import get_db_connection, get_relevant_contract_line
 import os
 import json
 import pandas as pd
@@ -81,9 +88,36 @@ def show_changes():
         
         # multiple stages to process the change simulation
         origianl_network_df = change_simulation_stage1(validated_df, stacked_df)
-        data_change_show_df, data_change_df = change_simulation_stage2(validated_df, stacked_df, update_action_mode=update_action_mode)
-        ccx_merge, tp_merge = apply_change(data_change_df, validated_df, stacked_df)
-        modified_network_df, ccx_line_count_cal, tp_line_count_cal, line_count_before_after = change_simulation_stage3(ccx_merge, tp_merge)
+        data_change_show_df = change_simulation_stage2(validated_df, stacked_df, update_action_mode=update_action_mode)
+        ccx_merge, tp_merge = apply_change(data_change_show_df, validated_df, stacked_df)
+
+        contract_numbers = list(set(data_change_show_df['Contract Number'].dropna().astype(str)))
+        conn = get_db_connection()
+        if not conn:
+             current_app.logger.error(f"Failed to get DB connection for user {user_id} during Infor CL matching.")
+             # Consider a more specific error message for the user if appropriate
+             return jsonify({'success': False, 'message': 'Database connection error.'}), 500
+        
+        success, error_msg, contract_line_count = get_relevant_contract_line(contract_numbers, conn)
+
+        if not success:
+            current_app.logger.error(f"Error retrieving contract line count: {error_msg}")
+            flash("An error occurred while retrieving contract line counts. Please try again.", "danger")
+            return jsonify({
+                'success': False,
+                'message': error_msg
+            }), 500
+
+
+        contract_line_count_df = pd.DataFrame(contract_line_count)
+        contract_line_count_df = contract_line_count_df.rename(columns={
+            'contract_number': 'Contract Number',
+            'total_line_count': 'Total Contract Line Count'
+        })
+        modified_network_df, ccx_line_count_cal, tp_line_count_cal, line_count_before_after = change_simulation_stage3(ccx_merge, 
+                                                                                                                       tp_merge, 
+                                                                                                                       data_change_show_df,
+                                                                                                                       contract_line_count_df)
 
         # Collect contracts and group them by type
         contract_a_set = set()
@@ -124,17 +158,30 @@ def show_changes():
             master_G = nx.Graph()
             master_G.add_nodes_from(all_contracts_ordered)
             master_pos = nx.circular_layout(master_G)
+            
+            # Convert numpy arrays to regular Python lists for JSON serialization
+            master_pos_serializable = {}
+            for node, pos in master_pos.items():
+                master_pos_serializable[node] = [float(pos[0]), float(pos[1])]
         else:
-            master_pos = {}
+            master_pos_serializable = {}
         
         original_graph_json = generate_network_graph(origianl_network_df, fixed_pos=master_pos, show_IUD=False)
         modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=master_pos, show_IUD=True)
         
-
         changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, merged_df)
+
+        # retrun the dataframes to the frontend for display for each change stats card
+        ccx_create = data_change_show_df[(data_change_show_df['Dataset'] == 'CCX') & (data_change_show_df['Actual Action'] == 'Create')]
         
         # Store simulation results in the session if needed
-        # session.store_simulation_results(user_id, simulation_results)
+        simulation_results = {
+            'update_action_mode': update_action_mode,
+            'all_changes': data_change_show_df.to_dict(orient='records'),
+            'modified_network_df': modified_network_df.to_dict(orient='records'),
+            'fixed_pos': master_pos_serializable,
+        }
+        store_change_simulation_results(user_id, simulation_results)
         
         # Return JSON response similar to other routes
         return jsonify({
@@ -159,3 +206,6 @@ def show_changes():
             'success': False,
             'message': str(e)
         })
+    finally:
+        if conn:
+            conn.close()

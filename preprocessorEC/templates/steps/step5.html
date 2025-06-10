@@ -288,8 +288,8 @@
     .data-change-table .intended-action-col,
     .data-change-table .primary-action-col,
     .data-change-table .actual-action-col {
-        min-width: 70px;
-        max-width: 110px;
+        min-width: 60px;
+        max-width: 90px;
         white-space: normal !important;
         word-break: break-word;
         overflow-wrap: break-word;
@@ -613,7 +613,7 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
-    
+
     .actual-action-etc-expire { 
         background-color: #f8d7da !important; 
         color: #721c24 !important;
@@ -804,6 +804,12 @@
                                     <td><strong>Create</strong></td>
                                     <td>Create</td>
                                     <td>Adding a brand new item to the contract system</td>
+                                </tr>
+                                <tr class="action-create">
+                                    <td>Upsert</td>
+                                    <td><strong>Create TP</strong></td>
+                                    <td>Create</td>
+                                    <td>Adding a new item from upload file, lead to 'Expire CCX' cross contract duplicates</td>
                                 </tr>
                                 <tr class="action-expire">
                                     <td>Upsert</td>
@@ -1157,8 +1163,6 @@ function formatActionText(action) {
         return 'ETC (Create)';
     } else if (action === 'Expire then Create (Expire)') {
         return 'ETC (Expire)';
-    } else if (action === 'Expire then Create') {
-        return 'ETC';
     } else if (action === 'Update (Existing)') {
         return 'Update (Curr.)';
     }
@@ -1220,6 +1224,105 @@ function getActualActionClass(action) {
     return '';
 }
 
+// Function to find and mark paired update items
+function findUpdatePairs(items) {
+    const pairs = {};
+    
+    // First pass: group items by file row + contract number
+    items.forEach(item => {
+        const fileRow = item['File Row'];
+        const contractNumber = item['Contract Number'];
+        
+        if (fileRow && contractNumber) {
+            const pairKey = `${fileRow}:${contractNumber}`;
+            
+            if (!pairs[pairKey]) {
+                pairs[pairKey] = [];
+            }
+            
+            pairs[pairKey].push(item);
+        }
+    });
+    
+    // Second pass: identify pairs and mark them
+    Object.values(pairs).forEach(itemGroup => {
+        // Only process if we have multiple items in the group
+        if (itemGroup.length >= 2) {
+            let etcExpire = null;
+            let etcCreate = null;
+            let updateExisting = null;
+            let updateNew = null;
+            
+            // Identify item types in the group
+            itemGroup.forEach(item => {
+                const actualAction = item['Actual Action'] || '';
+                
+                if (actualAction === 'Expire then Create (Expire)' || actualAction === 'ETC (Expire)') {
+                    etcExpire = item;
+                } else if (actualAction === 'Expire then Create (Create)' || actualAction === 'ETC (Create)') {
+                    etcCreate = item;
+                } else if (actualAction === 'Update (Existing)' || actualAction === 'Update (Curr.)') {
+                    updateExisting = item;
+                } else if (actualAction === 'Update (New)') {
+                    updateNew = item;
+                }
+            });
+            
+            // Mark paired items for highlighting
+            if (etcExpire && etcCreate) {
+                etcExpire._hasPair = true;
+                etcExpire._pairType = 'etc-expire';
+                etcCreate._hasPair = true;
+                etcCreate._pairType = 'etc-create';
+                etcExpire._pairWith = etcCreate;
+                etcCreate._pairWith = etcExpire;
+            } else if (updateExisting && updateNew) {
+                updateExisting._hasPair = true;
+                updateExisting._pairType = 'update-existing';
+                updateNew._hasPair = true;
+                updateNew._pairType = 'update-new';
+                updateExisting._pairWith = updateNew;
+                updateNew._pairWith = updateExisting;
+            }
+        }
+    });
+    
+    return items;
+}
+
+// Compare fields and apply bold formatting to differences
+function highlightPairDifferences(item, pairItem, fieldName, cellValue) {
+    // Fields we want to check for differences
+    const highlightFields = ['ERP Vendor ID', 'Mfg Part Num', 'Vendor Part Num', 'UOM', 'QOE', 'Contract Price'];
+    
+    // Only highlight specified fields for create/new items
+    if (!highlightFields.includes(fieldName) || 
+        (item._pairType !== 'etc-create' && item._pairType !== 'update-new')) {
+        return cellValue;
+    }
+    
+    // Get values for comparison
+    let itemValue = item[fieldName];
+    let pairValue = pairItem[fieldName];
+    
+    // Special handling for Contract Price (numeric comparison)
+    if (fieldName === 'Contract Price') {
+        // Extract numeric values for comparison (remove $ and commas)
+        const itemPrice = parseFloat(String(itemValue).replace(/[$,]/g, '')) || 0;
+        const pairPrice = parseFloat(String(pairValue).replace(/[$,]/g, '')) || 0;
+        
+        if (Math.abs(itemPrice - pairPrice) > 0.001) {
+            return `<strong style="color: #f39c12;">${cellValue}</strong>`;
+        }
+    } 
+    // String comparison for other fields
+    else if (String(itemValue || '') !== String(pairValue || '')) {
+        return `<strong style="color: #f39c12;">${cellValue}</strong>`;
+    }
+    
+    return cellValue;
+}
+
 // Function to render data change table
 function renderDataChangeTable(items) {
     const tbody = document.getElementById('data-change-tbody');
@@ -1266,6 +1369,9 @@ function renderDataChangeTable(items) {
             });
         }
         
+        // Find and mark paired update items
+        items = findUpdatePairs(items);
+
         items.forEach((item, index) => {
             const row = document.createElement('tr');
             
@@ -1311,6 +1417,14 @@ function renderDataChangeTable(items) {
             const description = item['Description'] || '';
             const displayDescription = description.length > 40 ? 
                 description.substring(0, 37) + '...' : description;
+
+            // helper function to format pair-based highlighting
+            const getHighlightedCell = (fieldName, content) => {
+                if (item._hasPair && item._pairWith) {
+                    return highlightPairDifferences(item, item._pairWith, fieldName, content);
+                }
+                return content;
+            };
             
             // Rearranged columns according to new order with color classes wrapped in spans
             row.innerHTML = `
@@ -1319,13 +1433,13 @@ function renderDataChangeTable(items) {
                 <td><span class="${actualActionClass}">${formattedActualAction}</span></td>
                 <td class="checkbox-col">${checkboxHtml}</td>
                 <td class="item-col">${item['Item'] || ''}</td>
-                <td class="erp-vendor-id-col">${item['ERP Vendor ID'] || ''}</td>
+                <td class="erp-vendor-id-col">${getHighlightedCell('ERP Vendor ID', item['ERP Vendor ID'] || '')}</td>
                 <td class="contract-col">${item['Contract Number'] || ''}</td>
-                <td class="part-num-col">${item['Mfg Part Num'] || ''}</td>
-                <td class="part-num-col">${item['Vendor Part Num'] || ''}</td>
-                <td>${item['UOM'] || ''}</td>
-                <td>${item['QOE'] || ''}</td>
-                <td>${contractPrice}</td>
+                <td class="part-num-col">${getHighlightedCell('Mfg Part Num', item['Mfg Part Num'] || '')}</td>
+                <td class="part-num-col">${getHighlightedCell('Vendor Part Num', item['Vendor Part Num'] || '')}</td>
+                <td>${getHighlightedCell('UOM', item['UOM'] || '')}</td>
+                <td>${getHighlightedCell('QOE', item['QOE'] || '')}</td>
+                <td>${getHighlightedCell('Contract Price', contractPrice)}</td>
                 <td class="date-col">${item['Effective Date'] || ''}</td>
                 <td class="date-col">${item['Expiration Date'] || ''}</td>
                 <td class="description-col" title="${description}">${displayDescription}</td>

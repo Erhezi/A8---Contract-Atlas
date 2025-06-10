@@ -641,3 +641,51 @@ def get_valid_buying_uoms(item_numbers, conn):
         if conn and 'conn' in locals() and not conn.closed:
             conn.close()
         return False, error_msg, None
+
+
+
+def get_relevant_contract_line(contract_numbers, conn):
+    """
+    Get relevant contract line details for a given contract number
+    
+    Args:
+        contract_number: The list of contract numbers to search for
+        conn: Database connection
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+
+        contract_numbers = ', '.join(f"'{contract}'" for contract in contract_numbers)
+        
+        # Execute the query
+        query = f"""
+            SELECT 
+                contract_number,
+                total_line_count
+            FROM 
+                [DM_MONTYNT\\dli2].ccx_dump_line_count_stg
+            WHERE 
+                contract_number IN ({contract_numbers})
+        """
+        
+        cursor.execute(query)
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error in get_relevant_contract_line: {str(e)}"
+        current_app.logger.error(error_msg)
+        if conn and 'conn' in locals() and not conn.closed:
+            conn.close()
+        return False, error_msg, None

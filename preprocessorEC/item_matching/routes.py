@@ -19,7 +19,8 @@ from ..common.utils import (three_way_contract_line_matching,
                             item_catched_in_infor_im_match, 
                             extract_item_numbers_for_validation, 
                             analyze_uom_qoe_discrepancies, 
-                            recompute_uom_qoe_validation_metrics)
+                            recompute_uom_qoe_validation_metrics,
+                            make_json_serializable)
 # from ..common.model_loader import get_sentence_transformer_model
 # import threading
 # import pandas as pd
@@ -89,8 +90,8 @@ def match_infor_cl():
         
         # Store the result in session for later use
         merged_results = {
-            'merged_df': merged_df.to_dict(orient='records'),  # Convert DataFrame to dict for JSON serialization
-            'merged_to_review': result
+            'merged_df': make_json_serializable(merged_df.to_dict(orient='records')),  # Convert DataFrame to dict for JSON serialization
+            'merged_to_review': make_json_serializable(result)
         }
         store_infor_cl_matches(user_id, merged_results)  # Use specific helper
 
@@ -98,7 +99,7 @@ def match_infor_cl():
         current_app.logger.info(f"Successfully matched Infor CL for user {user_id}. Found {len(contract_list)} contracts/groups.")
         return jsonify({
             'success': True,
-            'result': result
+            'result': make_json_serializable(result)
         })
 
     except Exception as e:
