@@ -114,6 +114,7 @@ def show_changes():
             'contract_number': 'Contract Number',
             'total_line_count': 'Total Contract Line Count'
         })
+        
         modified_network_df, ccx_line_count_cal, tp_line_count_cal, line_count_before_after = change_simulation_stage3(ccx_merge, 
                                                                                                                        tp_merge, 
                                                                                                                        data_change_show_df,
@@ -172,7 +173,15 @@ def show_changes():
         changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, merged_df)
 
         # retrun the dataframes to the frontend for display for each change stats card
-        ccx_create = data_change_show_df[(data_change_show_df['Dataset'] == 'CCX') & (data_change_show_df['Actual Action'] == 'Create')]
+        ccx_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create TP') & (data_change_show_df['Actual Action'] == 'Create')) | 
+                                         (data_change_show_df['Actual Action'] == 'Expire then Create (Create)')].copy()
+        ccx_update = data_change_show_df[(data_change_show_df['Actual Action'] == 'Update (New)')].copy()
+        ccx_expire = data_change_show_df[(data_change_show_df['Actual Action'] == 'Expire') | 
+                                         (data_change_show_df['Actual Action'] == 'Expire then Create (Expire)')].copy()
+        tp_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create') & (data_change_show_df['Actual Action'] == 'Create'))].copy()
+        tp_mute = data_change_show_df[data_change_show_df['Actual Action'] == 'Mute'].copy()
+        tp_merged = data_change_show_df[(data_change_show_df['Dataset'] == 'TP') & 
+                                        ~(data_change_show_df['Actual Action'].isin(['Create', 'Mute']))].copy()
         
         # Store simulation results in the session if needed
         simulation_results = {
@@ -180,6 +189,7 @@ def show_changes():
             'all_changes': data_change_show_df.to_dict(orient='records'),
             'modified_network_df': modified_network_df.to_dict(orient='records'),
             'fixed_pos': master_pos_serializable,
+            'changes_to_show': changes_to_show_df.to_dict(orient='records')
         }
         store_change_simulation_results(user_id, simulation_results)
         
@@ -194,8 +204,12 @@ def show_changes():
                 'data_change_show': changes_to_show_df.to_dict(orient='records'),
                 'reference_for_expire_rows': reference_for_expire_rows.to_dict(orient='records') if not reference_for_expire_rows.empty else [],
                 'line_count_before_after': line_count_before_after.to_dict(orient='records') if not line_count_before_after.empty else [],
-                'ccx_line_count_cal': ccx_line_count_cal.to_dict(orient='records') if not ccx_line_count_cal.empty else [],
-                'tp_line_count_cal': tp_line_count_cal.to_dict(orient='records') if not tp_line_count_cal.empty else []
+                'ccx_create': ccx_create.to_dict(orient='records') if not ccx_create.empty else [],
+                'ccx_update': ccx_update.to_dict(orient='records') if not ccx_create.empty else [],
+                'ccx_expire': ccx_expire.to_dict(orient='records') if not ccx_expire.empty else [],
+                'tp_create': tp_create.to_dict(orient='records') if not tp_create.empty else [],
+                'tp_mute': tp_mute.to_dict(orient='records') if not tp_mute.empty else [],
+                'tp_merged': tp_merged.to_dict(orient='records') if not tp_merged.empty else []
                 # Add more details about the changes as needed
             }
         })

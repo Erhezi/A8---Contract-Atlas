@@ -1861,7 +1861,7 @@ def apply_change(data_change_show_df,
                                   suffixes = ('_original', '_change')
     )
     tp_merge.loc[:, 'Actual Action'] = tp_merge.apply(lambda x: 'Merged' 
-                                                      if (x['File Row'] in ccx_merge_file_rows and pd.isnull(x['Actual Action'])) 
+                                                      if (x['File Row'] in ccx_merge_file_rows and x['Actual Action'] not in (['Create', 'Mute']))
                                                       else x['Actual Action'], axis=1)
     # fill the blank _change columns with _original values
     for col in tp_merge.columns:
@@ -1907,7 +1907,6 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
     line_count_cal.columns = line_count_cal.columns.droplevel(0)  # Flatten the MultiIndex columns
     line_count_cal = line_count_cal.reset_index()
    
-
     # Function to calculate delta for each contract
     def calculate_contract_delta(row, action_map):
         delta = 0
