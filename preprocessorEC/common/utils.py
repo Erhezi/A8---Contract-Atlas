@@ -1584,7 +1584,8 @@ def change_simulation_stage1(validated_df, stacked_df):
 def actual_action_on_update_row(row, update_action_mode = None):
     fields_to_compare = ['Mfg Part Num', 'Vendor Part Num',
                         'Buyer Part Num', 'Description', 'Contract Price',
-                        'UOM', 'QOE', 'Effective Date', 'Expiration Date']
+                        'UOM', 'QOE', 'Effective Date', 'Expiration Date',
+                        'ERP Vendor ID']
     
     comparison_results = []
     for field in fields_to_compare:
@@ -1598,19 +1599,18 @@ def actual_action_on_update_row(row, update_action_mode = None):
     
     quick_check = ''.join(comparison_results)
     
-    if quick_check == 'YYxYYYYYY':
+    if quick_check[:9] == 'YYxYYYYYY':
         # No change in the fields we care about
         return "No Change", quick_check
     
     # quick check
-    quick_check = ''.join(comparison_results)
     if update_action_mode == 'legacy':
         # the field currently is not used but we want to keep it in code to make things clear
         pure_update_fields = ['Description', 'Contract Price']
         # pure_update_fields = ['Description']
         
         # Check if only description changed
-        if quick_check in ['YYxNYYYYY', 'YYxYNYYYY', 'YYxNNYYYY']:
+        if quick_check[:9] in ['YYxNYYYYY', 'YYxYNYYYY', 'YYxNNYYYY']:
         # if quick_check == 'YYxNYYYYY':
             return "Update (New)", quick_check
         
@@ -1877,36 +1877,38 @@ def apply_change(data_change_show_df,
 
     return ccx_merge, tp_merge
 
-
-def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_line_count_df):
+def compute_line_count_changes(data_change_show_df, contract_line_count_df, round = 1):
     """
-    Finalize the changes by applying the changes to CCX and TP dataframes.
+    Compute the changes in contract line counts based on the actions in data_change_show_df.
     
     Args:
-        ccx_merge: DataFrame with CCX changes
-        tp_merge: DataFrame with TP changes
         data_change_show_df: DataFrame with changes to be applied
-        contract_line_count_df: DataFrame with contract line counts
-    -----------
+        contract_line_count_df: DataFrame with current contract line counts
     
     Returns:
-        df_cross_new: Dataframe that feed into network graph to replot the contract relations
+        line_operations: DataFrame with updated contract line counts after applying changes
     """
     action_map = {'No Change': 0,
-                'Update (New)': 0,
-                'Update (Existing)': 0,
-                'Expire': -1,
-                'Expire then Create (Create)': 1,
-                'Expire then Create (Expire)': -1,
-                'Create': 1,
-                'Merged': -1, #it means something is deleted from TP (and deletion also find its buddy on CCX)
-                'Mute': -1}
+                  'Update (New)': 0,
+                  'Update (Existing)': 0,
+                  'Expire': -1,
+                  'Expire then Create (Create)': 1,
+                  'Expire then Create (Expire)': -1,
+                  'Create': 1,
+                  'Merged': 0, 
+                  'Mute': 0}
     
     # compute the line count changes through different operations
-    line_count_cal = data_change_show_df.groupby(['Contract Number', 'Actual Action']).agg({'File Row': 'count'}).unstack(fill_value=0)
-    line_count_cal.columns = line_count_cal.columns.droplevel(0)  # Flatten the MultiIndex columns
-    line_count_cal = line_count_cal.reset_index()
-   
+    if round == 1:
+        line_count_cal = data_change_show_df.groupby(['Contract Number', 'Actual Action']).agg({'File Row': 'count'}).unstack(fill_value=0)
+        line_count_cal.columns = line_count_cal.columns.droplevel(0)  # Flatten the MultiIndex columns
+        line_count_cal = line_count_cal.reset_index()
+    else:
+        # for other round use Actual Action2
+        line_count_cal = data_change_show_df.groupby(['Contract Number', 'Actual Action2']).agg({'File Row': 'count'}).unstack(fill_value=0)
+        line_count_cal.columns = line_count_cal.columns.droplevel(0)  # Flatten the MultiIndex columns
+        line_count_cal = line_count_cal.reset_index()
+
     # Function to calculate delta for each contract
     def calculate_contract_delta(row, action_map):
         delta = 0
@@ -1935,9 +1937,9 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
             changes['Delete'] += row.get('Expire', 0)
         if 'Expire then Create (Expire)' in row.index:
             changes['Delete'] += row.get('Expire then Create (Expire)', 0)
-            
+        
         return changes
-
+    
     # Calculate deltas for contracts
     if not line_count_cal.empty:
         line_count_cal['Delta'] = line_count_cal.apply(
@@ -1947,13 +1949,30 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
         line_count_cal['Insert_Count'] = detailed_changes.apply(lambda x: x['Insert'])
         line_count_cal['Update_Count'] = detailed_changes.apply(lambda x: x['Update'])
         line_count_cal['Delete_Count'] = detailed_changes.apply(lambda x: x['Delete'])
-
+    
     # merge line count to current contract line count pulled
     contract_line_count_df['Contract Number'] = contract_line_count_df['Contract Number'].astype(str).str.strip().str.upper()
     line_operations = contract_line_count_df.merge(line_count_cal, on='Contract Number', how='outer')
     line_operations['Total Contract Line Count'] = line_operations['Total Contract Line Count'].fillna(0).astype(int)
     line_operations['Total Contract Line Count (Change Applied)'] = line_operations['Total Contract Line Count'] + line_operations['Delta']
+    
+    return line_operations
 
+def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_line_count_df):
+    """
+    Finalize the changes by applying the changes to CCX and TP dataframes.
+    
+    Args:
+        ccx_merge: DataFrame with CCX changes
+        tp_merge: DataFrame with TP changes
+        data_change_show_df: DataFrame with changes to be applied
+        contract_line_count_df: DataFrame with contract line counts
+    -----------
+    
+    Returns:
+        df_cross_new: Dataframe that feed into network graph to replot the contract relations
+    """
+    line_operations = compute_line_count_changes(data_change_show_df, contract_line_count_df, round=1)
     line_operations.to_excel(os.path.join(current_app.root_path, 'temp_files', 'line_operations.xlsx'), index=False) #debug
 
     ccx_set = set(ccx_merge['Contract Number'].dropna().astype(str).str.strip().str.upper())
@@ -1967,8 +1986,8 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
 
     # limit by Actual Action, then only take the _change portion of them
     ccx_final = ccx_merge[ccx_merge['Actual Action'].isin(['No Change', 
-                                                        'Update (New)',
-                                                        'Expire then Create (Create)',
+                                                        'Update (Existing)',
+                                                        'Expire then Create (Expire)',
                                                         'Expire'])].copy()
     
     tp_final = tp_merge[tp_merge['Actual Action'].isin(['Create'])].copy()
@@ -2009,6 +2028,10 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
                                       suffixes = ('_a', '_b'),
                                       indicator = True)
     
+    # debug 
+    tp_final_lc.to_excel(os.path.join(current_app.root_path, 'temp_files', 'tp_final_lc.xlsx'), index=False) #debug
+    ccx_final_lc.to_excel(os.path.join(current_app.root_path, 'temp_files', 'ccx_final_lc.xlsx'), index=False) #debug
+    
     df_m_new.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m_new.xlsx'), index=False) #debug
 
     # fillna before groupby
@@ -2037,6 +2060,235 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
 
     return df_cross_new, ccx_line_count_cal, tp_line_count_cal, line_count_before_after
 
+
+def change_simulation_stage4(data_change_show_df, contract_line_count_df):
+    """ try a different method"""
+    print("running change_simulation_stage4")
+    data_change_show_df.loc[:, 'Actual Action2'] = data_change_show_df.apply(lambda x: 'No Change' if x['Do Not Expire'] == True else x['Actual Action'], axis=1)
+
+    df_tp = data_change_show_df[data_change_show_df['Dataset'] == 'TP'].copy()
+    df_ccx = data_change_show_df[data_change_show_df['Dataset'] == 'CCX'].copy()
+
+    df_merge = df_tp[['Contract Number', 
+                      'Primary Action', 
+                      'Actual Action',
+                      'Actual Action2', 
+                      'File Row']].merge(
+                df_ccx[['Contract Number', 
+                        'Actual Action', 
+                        'Actual Action2', 
+                        'File Row']],
+                on='File Row',
+                how='outer',
+                suffixes=('_a', '_b')
+            )
+    
+    df_merge['Contract Number_b'] = df_merge['Contract Number_b'].fillna(df_merge['Contract Number_a'])
+    df_merge['Actual Action_b'] = df_merge['Actual Action_b'].fillna(df_merge['Actual Action_a'])
+    df_merge['Actual Action2_b'] = df_merge['Actual Action2_b'].fillna(df_merge['Actual Action2_a'])
+
+    df_merge.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_merge.xlsx'), index=False) #debug
+
+    # port in the map file
+    map_file_path = os.path.join(current_app.root_path, 'data', 'change_simulation_map.xlsx')
+    overlap = pd.read_excel(map_file_path)
+
+    # use first round actions
+    r1 = df_merge.groupby(['Contract Number_a', 'Contract Number_b',
+                          'Actual Action_a', 'Actual Action_b'],
+                          observed = True).agg({'File Row': 'count'}).reset_index()
+    r1.loc[:, 'Same Contract'] = r1.apply(lambda x: 1 if x['Contract Number_a'] == x['Contract Number_b'] else 0, axis=1)
+    r1_res = r1.merge(overlap,
+                      left_on = ['Actual Action_a', 'Actual Action_b', 'Same Contract'],
+                      right_on = ['Actual Action_a', 'Actual Action_b', 'Same Contract'],
+                      how = 'left')
+    r1_res.loc[:, 'Overlap Count'] = r1_res['File Row'] * r1_res['Overlap']
+
+    # use corrected actions
+    r2 = df_merge.groupby(['Contract Number_a', 'Contract Number_b',
+                          'Actual Action2_a', 'Actual Action2_b'],
+                          observed = True).agg({'File Row': 'count'}).reset_index()
+    r2.loc[:, 'Same Contract'] = r2.apply(lambda x: 1 if x['Contract Number_a'] == x['Contract Number_b'] else 0, axis=1)
+    r2_res = r2.merge(overlap,
+                        left_on = ['Actual Action2_a', 'Actual Action2_b', 'Same Contract'],
+                        right_on = ['Actual Action_a', 'Actual Action_b', 'Same Contract'],
+                        how = 'left')
+    r2_res.loc[:, 'Overlap Count'] = r2_res['File Row'] * r2_res['Overlap']
+
+    r1_res.to_excel(os.path.join(current_app.root_path, 'temp_files', 'r1_res.xlsx'), index=False) #debug
+    r2_res.to_excel(os.path.join(current_app.root_path, 'temp_files', 'r2_res.xlsx'), index=False) #debug
+
+    r2_total = \
+    r2_res.groupby(['Contract Number_a',
+                    'Contract Number_b']).agg({'Overlap Count': 'sum'}).reset_index()
+    
+    # recompute the line deltas using actual action2
+    line_operations = compute_line_count_changes(data_change_show_df, contract_line_count_df, round=2)
+    line_operations.to_excel(os.path.join(current_app.root_path, 'temp_files', 'line_operations_r2.xlsx'), index=False) #debug
+
+    operation_cols_to_use = ['Contract Number', 'Total Contract Line Count',
+                             'Insert_Count', 'Update_Count', 'Delete_Count',
+                             'Total Contract Line Count (Change Applied)']
+
+    temp_df1 = line_operations[operation_cols_to_use].copy()
+    temp_df1.rename(columns={'Contract Number': 'Contract Number_a'}, inplace=True)
+    r2_m1 = r2_total.merge(temp_df1, on='Contract Number_a', how='left')
+    
+    temp_df2 = line_operations[operation_cols_to_use].copy()
+    temp_df2.rename(columns={'Contract Number': 'Contract Number_b'}, inplace=True)
+    r2_m2 = r2_m1.merge(temp_df2, on='Contract Number_b', how='left', suffixes=('_a', '_b'))
+    
+    r2_m2.to_excel(os.path.join(current_app.root_path, 'temp_files', 'r2_m2.xlsx'), index=False) #debug
+
+    df_cross_r2 = r2_m2[['Contract Number_a', 'Contract Number_b',
+                         'Total Contract Line Count (Change Applied)_a', 
+                         'Total Contract Line Count (Change Applied)_b', 
+                         'Insert_Count_b',
+                         'Update_Count_b',
+                         'Delete_Count_b',
+                         'Overlap Count']].copy()
+    df_cross_r2.rename(columns = {'Total Contract Line Count (Change Applied)_a': 'Total Contract Line Count_a',
+                                   'Total Contract Line Count (Change Applied)_b': 'Total Contract Line Count_b',
+                                   'Overlap Count': 'Overlapping Count'},
+                                   inplace = True)
+    df_cross_r2.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross_r2.xlsx'), index=False) #debug
+
+    return df_cross_r2
+    
+def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, im_catched_all_df):
+    """
+    Validate the final do not expire items
+    Args:
+        changes_to_show_df: DataFrame with changes to be applied
+        reference_for_expire_rows: DataFrame with reference data for items to be expired
+        im_catched_all_df: DataFrame with item master matches
+    Returns:
+        validation_results: DataFrame with validation flags for each item
+    """
+    
+    # Get items with Primary Action 'Expire CCX' and Intended Action 'Upsert'
+    expire_ccx_items = changes_to_show_df[
+        (changes_to_show_df['Primary Action'] == 'Expire CCX') & 
+        (changes_to_show_df['Intended Action'] == 'Upsert')
+    ].copy()
+    
+    if expire_ccx_items.empty:
+        return pd.DataFrame()
+    
+    # Create item master lookup
+    if not im_catched_all_df.empty:
+        im_lookup = dict(zip(im_catched_all_df['File Row'], im_catched_all_df['Item']))
+    else:
+        im_lookup = {}
+    
+    # Create reference lookup for expire items
+    if not reference_for_expire_rows.empty:
+        ref_lookup = {}
+        for _, row in reference_for_expire_rows.iterrows():
+            file_row = row['File Row']
+            item_number = im_lookup.get(file_row, '')
+            ref_lookup[file_row] = {
+                'item_number': item_number,
+                'reference_data': row
+            }
+    else:
+        ref_lookup = {}
+    
+    validation_results = []
+    
+    for _, row in expire_ccx_items.iterrows():
+        file_row = row['File Row']
+        do_not_expire = row['Do Not Expire']
+        quick_check = row.get('Quick Check', '')
+        
+        # Get item master item number for this row
+        item_number = im_lookup.get(file_row, '')
+        is_item_master_item = bool(item_number)
+        
+        # Get reference data
+        ref_data = ref_lookup.get(file_row, {})
+        ref_item_number = ref_data.get('item_number', '')
+        
+        validation_flag = ''
+        
+        # Scenario 1: Item to be expired (do_not_expire == False)
+        if do_not_expire == False:
+            if is_item_master_item:
+                # Check if reference item has the same item number
+                if ref_item_number == item_number:
+                    validation_flag = 'safe to expire'
+                else:
+                    validation_flag = 'check - about to lose Itemmast item'
+            else:
+                # Non-item master items are generally safe to expire
+                validation_flag = 'safe to expire'
+        
+        # Scenario 2: Item set to not expire (do_not_expire == True)
+        elif do_not_expire == True:
+            if len(quick_check) >= 10:  # Ensure quick_check has enough positions
+                # Parse quick check positions
+                positions = list(quick_check)
+                
+                # Position mapping:
+                # 0: Mfg Part Num
+                # 1: Vendor Part Num  
+                # 2: Buyer Part Num (x)
+                # 3: Description
+                # 4: Contract Price
+                # 5: UOM
+                # 6: QOE
+                # 7: Effective Date
+                # 8: Expiration Date
+                # 9: ERP Vendor ID
+                
+                # Check specific patterns
+                if (positions[5] == 'N' and 
+                    all(p in ['Y', 'x'] for i, p in enumerate(positions) if i != 5)):
+                    validation_flag = 'check - same item, different UOM'
+                
+                elif (positions[6] == 'N' and 
+                      all(p in ['Y', 'x'] for i, p in enumerate(positions) if i != 6)):
+                    validation_flag = 'check - same item, different QOE'
+                
+                elif (positions[9] == 'Y' and positions[0] == 'N' and positions[1] == 'Y'):
+                    validation_flag = 'check - same vendor item, different MFN'
+                
+                elif (positions[0] == 'Y' and positions[5] == 'Y' and 
+                      positions[6] == 'Y' and positions[9] == 'Y' and positions[1] == 'N'):
+                    validation_flag = 'check - same item and packaging from same vendor, different vendor item'
+                
+                else:
+                    validation_flag = 'safe'
+            else:
+                # If quick_check is too short or malformed, mark as safe
+                validation_flag = 'safe'
+        
+        else:
+            # Handle None case or other values
+            validation_flag = 'safe'
+        
+        validation_results.append({
+            'File Row': file_row,
+            'Contract Number': row['Contract Number'],
+            'Mfg Part Num': row['Mfg Part Num'],
+            'Vendor Part Num': row['Vendor Part Num'],
+            'Description': row['Description'],
+            'UOM': row['UOM'],
+            'QOE': row['QOE'],
+            'ERP Vendor ID': row['ERP Vendor ID'],
+            'Do Not Expire': do_not_expire,
+            'Quick Check': quick_check,
+            'Item Number': item_number,
+            'Reference Item Number': ref_item_number,
+            'Is Item Master Item': is_item_master_item,
+            'Validation Flag': validation_flag
+        })
+    
+    validation_df = pd.DataFrame(validation_results)
+    
+    return validation_df
+
+
 def compute_dataset_changes_df(data_change_show_df):
     if 'Do Not Expire' in data_change_show_df.columns:
         data_change_show_df = data_change_show_df[data_change_show_df['Do Not Expire'] != True].copy()
@@ -2049,8 +2301,9 @@ def compute_dataset_changes_df(data_change_show_df):
     tp_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create') & (data_change_show_df['Actual Action'] == 'Create'))].copy()
     tp_mute = data_change_show_df[data_change_show_df['Actual Action'] == 'Mute'].copy()
     tp_merged = data_change_show_df[(data_change_show_df['Dataset'] == 'TP') & 
-                                    ~(data_change_show_df['Actual Action'].isin(['Create', 'Mute']))].copy()
+                                    ~(data_change_show_df['Primary Action'].isin(['Create', 'Mute TP']))].copy()
     return ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged
+
 
 def compute_changes_to_show(data_change_show_df, merged_df):
     """
@@ -2199,6 +2452,19 @@ def generate_network_graph(network_df,
     for u, v, w in edges:
         if u in node_sizes_map and v in node_sizes_map:  # Ensure both nodes exist
             G.add_edge(u, v, weight=w)
+
+    # Add missing nodes from fixed_pos that got muted/removed
+    if fixed_pos is not None:
+        for node in fixed_pos:
+            if node not in G.nodes() and str(node).strip() != '' and str(node).strip().lower() != 'nan':
+                G.add_node(node)
+                # Add to node_sizes_map with size 0
+                node_sizes_map[node] = 0
+                # Mark as part of a_contracts for consistent coloring
+                a_contracts.add(node)
+                # Add to change_info_map with zeros (will be used later)
+                if show_IUD and node not in change_info_map:
+                    change_info_map[node] = {'Insert': 0, 'Update': 0, 'Delete': 0}
     
     # Check if graph is empty after filtering
     if len(G.nodes()) == 0:

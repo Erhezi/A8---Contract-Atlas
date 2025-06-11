@@ -8,7 +8,8 @@ from ..common.utils import (compute_changes_to_show,
                             change_simulation_stage2, 
                             change_simulation_stage3, 
                             compute_dataset_changes_df,
-                            generate_network_graph)
+                            generate_network_graph,
+                            change_simulation_stage4)
 from ..common.db import get_db_connection, get_relevant_contract_line
 import os
 import json
@@ -183,7 +184,9 @@ def show_changes():
             'all_changes': data_change_show_df.to_dict(orient='records'),
             'modified_network_df': modified_network_df.to_dict(orient='records'),
             'fixed_pos': master_pos_serializable,
-            'changes_to_show': changes_to_show_df.to_dict(orient='records')
+            'changes_to_show': changes_to_show_df.to_dict(orient='records'),
+            'reference_for_expire_rows': reference_for_expire_rows.to_dict(orient='records') if not reference_for_expire_rows.empty else [],
+            'contract_line_count': contract_line_count_df.to_dict(orient='records')
         }
         store_change_simulation_results(user_id, simulation_results)
         
@@ -341,16 +344,33 @@ def finalize_changes():
             }), 404
         
         all_changes = simulation_results.get('all_changes', [])
+        contract_line_count = simulation_results.get('contract_line_count', [])
+
+        all_changes_df = pd.DataFrame(all_changes)
+        contract_line_count_df = pd.DataFrame(contract_line_count)
         
-        modified_network = simulation_results.get('modified_network_df', [])
+        
+        # test
+        df_network_r2 = change_simulation_stage4(all_changes_df, contract_line_count_df)
+        
+        
+
+
+        
+        # Get fixed positions and generate graph JSONs
+        modified_network_df = pd.DataFrame(simulation_results.get('modified_network_df', []))
         fixed_pos = simulation_results.get('fixed_pos', {})
+        
+        # Generate JSON data for both graphs
+        modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=fixed_pos, show_IUD=True)
+        r2_graph_json = generate_network_graph(df_network_r2, fixed_pos=fixed_pos, show_IUD=True)
 
         return jsonify({
             'success': True,
             'message': "Changes finalized successfully.",
             'result': {
-                'all_changes': all_changes,
-                'modified_network': modified_network
+                'modified_graph_data': modified_graph_json,
+                'r2_graph_data': r2_graph_json
             }
         })
 

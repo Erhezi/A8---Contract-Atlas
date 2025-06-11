@@ -1070,16 +1070,79 @@
         </div>
     </div>
     
-    <div class="finalize-actions" style="margin-top: 30px; display: flex; justify-content: flex-end;">
-        <button id="finalize-changes-btn" class="btn btn-primary me-2">Finalize Changes</button>
+    <div class="finalize-actions" style="margin-top: 30px; display: none; flex-direction: column;">
+        <!-- 1. Finalize Changes button at the top -->
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+            <button id="finalize-changes-btn" class="btn btn-primary me-2">Finalize Changes</button>
+        </div>
         
-        <!-- Initially hidden Complete Step button -->
-        <div id="complete-step-container" style="display: none;">
-            <form method="POST" action="{{ url_for('common.process_step', step_id=5) }}">
-                <input type="hidden" name="substep_completed" value="5.1">
-                <input type="hidden" name="step_completed" value="true">
-                <button type="submit" id="complete-step-btn" class="btn btn-success">Complete Step 5</button>
-            </form>
+        <!-- 2. Network Graphs Container in the middle -->
+        <div id="finalized-network-graphs" class="network-graphs-container" style="width: 100%; display: none; margin-bottom: 20px;">
+            <h4>Final Network Comparison</h4>
+            <div class="graph-container-flex">
+                <div class="graph-wrapper">
+                    <div class="graph-title">Modified Network</div>
+                    <div id="finalized-modified-graph" class="network-graph" style="height: 500px;"></div>
+                </div>
+                <div class="graph-wrapper">
+                    <div class="graph-title">Finalized Network (with Do Not Expire)</div>
+                    <div id="finalized-r2-graph" class="network-graph" style="height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 3. Final Expiration Item Checks placeholder -->
+        <div id="final-expiration-checks" class="card" style="width: 100%; display: none; margin-bottom: 20px;">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                    Final Expiration Item Validation
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    Validating expiration items to ensure data integrity and prevent unintended item master losses.
+                </p>
+                
+                <!-- Placeholder content - will be implemented later -->
+                <div id="validation-results-container">
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-clock fa-2x mb-3"></i>
+                        <p>Validation functionality will be implemented here.</p>
+                        <small>This will check for item master conflicts and provide safety warnings.</small>
+                    </div>
+                </div>
+                
+                <!-- Placeholder for validation table -->
+                <div id="validation-table-container" class="table-responsive" style="display: none;">
+                    <table class="table table-sm table-striped">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>File Row</th>
+                                <th>Contract Number</th>
+                                <th>Mfg Part Num</th>
+                                <th>Description</th>
+                                <th>Validation Status</th>
+                                <th>Action Required</th>
+                            </tr>
+                        </thead>
+                        <tbody id="validation-table-body">
+                            <!-- Validation results will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 4. Complete Step button at the bottom -->
+        <div style="display: flex; justify-content: flex-end;">
+            <div id="complete-step-container" style="display: none;">
+                <form method="POST" action="{{ url_for('common.process_step', step_id=5) }}">
+                    <input type="hidden" name="substep_completed" value="5.1">
+                    <input type="hidden" name="step_completed" value="true">
+                    <button type="submit" id="complete-step-btn" class="btn btn-success">Complete Step 5</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -1121,6 +1184,32 @@ function showAlert(message, type = 'success') {
         console.log(`${type.toUpperCase()}: ${message}`);
     }
 }
+
+document.addEventListener('click', function(event) {
+    // Check if the click is outside the data change table
+    const dataChangeTable = document.getElementById('data-change-table-container');
+    const referenceTableSection = document.getElementById('reference-table-section');
+    
+    // If the table containers exist and the click is outside both tables
+    if (dataChangeTable && referenceTableSection) {
+        const isClickInsideMainTable = dataChangeTable.contains(event.target);
+        const isClickInsideReferenceTable = referenceTableSection.contains(event.target);
+        
+        // If click is outside both tables, clear selections and highlighting
+        if (!isClickInsideMainTable && !isClickInsideReferenceTable) {
+            // Remove highlighting from all rows
+            document.querySelectorAll('#data-change-tbody tr').forEach(row => {
+                row.classList.remove('table-active');
+            });
+            
+            // Clear field difference highlighting
+            clearFieldDifferenceHighlighting();
+            
+            // Hide reference table section
+            document.getElementById('reference-table-section').style.display = 'none';
+        }
+    }
+});
 
 document.getElementById('view-changes-btn').addEventListener('click', function() {
     // Show loading spinner
@@ -1203,6 +1292,9 @@ document.getElementById('view-changes-btn').addEventListener('click', function()
                 
                 // Display data change table
                 displayDataChangeTable();
+
+                // Show the finalize actions div now that we have changes to review
+                document.querySelector('.finalize-actions').style.display = 'flex';
                 
                 try {
                     // Parse the graph data from JSON
@@ -1369,6 +1461,19 @@ let allDataChangeItems = [];
 let allReferenceItems = []; // Add reference data storage
 let sortFieldDataChange = null;
 let sortDirectionDataChange = 'asc';
+
+let checkboxStates = {};
+
+function getItemCompositeKey(item) {
+    return [
+        item['Contract Number'],
+        item['ERP Vendor ID'],
+        item['Mfg Part Num'],
+        item['Vendor Part Num'],
+        item['UOM'],
+        item['File Row']
+    ].join('|');
+}
 
 // Function to display data change table
 function displayDataChangeTable() {
@@ -1642,10 +1747,24 @@ function renderDataChangeTable(items) {
             
             // Check if this row can have "Do Not Expire" checkbox
             const canPreventExpire = item['Primary Action'] === 'Expire CCX';
+
+            // Use composite key instead of just file row
+            const compositeKey = getItemCompositeKey(item);
+            let isChecked = false;
             
-            // Create checkbox cell
+            // Check our state tracker first using composite key
+            if (compositeKey in checkboxStates) {
+                isChecked = checkboxStates[compositeKey];
+            } else {
+                // If not in our state tracker yet, use the 'Do Not Expire' property from data
+                isChecked = item['Do Not Expire'] === true;
+                // Initialize our state tracker with composite key
+                checkboxStates[compositeKey] = isChecked;
+            }
+            
+            // Create checkbox cell with correct checked state and store the composite key
             const checkboxHtml = canPreventExpire ? 
-                `<input type="checkbox" class="expire-checkbox" data-index="${index}">` : 
+                `<input type="checkbox" class="expire-checkbox" data-index="${index}" data-key="${compositeKey}" ${isChecked ? 'checked' : ''}>` : 
                 '<span class="text-muted">N/A</span>';
             
             // Format actions for better visibility
@@ -1694,6 +1813,16 @@ function renderDataChangeTable(items) {
 
         // Apply current filter after rendering
         filterDataChangeTable();
+
+        // Add event listeners to checkboxes to update our state tracker using composite key
+        document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const compositeKey = this.dataset.key;
+                if (compositeKey) {
+                    checkboxStates[compositeKey] = this.checked;
+                }
+            });
+        });
         
     } catch (err) {
         console.error("Error rendering data change table:", err);
@@ -1864,14 +1993,24 @@ function clearSearchHandler() {
 }
 
 function selectAllHandler() {
+    // Get all visible rows and update their checkbox states
     document.querySelectorAll('#data-change-tbody tr:not([style*="display: none"]) .expire-checkbox').forEach(checkbox => {
         checkbox.checked = true;
+        const compositeKey = checkbox.dataset.key;
+        if (compositeKey) {
+            checkboxStates[compositeKey] = true;
+        }
     });
 }
 
 function deselectAllHandler() {
+    // Get all visible rows and update their checkbox states
     document.querySelectorAll('#data-change-tbody tr:not([style*="display: none"]) .expire-checkbox').forEach(checkbox => {
         checkbox.checked = false;
+        const compositeKey = checkbox.dataset.key;
+        if (compositeKey) {
+            checkboxStates[compositeKey] = false;
+        }
     });
 }
 
@@ -1939,13 +2078,20 @@ function saveExpireSelections() {
     // Show loading spinner
     document.getElementById('loading-spinner').style.display = 'block';
     
-    // Collect checkbox states
-    const expireSelections = [];
+    // First, update checkboxStates with current DOM checkbox states
     document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
-        const index = parseInt(checkbox.dataset.index);
-        const item = allDataChangeItems[index];
-        
-        if (item) {
+        const compositeKey = checkbox.dataset.key;
+        if (compositeKey) {
+            checkboxStates[compositeKey] = checkbox.checked;
+        }
+    });
+    
+    // Collect checkbox states using composite keys from our state tracker
+    const expireSelections = [];
+    allDataChangeItems.forEach(item => {
+        if (item['Primary Action'] === 'Expire CCX') {
+            const compositeKey = getItemCompositeKey(item);
+            // Include all items with checkbox states, not just those currently visible
             expireSelections.push({
                 contract_number: item['Contract Number'],
                 erp_vendor_id: item['ERP Vendor ID'],
@@ -1954,7 +2100,7 @@ function saveExpireSelections() {
                 uom: item['UOM'],
                 primary_action: item['Primary Action'],
                 file_row: item['File Row'],
-                do_not_expire: checkbox.checked
+                do_not_expire: checkboxStates[compositeKey] || false
             });
         }
     });
@@ -1976,27 +2122,36 @@ function saveExpireSelections() {
         if (data.success) {
             // Update local data with server response
             if (data.updated_data) {
+                // Store the current checkbox states before updating
+                const savedCheckboxStates = {...checkboxStates};
+                
+                // Update the data
                 allDataChangeItems = data.updated_data;
                 
-                // Update checkboxes to reflect saved state
-                document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
-                    const index = parseInt(checkbox.dataset.index);
-                    const item = allDataChangeItems[index];
-                    if (item && item['Primary Action'] === 'Expire CCX') {
-                        checkbox.checked = item['Do Not Expire'] === true;
-                        
-                        // Also update row styling to indicate saved state
-                        const row = checkbox.closest('tr');
-                        if (item['Do Not Expire'] === true) {
-                            row.classList.add('do-not-expire-selected');
+                // Preserve ALL checkbox states, not just visible ones
+                allDataChangeItems.forEach(item => {
+                    if (item['Primary Action'] === 'Expire CCX') {
+                        const compositeKey = getItemCompositeKey(item);
+                        if (compositeKey in savedCheckboxStates) {
+                            // Preserve user selections
+                            checkboxStates[compositeKey] = savedCheckboxStates[compositeKey];
+                            // Also update the item's Do Not Expire property for consistency
+                            item['Do Not Expire'] = savedCheckboxStates[compositeKey];
                         } else {
-                            row.classList.remove('do-not-expire-selected');
+                            // If this is a new key, initialize it from the item
+                            checkboxStates[compositeKey] = item['Do Not Expire'] === true;
                         }
                     }
                 });
+                
+                // Re-render the table with updated data and preserved selections
+                renderDataChangeTable(allDataChangeItems);
+                
+                // Reapply the current filter to maintain the filtered view
+                filterDataChangeTable();
             }
             
-            // Update CCX update card with new data
+            // Update CCX expire card with new data
             if (data.ccx_expire) {
                 // Update the stored data for modal display
                 window.changeStatsData.ccxExpire = data.ccx_expire;
@@ -2051,6 +2206,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Function to show reference data for selected row
 function showReferenceForRow(selectedItem) {
+    // If selectedItem is null/undefined, hide reference section
+    if (!selectedItem) {
+        document.getElementById('reference-table-section').style.display = 'none';
+        clearFieldDifferenceHighlighting();
+        return;
+    }
+
     const referenceSection = document.getElementById('reference-table-section');
     const referenceContainer = document.getElementById('reference-table-container');
     const noReferenceMessage = document.getElementById('no-reference-message');
@@ -2194,6 +2356,93 @@ function highlightFieldDifferences(selectedItem, referenceItem) {
                 }
             }
         }
+    });
+}
+
+function finalizeChanges() {
+    // Show loading spinner
+    document.getElementById('loading-spinner').style.display = 'block';
+
+    // Show the final expiration checks placeholder
+    document.getElementById('final-expiration-checks').style.display = 'block';
+    
+    fetch('/change-simulation/finalize-changes', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading spinner
+        document.getElementById('loading-spinner').style.display = 'none';
+        
+        if (data.success) {
+            // All checks passed, show success message
+            alert('Changes finalized successfully!');
+            
+            // Show the complete step button
+            document.getElementById('complete-step-container').style.display = 'inline-block';
+            
+            // Display the network graphs if available
+            if (data.result.modified_graph_data && data.result.r2_graph_data) {
+                // Show the existing graph container
+                const networkGraphsDiv = document.getElementById('finalized-network-graphs');
+                networkGraphsDiv.style.display = 'block';
+                
+                try {
+                    // Parse the graph data
+                    const modifiedGraphData = JSON.parse(data.result.modified_graph_data);
+                    const r2GraphData = JSON.parse(data.result.r2_graph_data);
+                    
+                    // Plot config
+                    const plotConfig = {
+                        responsive: true,
+                        displayModeBar: true,
+                        modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'],
+                        displaylogo: false,
+                        scrollZoom: true,
+                        doubleClick: 'reset'
+                    };
+                    
+                    // Create the plots using the existing div elements
+                    Plotly.newPlot('finalized-modified-graph', modifiedGraphData.data, modifiedGraphData.layout, plotConfig)
+                        .then(() => {
+                            Plotly.relayout('finalized-modified-graph', {'dragmode': 'pan'});
+                        });
+                    
+                    Plotly.newPlot('finalized-r2-graph', r2GraphData.data, r2GraphData.layout, plotConfig)
+                        .then(() => {
+                            Plotly.relayout('finalized-r2-graph', {'dragmode': 'pan'});
+                        });
+                } catch (error) {
+                    console.error('Error creating graphs:', error);
+                    networkGraphsDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            Error displaying network graphs. Please try again.
+                        </div>
+                    `;
+                }
+            }
+        } else {
+            // Show details about the failed checks
+            let message = 'Safety checks failed. Please review the following issues:\n';
+            if (data.issues && data.issues.length > 0) {
+                data.issues.forEach(issue => {
+                    message += `\n- ${issue}`;
+                });
+            } else {
+                message += '\n- ' + (data.message || 'Unknown error occurred');
+            }
+            
+            alert(message);
+        }
+    })
+    .catch(error => {
+        // Hide loading spinner
+        document.getElementById('loading-spinner').style.display = 'none';
+        alert('Error during finalization: ' + error.message);
+        console.error('Error finalizing changes:', error);
     });
 }
 </script>
