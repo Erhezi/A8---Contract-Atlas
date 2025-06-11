@@ -741,6 +741,24 @@
         color: #212529 !important;
         border-color: #ffca2c !important;
     }
+
+    #commit-changes-btn {
+        background-color: #28a745 !important;
+        border-color: #28a745 !important;
+        font-weight: 600;
+        color: #ffffff !important;
+    }
+
+    #commit-changes-btn:hover {
+        background-color: #218838 !important;
+        border-color: #1e7e34 !important;
+        color: #ffffff !important;
+    }
+
+    #commit-changes-btn:focus {
+        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.5) !important;
+        color: #ffffff !important;
+    }
 </style>
 
 <!-- Change Simulation Content -->
@@ -1134,8 +1152,16 @@
             </div>
         </div>
         
-        <!-- 4. Complete Step button at the bottom -->
-        <div style="display: flex; justify-content: flex-end;">
+        <!-- 4. Commit and Complete Step buttons at the bottom -->
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <!-- Commit Changes button -->
+            <div id="commit-changes-container" style="display: none;">
+                <button id="commit-changes-btn" class="btn btn-success">
+                    <i class="fas fa-database mr-2"></i>Commit Changes
+                </button>
+            </div>
+            
+            <!-- Complete Step button -->
             <div id="complete-step-container" style="display: none;">
                 <form method="POST" action="{{ url_for('common.process_step', step_id=5) }}">
                     <input type="hidden" name="substep_completed" value="5.1">
@@ -2380,6 +2406,9 @@ function finalizeChanges() {
         if (data.success) {
             // All checks passed, show success message
             alert('Changes finalized successfully!');
+
+            // Show the commit button first
+            document.getElementById('commit-changes-container').style.display = 'inline-block';
             
             // Show the complete step button
             document.getElementById('complete-step-container').style.display = 'inline-block';
