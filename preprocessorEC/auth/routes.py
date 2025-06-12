@@ -20,7 +20,7 @@ def landing():
 def login():
     """Handle user login"""
     if current_user.is_authenticated:
-        return redirect(url_for('common.dashboard'))
+        return redirect(url_for('common.home'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -53,7 +53,7 @@ def login():
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
-            return redirect(url_for('common.dashboard'))
+            return redirect(url_for('common.home'))
         else:
             flash(message, 'danger')
             
@@ -63,7 +63,7 @@ def login():
 def register():
     """Handle user registration"""
     if current_user.is_authenticated:
-        return redirect(url_for('common.dashboard'))
+        return redirect(url_for('common.home'))
     
     if request.method == 'POST':
         username = request.form.get('username')

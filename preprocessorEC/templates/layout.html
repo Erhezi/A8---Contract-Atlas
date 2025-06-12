@@ -289,6 +289,15 @@
     {% block extra_styles %}{% endblock %}
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global URL prefix for all AJAX calls
+        const URL_PREFIX = "{{ url_prefix }}";
+        
+        // Helper function to create prefixed URLs
+        function getApiUrl(path) {
+            return URL_PREFIX + path;
+        }
+    </script>
 </head>
 <body>
     <div class="header">

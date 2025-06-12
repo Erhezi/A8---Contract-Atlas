@@ -20,6 +20,9 @@ class Config:
     
     # Model settings
     MODEL_NAME = 'all-MiniLM-L6-v2'
+
+    # prefix for url re-direct
+    URL_PREFIX = os.environ.get('URL_PREFIX', '')
     
     @property
     def DB_CONN_STRING(self):
@@ -55,11 +58,10 @@ class TestingConfig(Config):
     DEBUG = False
     TESTING = True
     
-    # Use in-memory or temporary database for testing
     @property
     def DB_CONN_STRING(self):
-        """Test database connection string - in-memory SQLite for fast tests"""
-        return 'sqlite:///:memory:'
+        """Test database connection string - same as dev"""
+        return super().DB_CONN_STRING
         
     @property
     def SESSION_FILE_DIR(self):
@@ -89,6 +91,10 @@ class ProductionConfig(Config):
                 f'SERVER={server};'
                 f'DATABASE={database};'
                 'Trusted_Connection=yes;')
+    
+    @property
+    def URL_PREFIX(self):
+        return os.environ.get('URL_PREFIX', '/preprocessor')
 
 def get_config(config_name='default'):
     """Return the appropriate configuration object based on the environment"""

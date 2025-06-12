@@ -29,6 +29,7 @@
 !run.py
 !.gitignore
 !requirements.txt
+!server_start.bat
 
 # Explicit ignores even if they match the patterns above
 __pycache__/

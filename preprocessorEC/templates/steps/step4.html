@@ -871,7 +871,7 @@ document.addEventListener('DOMContentLoaded', function() {
             safeSetDisplay(actionButtons, 'none');
             safeSetDisplay(reviewSummaryCard, 'none');
 
-            fetch('/item-matching/match-infor-contract-lines', {
+            fetch(getApiUrl('/item-matching/match-infor-contract-lines'), {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -1276,7 +1276,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }));
         
         // Send updates to the backend
-        fetch('/item-matching/update-infor-cl-false-positives', {
+        fetch(getApiUrl('/item-matching/update-infor-cl-false-positives'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1417,7 +1417,7 @@ document.addEventListener('DOMContentLoaded', function() {
             safeSetDisplay(document.getElementById('step-4-2-content'), 'block');
             
             // Directly call the Item Master matching endpoint (skip the "Start Matching" button)
-            fetch('/item-matching/match-item-master', {
+            fetch(getApiUrl('/item-matching/match-item-master'), {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -1463,7 +1463,7 @@ document.addEventListener('DOMContentLoaded', function() {
             safeSetDisplay(actionButtons42, 'none');
             safeSetDisplay(itemMasterResultsContainer, 'none');
 
-            fetch('/item-matching/match-item-master', {
+            fetch(getApiUrl('/item-matching/match-item-master'), {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -1870,7 +1870,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log(`${checkedCount} of ${falsePositiveItems.length} items are marked as false positive`);
         
         // Send updates to the backend
-        fetch('/item-matching/update-item-master-false-positives', {
+        fetch(getApiUrl('/item-matching/update-item-master-false-positives'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1996,7 +1996,7 @@ document.addEventListener('DOMContentLoaded', function() {
             safeSetDisplay(startUomQoeValidationBtn, 'none');
             
             // Automatically call the UOM/QOE validation API
-            fetch('/item-matching/validate-uom-qoe', {
+            fetch(getApiUrl('/item-matching/validate-uom-qoe'), {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -2035,7 +2035,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Show loading overlay
             safeSetDisplay(loadingOverlay, 'flex');
             
-            fetch('/item-matching/validate-uom-qoe', {
+            fetch(getApiUrl('/item-matching/validate-uom-qoe'), {
                 method: 'POST'
             })
             .then(response => response.json())
@@ -2301,7 +2301,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log(`Saving ${falsePositiveItems.length} UOM/QOE false positive updates`);
         
         // Send updates to the backend
-        fetch('/item-matching/update-uom-qoe-false-positives', {
+        fetch(getApiUrl('/item-matching/update-uom-qoe-false-positives'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2448,7 +2448,7 @@ document.addEventListener('DOMContentLoaded', function() {
             safeSetDisplay(loadingOverlay, 'flex');
             
             // Submit the form using fetch API with the correct URL
-            fetch('/process-step/4', {
+            fetch(getApiUrl('/process-step/4'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',

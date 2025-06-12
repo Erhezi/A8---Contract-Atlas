@@ -51,8 +51,8 @@ def download_template():
 @common_bp.route('/')
 def home():
     if current_user.is_authenticated:
-        # Redirect authenticated users to the dashboard
-        return render_template('index.html') # Changed from index to dashboard
+        # Redirect authenticated users to index
+        return render_template('index.html')
     return redirect(url_for('auth.landing'))
 
 @common_bp.route('/dashboard')

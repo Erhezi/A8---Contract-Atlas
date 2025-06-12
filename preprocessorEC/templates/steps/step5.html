@@ -1246,7 +1246,7 @@ document.getElementById('view-changes-btn').addEventListener('click', function()
     const updateActionMode = document.getElementById('update_action_mode').value;
     
     // Make AJAX request to show_changes endpoint
-    fetch('/change-simulation/show-changes', {
+    fetch(getApiUrl('/change-simulation/show-changes'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -2132,7 +2132,7 @@ function saveExpireSelections() {
     });
     
     // Send to backend
-    fetch('/change-simulation/update-expire-selections', {
+    fetch(getApiUrl('/change-simulation/update-expire-selections'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -2392,7 +2392,7 @@ function finalizeChanges() {
     // Show the final expiration checks placeholder
     document.getElementById('final-expiration-checks').style.display = 'block';
     
-    fetch('/change-simulation/finalize-changes', {
+    fetch(getApiUrl('/change-simulation/finalize-changes'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

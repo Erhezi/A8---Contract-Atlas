@@ -59,13 +59,17 @@ def create_app(config_name=None, test_config=None):
     from .duplicate_detection.routes import duplicate_bp
     from .item_matching.routes import item_matching_bp
     from .change_simulation.routes import change_simulation_bp
+
+    #add url prefix
+    url_prefix = app.config.get('URL_PREFIX', '')
+    print(f"Using URL prefix: {url_prefix}")
     
-    app.register_blueprint(auth_blueprint)
-    app.register_blueprint(common_bp)
-    app.register_blueprint(file_bp, url_prefix='/file-processing')
-    app.register_blueprint(duplicate_bp, url_prefix='/duplicate-detection')
-    app.register_blueprint(item_matching_bp, url_prefix='/item-matching')
-    app.register_blueprint(change_simulation_bp, url_prefix='/change-simulation')
+    app.register_blueprint(auth_blueprint, url_prefix = url_prefix)
+    app.register_blueprint(common_bp, url_prefix = url_prefix)
+    app.register_blueprint(file_bp, url_prefix=f'{url_prefix}/file-processing')
+    app.register_blueprint(duplicate_bp, url_prefix=f'{url_prefix}/duplicate-detection')
+    app.register_blueprint(item_matching_bp, url_prefix=f'{url_prefix}/item-matching')
+    app.register_blueprint(change_simulation_bp, url_prefix=f'{url_prefix}/change-simulation')
 
     # Initialize model management
     # Initialize app config with model status
@@ -113,6 +117,12 @@ def create_app(config_name=None, test_config=None):
             'current_step_index': current_step_index,
             'completed_steps': completed_steps
         }
+    
+    @app.context_processor
+    def inject_url_prefix():
+        """Inject URL prefix into templates."""
+        url_prefix = app.config.get('URL_PREFIX', '')
+        return {'url_prefix': url_prefix}
     
     # Basic routes
     @app.route('/')

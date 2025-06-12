@@ -529,7 +529,7 @@
             uploadBtn.disabled = true;
             uploadBtn.textContent = 'Uploading...';
             
-            fetch('/file-processing/upload-file', {
+            fetch(getApiUrl('/file-processing/upload-file'), {
                 method: 'POST',
                 body: formData
             })
@@ -696,7 +696,7 @@
             mappingBtn.textContent = 'Processing...';
             
             // First save the column mapping
-            fetch('/file-processing/map-columns', {
+            fetch(getApiUrl('/file-processing/map-columns'), {
                 method: 'POST',
                 body: formData
             })
@@ -704,7 +704,7 @@
             .then(data => {
                 if (data.success) {
                     // Now validate the file
-                    return fetch('/file-processing/validate-file', {
+                    return fetch(getApiUrl('/file-processing/validate-file'), {
                         method: 'POST',
                         body: formData
                     });

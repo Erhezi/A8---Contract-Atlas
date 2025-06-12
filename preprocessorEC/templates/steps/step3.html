@@ -799,7 +799,7 @@
             const formData = new FormData(resolutionForm);
             
             // Send AJAX request
-            fetch('/duplicate-detection/apply-resolution', {
+            fetch(getApiUrl('/duplicate-detection/apply-resolution'), {
                 method: 'POST',
                 body: formData
             })
@@ -845,7 +845,7 @@
         }
         
         function fetchDeduplicationResults() {
-            fetch('/duplicate-detection/get-deduplication-results')
+            fetch(getApiUrl('/duplicate-detection/get-deduplication-results'))
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -1154,7 +1154,7 @@
             console.log('Current policy:', currentPolicy); // Debug policy
             
             // Send to server
-            fetch('/duplicate-detection/update-keep-status', {
+            fetch(getApiUrl('/duplicate-detection/update-keep-status'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1323,7 +1323,7 @@
         function completeStep() {
             showSpinner('Completing step 3...');
             
-            fetch('/duplicate-detection/complete-step3', {
+            fetch(getApiUrl('/duplicate-detection/complete-step3'), {
                 method: 'POST'
             })
             .then(response => response.json())
