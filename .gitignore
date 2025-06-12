@@ -22,6 +22,8 @@
 !preprocessorEC/static/
 !preprocessorEC/static/css/
 !preprocessorEC/static/css/**/*.css
+!preprocessorEC/static/js/
+!preprocessorEC/static/js/**/*.js
 !preprocessorEC/templates/
 !preprocessorEC/templates/**/*.html
 !preprocessorEC/templates/steps/
