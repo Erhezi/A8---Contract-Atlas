@@ -648,6 +648,7 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
+
     .primary-action-create { 
         background-color: #d4edda !important; 
         color: #155724 !important;
@@ -656,12 +657,23 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
+
     .primary-action-update { 
         background-color: #fff3cd !important; 
         color: #856404 !important;
         padding: 2px 6px !important;
         border-radius: 3px !important;
         display: inline-block !important;
+        font-weight: 500 !important;
+    }
+
+    .primary-action-no-change { 
+        background-color: #e2e4e6 !important;
+        color: #626a72 !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-style: italic !important;
         font-weight: 500 !important;
     }
     
@@ -673,6 +685,7 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
+
     .actual-action-create { 
         background-color: #d4edda !important; 
         color: #155724 !important;
@@ -699,6 +712,7 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
+
     .actual-action-update-existing { 
         background-color: #e2e4e6 !important;
         color: #626a72 !important;
@@ -707,6 +721,7 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
+
     .actual-action-update-new { 
         background-color: #fff3cd !important; 
         color: #856404 !important;
@@ -715,6 +730,7 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
+
     .actual-action-no-change { 
         background-color: #e2e4e6 !important;
         color: #626a72 !important;
@@ -977,7 +993,7 @@
                             <th data-sort="Intended Action" class="intended-action-col">Intended Action<span class="sort-indicator"></span></th>
                             <th data-sort="Primary Action" class="primary-action-col">Primary Action<span class="sort-indicator"></span></th>
                             <th data-sort="Actual Action" class="actual-action-col">Actual Action<span class="sort-indicator"></span></th>
-                            <th class="checkbox-col">Do Not Expire</th>
+                            <th data-sort="Do Not Expire" class="checkbox-col">Do Not Expire</th>
                             <th data-sort="Item" class="item-col">Item<span class="sort-indicator"></span></th>
                             <th data-sort="ERP Vendor ID" class="erp-vendor-id-col">ERP Vendor ID<span class="sort-indicator"></span></th>
                             <th data-sort="Contract Number" class="contract-col">Contract Number<span class="sort-indicator"></span></th>

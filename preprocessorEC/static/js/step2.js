@@ -685,7 +685,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Set up Server-Sent Events for progress updates
-        const eventSource = new EventSource('/duplicate-detection/process-item-comparison-with-progress');
+        const eventSource = new EventSource(getApiUrl('/duplicate-detection/process-item-comparison-with-progress'));
         
         eventSource.onmessage = function(event) {
             try {

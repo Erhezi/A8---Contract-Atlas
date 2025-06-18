@@ -2063,7 +2063,6 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
 
 def change_simulation_stage4(data_change_show_df, contract_line_count_df):
     """ try a different method"""
-    print("running change_simulation_stage4")
     data_change_show_df.loc[:, 'Actual Action2'] = data_change_show_df.apply(lambda x: 'No Change' if x['Do Not Expire'] == True else x['Actual Action'], axis=1)
 
     df_tp = data_change_show_df[data_change_show_df['Dataset'] == 'TP'].copy()
@@ -2155,77 +2154,109 @@ def change_simulation_stage4(data_change_show_df, contract_line_count_df):
 
     return df_cross_r2
     
-def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, im_catched_all_df):
+def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows):
     """
     Validate the final do not expire items
     Args:
-        changes_to_show_df: DataFrame with changes to be applied
+        changes_to_show_df: DataFrame with changes to be applied, the one with item and expire marked
         reference_for_expire_rows: DataFrame with reference data for items to be expired
-        im_catched_all_df: DataFrame with item master matches
     Returns:
         validation_results: DataFrame with validation flags for each item
     """
+
+    print("Starting final_expire_item_validation...")  # debug
+    # Get items with Primary Action 'Expire CCX' (we may need to use Intended Action here but we will see)
     
-    # Get items with Primary Action 'Expire CCX' and Intended Action 'Upsert'
+    # add type protection
+    if 'Do Not Expire' in changes_to_show_df.columns:
+        changes_to_show_df['Do Not Expire'] = changes_to_show_df['Do Not Expire'].astype('boolean')
+    if 'Item' in changes_to_show_df.columns:
+        changes_to_show_df['Item'] = changes_to_show_df['Item'].astype(str).str.strip()
+    if 'Item' in reference_for_expire_rows.columns:
+        reference_for_expire_rows['Item'] = reference_for_expire_rows['Item'].astype(str).str.strip()
+    if 'Quick Check' in changes_to_show_df.columns:
+        changes_to_show_df['Quick Check'] = changes_to_show_df['Quick Check'].astype(str).str.strip()
+    
     expire_ccx_items = changes_to_show_df[
-        (changes_to_show_df['Primary Action'] == 'Expire CCX') & 
-        (changes_to_show_df['Intended Action'] == 'Upsert')
+        (changes_to_show_df['Primary Action'] == 'Expire CCX')
     ].copy()
     
     if expire_ccx_items.empty:
         return pd.DataFrame()
     
-    # Create item master lookup
-    if not im_catched_all_df.empty:
-        im_lookup = dict(zip(im_catched_all_df['File Row'], im_catched_all_df['Item']))
-    else:
-        im_lookup = {}
+    # # convert the do not expire to boolean (nullable)
+    expire_ccx_items['Do Not Expire'] = expire_ccx_items['Do Not Expire'].astype('boolean') # not bool
     
     # Create reference lookup for expire items
     if not reference_for_expire_rows.empty:
         ref_lookup = {}
+        expire_line_items = {}
         for _, row in reference_for_expire_rows.iterrows():
             file_row = row['File Row']
-            item_number = im_lookup.get(file_row, '')
-            ref_lookup[file_row] = {
-                'item_number': item_number,
-                'reference_data': row
-            }
+            intended_action = row['Intended Action']
+            item_number = row['Item']
+            print(item_number)
+            if intended_action == 'Upsert':
+                # we know we only have one reference row per file row
+                ref_lookup[file_row] = {'item_number': item_number,
+                                        'ref_data': row}
+            elif intended_action == 'Expire':
+                # we may end up with more than one reference row, but we should only care if the any item number match to our row to be expired
+                if file_row not in expire_line_items:
+                    expire_line_items[file_row] = set()
+                expire_line_items[file_row].add(item_number)
     else:
         ref_lookup = {}
+        expire_line_items = {}
+
+    print(ref_lookup, expire_line_items)  # debug
     
     validation_results = []
     
     for _, row in expire_ccx_items.iterrows():
         file_row = row['File Row']
         do_not_expire = row['Do Not Expire']
-        quick_check = row.get('Quick Check', '')
+        quick_check = row['Quick Check']
+        intended_action = row['Intended Action']
         
         # Get item master item number for this row
-        item_number = im_lookup.get(file_row, '')
-        is_item_master_item = bool(item_number)
-        
+        item_number = row['Item']
+
         # Get reference data
         ref_data = ref_lookup.get(file_row, {})
         ref_item_number = ref_data.get('item_number', '')
         
         validation_flag = ''
-        
+        fix = []
+
+        # for Upsert lines
         # Scenario 1: Item to be expired (do_not_expire == False)
-        if do_not_expire == False:
-            if is_item_master_item:
+        # concept: if it is itemmaster item, we need to check if the new item can smoothly replace it
+        if do_not_expire is False and intended_action == 'Upsert':
+            if item_number != '':
                 # Check if reference item has the same item number
                 if ref_item_number == item_number:
-                    validation_flag = 'safe to expire'
+                    # then double check if the item has the same UOM and QOE --> if not, may need to re-check the buy UOM
+                    if len(quick_check) == 10 and (list(quick_check)[5] == 'N' or list(quick_check)[6] == 'N'):
+                        validation_flag = 'check - Itemmast item with different UOM/QOE, validation on Infor ItemUOM needed'
+                    else:
+                        validation_flag = 'safe to expire'
                 else:
-                    validation_flag = 'check - about to lose Itemmast item'
+                    validation_flag = 'check - about to lose contract coverage on Itemmast item'
+                    if ref_item_number != '':
+                        # If reference item number is not empty, we can check further
+                        if ref_item_number.startswith('('):
+                            validation_flag = 'check - link item number to reference item'
+                        else:
+                            validation_flag = 'check - about to lose Itemmast item, reference item point to a different item number'
             else:
                 # Non-item master items are generally safe to expire
                 validation_flag = 'safe to expire'
         
-        # Scenario 2: Item set to not expire (do_not_expire == True)
-        elif do_not_expire == True:
-            if len(quick_check) >= 10:  # Ensure quick_check has enough positions
+        # Scenario 2: Item set to not expire (do_not_expire == True) and item is intended to be upserted
+        # concept: we need to check if the retain the item will cause data conflict and fix them
+        elif do_not_expire is True and intended_action == 'Upsert':
+            if len(quick_check) == 10:  # Ensure quick_check has enough positions
                 # Parse quick check positions
                 positions = list(quick_check)
                 
@@ -2241,31 +2272,44 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
                 # 8: Expiration Date
                 # 9: ERP Vendor ID
                 
-                # Check specific patterns
-                if (positions[5] == 'N' and 
-                    all(p in ['Y', 'x'] for i, p in enumerate(positions) if i != 5)):
-                    validation_flag = 'check - same item, different UOM'
-                
-                elif (positions[6] == 'N' and 
-                      all(p in ['Y', 'x'] for i, p in enumerate(positions) if i != 6)):
-                    validation_flag = 'check - same item, different QOE'
-                
-                elif (positions[9] == 'Y' and positions[0] == 'N' and positions[1] == 'Y'):
-                    validation_flag = 'check - same vendor item, different MFN'
-                
-                elif (positions[0] == 'Y' and positions[5] == 'Y' and 
-                      positions[6] == 'Y' and positions[9] == 'Y' and positions[1] == 'N'):
-                    validation_flag = 'check - same item and packaging from same vendor, different vendor item'
-                
-                else:
-                    validation_flag = 'safe'
+                # since we already know they are same item, then we jsut need to check for vendor and qoe to determine if they are good or not
+                # same VID + VendorItem should have the same MFN, UOM, QOE
+                # same MFN + UOM + QOE + VID should have the same Vendor Item
+                # same item should have the same Item Number (ERP)
+                # So: If same item (file row) from different vendor id, check QOE
+                if positions[9] == 'N':
+                    # If same QOE --> then they should be the same item packaging --> same MFN + UOM; allow different VN
+                    if positions[6] == 'Y':
+                        if positions[0] == 'N' or positions[5] == 'N':
+                            validation_flag = 'update - update MFN and/or UOM to reinforce data integrity'
+                        else:
+                            validation_flag = 'safe to retain'
+                    elif positions[6] == 'N':
+                        # If different QOE --> then they should have different UOM, allow different VN, MFN, price need to be checked so it make sense
+                        if positions[5] == 'Y':
+                            validation_flag = 'error - same item with different QOE cannot have the same UOM, check back with vendor'
+                        else:
+                            validation_flag = 'safe to retain'
+                    
+                # if same item (file row) from same vendor id, check VN, MFN, UOM, QOE
+                elif positions[9] == 'Y':
+                    if [positions[0] == 'N',
+                        positions[1] == 'N',
+                        positions[5] == 'N',
+                        positions[6] == 'N'].count(True) > 0:
+                        validation_flag = 'update - update MFN, UOM, QOE and VN to reinforce data integrity'
+                    else:
+                        validation_flag = 'safe to retain'
             else:
-                # If quick_check is too short or malformed, mark as safe
-                validation_flag = 'safe'
+                validation_flag = 'safe to retain'
+        
+        # senario 3: Item set to not expire (do_not_expire == True) and item intended to be expired
+        # concept: if we choose to retain the intended to expire item, we need to check for item coverage from other contract
+        elif do_not_expire is True and intended_action == 'Expire':
+            validation_flag = 'Expire the to-be expired item'
         
         else:
-            # Handle None case or other values
-            validation_flag = 'safe'
+            validation_flag = 'check - something unexpected happened, ask developer'
         
         validation_results.append({
             'File Row': file_row,
@@ -2280,11 +2324,12 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
             'Quick Check': quick_check,
             'Item Number': item_number,
             'Reference Item Number': ref_item_number,
-            'Is Item Master Item': is_item_master_item,
             'Validation Flag': validation_flag
         })
     
     validation_df = pd.DataFrame(validation_results)
+
+    validation_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'validation_df.xlsx'), index=False) #debug
     
     return validation_df
 
@@ -2351,11 +2396,25 @@ def compute_changes_to_show(data_change_show_df, merged_df):
     # add column to let user forgive the expiration of the item by mark 'Do Not Expire' as true (default to False)
     # for anything that are not set up as 'Expire CCX' under primary action, we will set it to nan
     changes_simulation_result_df['Do Not Expire'] = None
-    changes_simulation_result_df.loc[changes_simulation_result_df['Primary Action'] == 'Expire CCX', 'Do Not Expire'] = False
+    condition_upsert = (changes_simulation_result_df['Primary Action'] == 'Expire CCX') & \
+                       (changes_simulation_result_df['Intended Action'] == 'Upsert')
+    condition_expire = (changes_simulation_result_df['Primary Action'] == 'Expire CCX') & \
+                       (changes_simulation_result_df['Intended Action'] == 'Expire') & \
+                       (changes_simulation_result_df['Item'] != '')
+    show_do_not_expire_option = changes_simulation_result_df[condition_upsert | condition_expire].index
+    changes_simulation_result_df.loc[show_do_not_expire_option, 'Do Not Expire'] = False
     
     # extract the reference line for items to be expired
-    file_rows_to_expire = set(changes_simulation_result_df[changes_simulation_result_df['Primary Action'] == 'Expire CCX']['File Row'])
-    reference_for_expire_rows = base_im_df[(base_im_df['File Row'].isin(file_rows_to_expire)) & (base_im_df['Group'] == 'Keep')].copy()
+    file_rows_to_expire = set(changes_simulation_result_df[condition_upsert | condition_expire]['File Row'])
+    reference_for_expire_rows_upsert = base_im_df[(base_im_df['File Row'].isin(file_rows_to_expire)) & 
+                                           (base_im_df['Group'] == 'Keep') &
+                                           (base_im_df['Intended Action'] == 'Upsert')].copy()
+    reference_for_expire_rows_expire = base_im_df[(base_im_df['File Row'].isin(file_rows_to_expire)) &
+                                                  (base_im_df['Group'] == 'Drop') &
+                                                  (base_im_df['Intended Action'] == 'Expire') &
+                                                  (base_im_df['Primary Action'] != 'Expire CCX')].copy()
+    
+    reference_for_expire_rows = pd.concat([reference_for_expire_rows_upsert, reference_for_expire_rows_expire], ignore_index=True)
 
     changes_simulation_result_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'changes_simulation_result_df.xlsx'), index=False)
     reference_for_expire_rows.to_excel(os.path.join(current_app.root_path, 'temp_files', 'reference_for_expire_rows.xlsx'), index=False)

@@ -9,7 +9,9 @@ from ..common.utils import (compute_changes_to_show,
                             change_simulation_stage3, 
                             compute_dataset_changes_df,
                             generate_network_graph,
-                            change_simulation_stage4)
+                            change_simulation_stage4,
+                            final_expire_item_validation
+                            )
 from ..common.db import get_db_connection, get_relevant_contract_line
 import os
 import json
@@ -345,17 +347,19 @@ def finalize_changes():
         
         all_changes = simulation_results.get('all_changes', [])
         contract_line_count = simulation_results.get('contract_line_count', [])
+        changes_to_show = simulation_results.get('changes_to_show', [])
+        reference_for_expire_rows = simulation_results.get('reference_for_expire_rows', [])
 
         all_changes_df = pd.DataFrame(all_changes)
         contract_line_count_df = pd.DataFrame(contract_line_count)
+        changes_to_show_df = pd.DataFrame(changes_to_show)
+        reference_for_expire_rows_df = pd.DataFrame(reference_for_expire_rows)
         
-        
-        # test
+        # retrieve the 'Do Not Expire' selections and plot
         df_network_r2 = change_simulation_stage4(all_changes_df, contract_line_count_df)
-        
-        
 
-
+        # final expire item validation
+        final_expire_item_validated_df = final_expire_item_validation(changes_to_show_df, reference_for_expire_rows_df)
         
         # Get fixed positions and generate graph JSONs
         modified_network_df = pd.DataFrame(simulation_results.get('modified_network_df', []))
@@ -370,7 +374,8 @@ def finalize_changes():
             'message': "Changes finalized successfully.",
             'result': {
                 'modified_graph_data': modified_graph_json,
-                'r2_graph_data': r2_graph_json
+                'r2_graph_data': r2_graph_json,
+                'final_expire_item_validated': final_expire_item_validated_df.to_dict(orient='records'),
             }
         })
 

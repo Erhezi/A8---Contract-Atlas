@@ -378,6 +378,7 @@ function getPrimaryActionClass(action) {
     if (actionLower.includes('expire')) return 'primary-action-expire';
     if (actionLower.includes('create')) return 'primary-action-create';
     if (actionLower.includes('update')) return 'primary-action-update';
+    if (actionLower.includes('no change')) return 'primary-action-no-change';
     return '';
 }
 
@@ -526,8 +527,38 @@ function renderDataChangeTable(items) {
                 let aVal = a[sortFieldDataChange] || '';
                 let bVal = b[sortFieldDataChange] || '';
                 
-                // Remove the "Do Not Expire" column sorting logic
-                
+                // Add the "Do Not Expire" column sorting logic
+                if (sortFieldDataChange === 'Do Not Expire') {
+                    // First check if items can have checkboxes
+                    const aCanPreventExpire = (a['Intended Action'] === 'Upsert' && a['Primary Action'] === 'Expire CCX') ||
+                                            (a['Intended Action'] === 'Expire' && a['Item'] !== '');
+                    const bCanPreventExpire = (b['Intended Action'] === 'Upsert' && b['Primary Action'] === 'Expire CCX') ||
+                                            (b['Intended Action'] === 'Expire' && b['Item'] !== '');
+                    
+                    // First sort by whether checkbox exists (can prevent expire)
+                    if (aCanPreventExpire !== bCanPreventExpire) {
+                        return sortDirectionDataChange === 'asc' ? 
+                            (aCanPreventExpire ? -1 : 1) : 
+                            (aCanPreventExpire ? 1 : -1);
+                    }
+                    
+                    // Then sort by checkbox state (if both have checkboxes)
+                    if (aCanPreventExpire && bCanPreventExpire) {
+                        // Get composite keys for both rows
+                        const aKey = getItemCompositeKey(a);
+                        const bKey = getItemCompositeKey(b);
+                        
+                        // Check their states in checkboxStates
+                        const aChecked = checkboxStates[aKey] || a['Do Not Expire'] === true;
+                        const bChecked = checkboxStates[bKey] || b['Do Not Expire'] === true;
+                        
+                        return sortDirectionDataChange === 'asc' ? 
+                            (aChecked ? -1 : 1) : 
+                            (aChecked ? 1 : -1);
+                    }
+                    
+                    return 0; // Equal sorting value
+                }
                 // Handle date fields - convert to timestamps for comparison
                 if (['Effective Date', 'Expiration Date'].includes(sortFieldDataChange)) {
                     // Parse dates and handle invalid dates
@@ -588,7 +619,11 @@ function renderDataChangeTable(items) {
                 '$' + parseFloat(item['Contract Price']).toFixed(2) : 'N/A';
             
             // Check if this row can have "Do Not Expire" checkbox
-            const canPreventExpire = item['Primary Action'] === 'Expire CCX';
+            const canPreventExpire = 
+                // Case 1: For Upsert intended actions, keep using Primary Action check
+                (item['Intended Action'] === 'Upsert' && item['Primary Action'] === 'Expire CCX') || 
+                // Case 2: For Expire intended actions, use Item field not empty check
+                (item['Intended Action'] === 'Expire' && item['Item'] !== '');
 
             // Use composite key instead of just file row
             const compositeKey = getItemCompositeKey(item);
@@ -1065,13 +1100,13 @@ function showReferenceForRow(selectedItem) {
     
     // Find matching reference record by File Row (corrected field name)
     const fileRow = selectedItem['File Row'];
-    let matchingReference = null;
+    let matchingReferences = [];
     
     if (fileRow && allReferenceItems.length > 0) {
-        matchingReference = allReferenceItems.find(ref => ref['File Row'] === fileRow);
+        matchingReferences = allReferenceItems.filter(ref => ref['File Row'] === fileRow);
     }
     
-    if (matchingReference) {
+    if (matchingReferences.length > 0) {
         // Show reference table and hide no-data message
         referenceContainer.style.display = 'block';
         noReferenceMessage.style.display = 'none';
@@ -1080,49 +1115,51 @@ function showReferenceForRow(selectedItem) {
         clearFieldDifferenceHighlighting();
         
         // Highlight differences in the selected row
-        highlightFieldDifferences(selectedItem, matchingReference);
+        highlightFieldDifferences(selectedItem, matchingReferences[0]);
         
         // Populate reference table
         referenceTbody.innerHTML = '';
-        const row = document.createElement('tr');
-        
-        // Format contract price
-        const contractPrice = matchingReference['Contract Price'] ? 
-            '$' + parseFloat(matchingReference['Contract Price']).toFixed(2) : 'N/A';
-        
-        // Format actions for better visibility
-        const formattedPrimaryAction = formatActionText(matchingReference['Primary Action'] || '');
-        const formattedActualAction = formatActionText(matchingReference['Actual Action'] || '');
-        
-        // Get CSS classes for color coding
-        const intendedActionClass = getIntendedActionClass(matchingReference['Intended Action']);
-        const primaryActionClass = getPrimaryActionClass(matchingReference['Primary Action']);
-        const actualActionClass = getActualActionClass(matchingReference['Actual Action']);
-        
-        // Get description and limit to 60 chars
-        const description = matchingReference['Description'] || '';
-        const displayDescription = description.length > 60 ? 
-            description.substring(0, 60) + '...' : description;
-        
-        row.innerHTML = `
-            <td><span class="${intendedActionClass}">${matchingReference['Intended Action'] || ''}</span></td>
-            <td><span class="${primaryActionClass}">${formattedPrimaryAction}</span></td>
-            <td><span class="${actualActionClass}">${formattedActualAction}</span></td>
-            <td class="checkbox-col"><span class="text-muted">N/A</span></td>
-            <td class="item-col">${matchingReference['Item'] || ''}</td>
-            <td class="erp-vendor-id-col">${matchingReference['ERP Vendor ID'] || ''}</td>
-            <td class="contract-col">${matchingReference['Contract Number'] || ''}</td>
-            <td class="part-num-col">${matchingReference['Mfg Part Num'] || ''}</td>
-            <td class="part-num-col">${matchingReference['Vendor Part Num'] || ''}</td>
-            <td class="uom-col">${matchingReference['UOM'] || ''}</td>
-            <td class="qoe-col">${matchingReference['QOE'] || ''}</td>
-            <td class="price-col">${contractPrice}</td>
-            <td class="date-col">${matchingReference['Effective Date'] || ''}</td>
-            <td class="date-col">${matchingReference['Expiration Date'] || ''}</td>
-            <td class="description-col" title="${description}">${displayDescription}</td>
-        `;
-        
-        referenceTbody.appendChild(row);
+        matchingReferences.forEach(matchingReference => {
+            const row = document.createElement('tr');
+            
+            // Format contract price
+            const contractPrice = matchingReference['Contract Price'] ? 
+                '$' + parseFloat(matchingReference['Contract Price']).toFixed(2) : 'N/A';
+            
+            // Format actions for better visibility
+            const formattedPrimaryAction = formatActionText(matchingReference['Primary Action'] || '');
+            const formattedActualAction = formatActionText(matchingReference['Actual Action'] || '');
+            
+            // Get CSS classes for color coding
+            const intendedActionClass = getIntendedActionClass(matchingReference['Intended Action']);
+            const primaryActionClass = getPrimaryActionClass(matchingReference['Primary Action']);
+            const actualActionClass = getActualActionClass(matchingReference['Actual Action']);
+            
+            // Get description and limit to 60 chars
+            const description = matchingReference['Description'] || '';
+            const displayDescription = description.length > 60 ? 
+                description.substring(0, 60) + '...' : description;
+            
+            row.innerHTML = `
+                <td><span class="${intendedActionClass}">${matchingReference['Intended Action'] || ''}</span></td>
+                <td><span class="${primaryActionClass}">${formattedPrimaryAction}</span></td>
+                <td><span class="${actualActionClass}">${formattedActualAction}</span></td>
+                <td class="checkbox-col"><span class="text-muted">N/A</span></td>
+                <td class="item-col">${matchingReference['Item'] || ''}</td>
+                <td class="erp-vendor-id-col">${matchingReference['ERP Vendor ID'] || ''}</td>
+                <td class="contract-col">${matchingReference['Contract Number'] || ''}</td>
+                <td class="part-num-col">${matchingReference['Mfg Part Num'] || ''}</td>
+                <td class="part-num-col">${matchingReference['Vendor Part Num'] || ''}</td>
+                <td class="uom-col">${matchingReference['UOM'] || ''}</td>
+                <td class="qoe-col">${matchingReference['QOE'] || ''}</td>
+                <td class="price-col">${contractPrice}</td>
+                <td class="date-col">${matchingReference['Effective Date'] || ''}</td>
+                <td class="date-col">${matchingReference['Expiration Date'] || ''}</td>
+                <td class="description-col" title="${description}">${displayDescription}</td>
+            `;
+            
+            referenceTbody.appendChild(row);
+        });
     } else {
         // Hide reference table and show no-data message
         referenceContainer.style.display = 'none';
