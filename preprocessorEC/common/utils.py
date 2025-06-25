@@ -1592,7 +1592,10 @@ def actual_action_on_update_row(row, update_action_mode = None):
         if field != 'Buyer Part Num':
             field_keep = field + '_keep'
             field_drop = field + '_drop'
-            res = row[field_keep] == row[field_drop]
+            if field != 'ERP Vendor ID':
+                res = row[field_keep] == row[field_drop]
+            else:
+                res = row[field_keep][:7] == row[field_drop][:7]  # compare only the first 7 characters for ERP Vendor ID
             comparison_results.append('Y' if res == True else 'N')
         else:
             comparison_results.append('x')
@@ -1638,7 +1641,7 @@ def final_data_helper(row, group = 'keep',
             'Contract Number': row['Contract Number_keep'],
             'Mfg Part Num': row['Mfg Part Num_keep'],
             'Vendor Part Num': row['Vendor Part Num_keep'],
-            'Buyer Part Num': row['Buyer Part Num_keep'] if row['Buyer Part Num_keep'] != '' else row['Mfg Part Num_drop'],
+            'Buyer Part Num': row['Buyer Part Num_keep'] if row['Buyer Part Num_keep'] != '' else row['Buyer Part Num_drop'],
             'Description': row['Description_keep'],
             'Contract Price': row['Contract Price_keep'],
             'UOM': row['UOM_keep'],
@@ -1811,11 +1814,19 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     # adjust the Effective and Expiration Date for certain operations
     today = pd.to_datetime('today').strftime('%Y-%m-%d')
     tomorrow = (pd.to_datetime('today') + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+
+    data_change_show_df['Effective Date (before action)'] = data_change_show_df['Effective Date'].copy()
+    data_change_show_df['Expiration Date (before action)'] = data_change_show_df['Expiration Date'].copy()
+
     for i, row in data_change_show_df.iterrows():
         if row['Actual Action'] == 'Expire' or row['Actual Action'] == 'Expire then Create (Expire)':
             data_change_show_df.at[i, 'Expiration Date'] = today
         elif row['Actual Action'] == 'Expire then Create (Create)':
             data_change_show_df.at[i, 'Effective Date'] = tomorrow
+
+    # make sure dates are in correct string form
+    data_change_show_df['Effective Date (before action)'] = data_change_show_df['Effective Date (before action)'].fillna('').astype(str)
+    data_change_show_df['Expiration Date (before action)'] = data_change_show_df['Expiration Date (before action)'].fillna('').astype(str)
 
     # data_change_df = data_change_show_df.copy()
     # data_change_df.drop(columns = ['Dataset', 'Quick Check', 'Primary Action', 'Group'], inplace = True)
@@ -2060,296 +2071,6 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
 
     return df_cross_new, ccx_line_count_cal, tp_line_count_cal, line_count_before_after
 
-
-def change_simulation_stage4(data_change_show_df, contract_line_count_df):
-    """ try a different method"""
-    data_change_show_df.loc[:, 'Actual Action2'] = data_change_show_df.apply(lambda x: 'No Change' if x['Do Not Expire'] == True else x['Actual Action'], axis=1)
-
-    df_tp = data_change_show_df[data_change_show_df['Dataset'] == 'TP'].copy()
-    df_ccx = data_change_show_df[data_change_show_df['Dataset'] == 'CCX'].copy()
-
-    df_merge = df_tp[['Contract Number', 
-                      'Primary Action', 
-                      'Actual Action',
-                      'Actual Action2', 
-                      'File Row']].merge(
-                df_ccx[['Contract Number', 
-                        'Actual Action', 
-                        'Actual Action2', 
-                        'File Row']],
-                on='File Row',
-                how='outer',
-                suffixes=('_a', '_b')
-            )
-    
-    df_merge['Contract Number_b'] = df_merge['Contract Number_b'].fillna(df_merge['Contract Number_a'])
-    df_merge['Actual Action_b'] = df_merge['Actual Action_b'].fillna(df_merge['Actual Action_a'])
-    df_merge['Actual Action2_b'] = df_merge['Actual Action2_b'].fillna(df_merge['Actual Action2_a'])
-
-    df_merge.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_merge.xlsx'), index=False) #debug
-
-    # port in the map file
-    map_file_path = os.path.join(current_app.root_path, 'data', 'change_simulation_map.xlsx')
-    overlap = pd.read_excel(map_file_path)
-
-    # use first round actions
-    r1 = df_merge.groupby(['Contract Number_a', 'Contract Number_b',
-                          'Actual Action_a', 'Actual Action_b'],
-                          observed = True).agg({'File Row': 'count'}).reset_index()
-    r1.loc[:, 'Same Contract'] = r1.apply(lambda x: 1 if x['Contract Number_a'] == x['Contract Number_b'] else 0, axis=1)
-    r1_res = r1.merge(overlap,
-                      left_on = ['Actual Action_a', 'Actual Action_b', 'Same Contract'],
-                      right_on = ['Actual Action_a', 'Actual Action_b', 'Same Contract'],
-                      how = 'left')
-    r1_res.loc[:, 'Overlap Count'] = r1_res['File Row'] * r1_res['Overlap']
-
-    # use corrected actions
-    r2 = df_merge.groupby(['Contract Number_a', 'Contract Number_b',
-                          'Actual Action2_a', 'Actual Action2_b'],
-                          observed = True).agg({'File Row': 'count'}).reset_index()
-    r2.loc[:, 'Same Contract'] = r2.apply(lambda x: 1 if x['Contract Number_a'] == x['Contract Number_b'] else 0, axis=1)
-    r2_res = r2.merge(overlap,
-                        left_on = ['Actual Action2_a', 'Actual Action2_b', 'Same Contract'],
-                        right_on = ['Actual Action_a', 'Actual Action_b', 'Same Contract'],
-                        how = 'left')
-    r2_res.loc[:, 'Overlap Count'] = r2_res['File Row'] * r2_res['Overlap']
-
-    r1_res.to_excel(os.path.join(current_app.root_path, 'temp_files', 'r1_res.xlsx'), index=False) #debug
-    r2_res.to_excel(os.path.join(current_app.root_path, 'temp_files', 'r2_res.xlsx'), index=False) #debug
-
-    r2_total = \
-    r2_res.groupby(['Contract Number_a',
-                    'Contract Number_b']).agg({'Overlap Count': 'sum'}).reset_index()
-    
-    # recompute the line deltas using actual action2
-    line_operations = compute_line_count_changes(data_change_show_df, contract_line_count_df, round=2)
-    line_operations.to_excel(os.path.join(current_app.root_path, 'temp_files', 'line_operations_r2.xlsx'), index=False) #debug
-
-    operation_cols_to_use = ['Contract Number', 'Total Contract Line Count',
-                             'Insert_Count', 'Update_Count', 'Delete_Count',
-                             'Total Contract Line Count (Change Applied)']
-
-    temp_df1 = line_operations[operation_cols_to_use].copy()
-    temp_df1.rename(columns={'Contract Number': 'Contract Number_a'}, inplace=True)
-    r2_m1 = r2_total.merge(temp_df1, on='Contract Number_a', how='left')
-    
-    temp_df2 = line_operations[operation_cols_to_use].copy()
-    temp_df2.rename(columns={'Contract Number': 'Contract Number_b'}, inplace=True)
-    r2_m2 = r2_m1.merge(temp_df2, on='Contract Number_b', how='left', suffixes=('_a', '_b'))
-    
-    r2_m2.to_excel(os.path.join(current_app.root_path, 'temp_files', 'r2_m2.xlsx'), index=False) #debug
-
-    df_cross_r2 = r2_m2[['Contract Number_a', 'Contract Number_b',
-                         'Total Contract Line Count (Change Applied)_a', 
-                         'Total Contract Line Count (Change Applied)_b', 
-                         'Insert_Count_b',
-                         'Update_Count_b',
-                         'Delete_Count_b',
-                         'Overlap Count']].copy()
-    df_cross_r2.rename(columns = {'Total Contract Line Count (Change Applied)_a': 'Total Contract Line Count_a',
-                                   'Total Contract Line Count (Change Applied)_b': 'Total Contract Line Count_b',
-                                   'Overlap Count': 'Overlapping Count'},
-                                   inplace = True)
-    df_cross_r2.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross_r2.xlsx'), index=False) #debug
-
-    return df_cross_r2
-    
-def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows):
-    """
-    Validate the final do not expire items
-    Args:
-        changes_to_show_df: DataFrame with changes to be applied, the one with item and expire marked
-        reference_for_expire_rows: DataFrame with reference data for items to be expired
-    Returns:
-        validation_results: DataFrame with validation flags for each item
-    """
-
-    print("Starting final_expire_item_validation...")  # debug
-    # Get items with Primary Action 'Expire CCX' (we may need to use Intended Action here but we will see)
-    
-    # add type protection
-    if 'Do Not Expire' in changes_to_show_df.columns:
-        changes_to_show_df['Do Not Expire'] = changes_to_show_df['Do Not Expire'].astype('boolean')
-    if 'Item' in changes_to_show_df.columns:
-        changes_to_show_df['Item'] = changes_to_show_df['Item'].astype(str).str.strip()
-    if 'Item' in reference_for_expire_rows.columns:
-        reference_for_expire_rows['Item'] = reference_for_expire_rows['Item'].astype(str).str.strip()
-    if 'Quick Check' in changes_to_show_df.columns:
-        changes_to_show_df['Quick Check'] = changes_to_show_df['Quick Check'].astype(str).str.strip()
-    
-    expire_ccx_items = changes_to_show_df[
-        (changes_to_show_df['Primary Action'] == 'Expire CCX')
-    ].copy()
-    
-    if expire_ccx_items.empty:
-        return pd.DataFrame()
-    
-    # # convert the do not expire to boolean (nullable)
-    expire_ccx_items['Do Not Expire'] = expire_ccx_items['Do Not Expire'].astype('boolean') # not bool
-    
-    # Create reference lookup for expire items
-    if not reference_for_expire_rows.empty:
-        ref_lookup = {}
-        expire_line_items = {}
-        for _, row in reference_for_expire_rows.iterrows():
-            file_row = row['File Row']
-            intended_action = row['Intended Action']
-            item_number = row['Item']
-            print(item_number)
-            if intended_action == 'Upsert':
-                # we know we only have one reference row per file row
-                ref_lookup[file_row] = {'item_number': item_number,
-                                        'ref_data': row}
-            elif intended_action == 'Expire':
-                # we may end up with more than one reference row, but we should only care if the any item number match to our row to be expired
-                if file_row not in expire_line_items:
-                    expire_line_items[file_row] = set()
-                expire_line_items[file_row].add(item_number)
-    else:
-        ref_lookup = {}
-        expire_line_items = {}
-
-    print(ref_lookup, expire_line_items)  # debug
-    
-    validation_results = []
-    
-    for _, row in expire_ccx_items.iterrows():
-        file_row = row['File Row']
-        do_not_expire = row['Do Not Expire']
-        quick_check = row['Quick Check']
-        intended_action = row['Intended Action']
-        
-        # Get item master item number for this row
-        item_number = row['Item']
-
-        # Get reference data
-        ref_data = ref_lookup.get(file_row, {})
-        ref_item_number = ref_data.get('item_number', '')
-        
-        validation_flag = ''
-        fix = []
-
-        # for Upsert lines
-        # Scenario 1: Item to be expired (do_not_expire == False)
-        # concept: if it is itemmaster item, we need to check if the new item can smoothly replace it
-        if do_not_expire is False and intended_action == 'Upsert':
-            if item_number != '':
-                # Check if reference item has the same item number
-                if ref_item_number == item_number:
-                    # then double check if the item has the same UOM and QOE --> if not, may need to re-check the buy UOM
-                    if len(quick_check) == 10 and (list(quick_check)[5] == 'N' or list(quick_check)[6] == 'N'):
-                        validation_flag = 'check - Itemmast item with different UOM/QOE, validation on Infor ItemUOM needed'
-                    else:
-                        validation_flag = 'safe to expire'
-                else:
-                    validation_flag = 'check - about to lose contract coverage on Itemmast item'
-                    if ref_item_number != '':
-                        # If reference item number is not empty, we can check further
-                        if ref_item_number.startswith('('):
-                            validation_flag = 'check - link item number to reference item'
-                        else:
-                            validation_flag = 'check - about to lose Itemmast item, reference item point to a different item number'
-            else:
-                # Non-item master items are generally safe to expire
-                validation_flag = 'safe to expire'
-        
-        # Scenario 2: Item set to not expire (do_not_expire == True) and item is intended to be upserted
-        # concept: we need to check if the retain the item will cause data conflict and fix them
-        elif do_not_expire is True and intended_action == 'Upsert':
-            if len(quick_check) == 10:  # Ensure quick_check has enough positions
-                # Parse quick check positions
-                positions = list(quick_check)
-                
-                # Position mapping:
-                # 0: Mfg Part Num
-                # 1: Vendor Part Num  
-                # 2: Buyer Part Num (x)
-                # 3: Description
-                # 4: Contract Price
-                # 5: UOM
-                # 6: QOE
-                # 7: Effective Date
-                # 8: Expiration Date
-                # 9: ERP Vendor ID
-                
-                # since we already know they are same item, then we jsut need to check for vendor and qoe to determine if they are good or not
-                # same VID + VendorItem should have the same MFN, UOM, QOE
-                # same MFN + UOM + QOE + VID should have the same Vendor Item
-                # same item should have the same Item Number (ERP)
-                # So: If same item (file row) from different vendor id, check QOE
-                if positions[9] == 'N':
-                    # If same QOE --> then they should be the same item packaging --> same MFN + UOM; allow different VN
-                    if positions[6] == 'Y':
-                        if positions[0] == 'N' or positions[5] == 'N':
-                            validation_flag = 'update - update MFN and/or UOM to reinforce data integrity'
-                        else:
-                            validation_flag = 'safe to retain'
-                    elif positions[6] == 'N':
-                        # If different QOE --> then they should have different UOM, allow different VN, MFN, price need to be checked so it make sense
-                        if positions[5] == 'Y':
-                            validation_flag = 'error - same item with different QOE cannot have the same UOM, check back with vendor'
-                        else:
-                            validation_flag = 'safe to retain'
-                    
-                # if same item (file row) from same vendor id, check VN, MFN, UOM, QOE
-                elif positions[9] == 'Y':
-                    if [positions[0] == 'N',
-                        positions[1] == 'N',
-                        positions[5] == 'N',
-                        positions[6] == 'N'].count(True) > 0:
-                        validation_flag = 'update - update MFN, UOM, QOE and VN to reinforce data integrity'
-                    else:
-                        validation_flag = 'safe to retain'
-            else:
-                validation_flag = 'safe to retain'
-        
-        # senario 3: Item set to not expire (do_not_expire == True) and item intended to be expired
-        # concept: if we choose to retain the intended to expire item, we need to check for item coverage from other contract
-        elif do_not_expire is True and intended_action == 'Expire':
-            validation_flag = 'Expire the to-be expired item'
-        
-        else:
-            validation_flag = 'check - something unexpected happened, ask developer'
-        
-        validation_results.append({
-            'File Row': file_row,
-            'Contract Number': row['Contract Number'],
-            'Mfg Part Num': row['Mfg Part Num'],
-            'Vendor Part Num': row['Vendor Part Num'],
-            'Description': row['Description'],
-            'UOM': row['UOM'],
-            'QOE': row['QOE'],
-            'ERP Vendor ID': row['ERP Vendor ID'],
-            'Do Not Expire': do_not_expire,
-            'Quick Check': quick_check,
-            'Item Number': item_number,
-            'Reference Item Number': ref_item_number,
-            'Validation Flag': validation_flag
-        })
-    
-    validation_df = pd.DataFrame(validation_results)
-
-    validation_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'validation_df.xlsx'), index=False) #debug
-    
-    return validation_df
-
-
-def compute_dataset_changes_df(data_change_show_df):
-    if 'Do Not Expire' in data_change_show_df.columns:
-        data_change_show_df = data_change_show_df[data_change_show_df['Do Not Expire'] != True].copy()
-    # retrun the dataframes to the frontend for display for each change stats card
-    ccx_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create TP') & (data_change_show_df['Actual Action'] == 'Create')) | 
-                                        (data_change_show_df['Actual Action'] == 'Expire then Create (Create)')].copy()
-    ccx_update = data_change_show_df[(data_change_show_df['Actual Action'] == 'Update (New)')].copy()
-    ccx_expire = data_change_show_df[(data_change_show_df['Actual Action'] == 'Expire') | 
-                                        (data_change_show_df['Actual Action'] == 'Expire then Create (Expire)')].copy()
-    tp_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create') & (data_change_show_df['Actual Action'] == 'Create'))].copy()
-    tp_mute = data_change_show_df[data_change_show_df['Actual Action'] == 'Mute'].copy()
-    tp_merged = data_change_show_df[(data_change_show_df['Dataset'] == 'TP') & 
-                                    ~(data_change_show_df['Primary Action'].isin(['Create', 'Mute TP']))].copy()
-    return ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged
-
-
 def compute_changes_to_show(data_change_show_df, merged_df):
     """
     Compute changes to show in the UI based on the data change DataFrame and analyzed DataFrame.
@@ -2420,6 +2141,633 @@ def compute_changes_to_show(data_change_show_df, merged_df):
     reference_for_expire_rows.to_excel(os.path.join(current_app.root_path, 'temp_files', 'reference_for_expire_rows.xlsx'), index=False)
     
     return changes_simulation_result_df, reference_for_expire_rows
+
+
+def actual_action_on_update_row2(row_original, 
+                                 row_modified,
+                                 update_action_mode = None):
+    
+    fields_to_compare = ['Mfg Part Num', 'Vendor Part Num',
+                        'Buyer Part Num', 'Description', 'Contract Price',
+                        'UOM', 'QOE', 'Effective Date', 'Expiration Date',
+                        'ERP Vendor ID']
+    
+    comparison_results = []
+    for field in fields_to_compare:
+        if field != 'Buyer Part Num':
+            if field != 'ERP Vendor ID':
+                res = row_original[field] == row_modified[field]
+            else:
+                res = row_original[field][:7] == row_modified[field][:7]  # compare only the first 7 characters of ERP Vendor ID
+            comparison_results.append('Y' if res == True else 'N')
+        else:
+            comparison_results.append('x')
+    
+    quick_check = ''.join(comparison_results)
+    
+    if quick_check[:9] == 'YYxYYYYYY':
+        # No change in the fields we care about
+        return "No Change", quick_check
+    
+    # quick check
+    if update_action_mode == 'legacy':
+        # the field currently is not used but we want to keep it in code to make things clear
+        pure_update_fields = ['Description', 'Contract Price']
+        # pure_update_fields = ['Description']
+        
+        # Check if only description changed
+        if quick_check[:9] in ['YYxNYYYYY', 'YYxYNYYYY', 'YYxNNYYYY']:
+        # if quick_check == 'YYxNYYYYY':
+            return "Update (New)", quick_check
+        
+        # Any other field changeds
+        return "Expire then Create (Create)", quick_check
+    
+    elif update_action_mode == 'new':
+        expire_then_create_fields = ['Mfg Part Num', 'UOM']
+        if quick_check[0] == 'N' or quick_check[5] == 'N':
+            # if Mfg Part Num or UOM changed, we need to expire then create
+            return "Expire then Create (Create)", quick_check
+        else:
+            # if only other fields changed, we can update
+            return "Update (New)", quick_check
+
+
+def establish_reference_dictionary(reference_for_expire_rows):
+    ref_lookup = {}
+    if not reference_for_expire_rows.empty:
+        for _, row in reference_for_expire_rows.iterrows():
+            file_row = row['File Row']
+            if file_row not in ref_lookup:
+                ref_lookup[file_row] = {'ref_data': [],
+                                        'item_number': []}
+            ref_lookup[file_row]['ref_data'].append(row)
+            ref_lookup[file_row]['item_number'].append(row['Item'])
+    return ref_lookup
+
+
+def establish_valid_buyUOM_dictionary(analyzed_df):
+    valid_buyUOM = {}
+    if not analyzed_df.empty:
+        for _, row in analyzed_df.iterrows():
+            item_number = row['Item']
+            if item_number not in valid_buyUOM:
+                valid_buyUOM[item_number] = row
+    return valid_buyUOM
+
+
+def modified_row_helper(row,
+                        pos_to_change = [],
+                        update_action_mode = 'new'):
+    
+    original_row = {
+        'File Row': row['File Row'],
+        'Dataset': row['Dataset_expck'],
+        'Contract Number': row['Contract Number_expck'],
+        'Mfg Part Num': row['Mfg Part Num_expck'],
+        'Vendor Part Num': row['Vendor Part Num_expck'],
+        'Buyer Part Num': row['Buyer Part Num_expck'],
+        'Description': row['Description_expck'],
+        'Contract Price': row['Contract Price_expck'],
+        'UOM': row['UOM_expck'],
+        'QOE': row['QOE_expck'],
+        'Effective Date': row['Effective Date_expck'],
+        'Expiration Date': row['Expiration Date_expck'], # this will get changed back to the 'before action' value if update is just update
+        'ERP Vendor ID': row['ERP Vendor ID_expck'],
+        'Actual Action': row['Actual Action_expck'], #should all be expire
+        'Quick Check': row['Quick Check_expck'], # will think about this
+        'Primary Action': row['Primary Action_expck'], #should all be Expire CCX
+        'Group': row['Group_expck'], #should all be drop
+        'Intended Action': row['Intended Action_expck'], # should all be Upsert
+        'Expiration Date (before action)': row['Expiration Date (before action)_expck'],
+        'Effective Date (before action)': row['Effective Date (before action)_expck'],
+        'Item': row['Item_expck'],
+        'Item_fr': row['Item_fr_expck'],
+        'Do Not Expire': False  # the do not expire flag will be gone
+        }
+    
+    # copy the original row to modified row
+    modified_row = original_row.copy()
+    
+    fields = ['Mfg Part Num', 'Vendor Part Num',
+            'Buyer Part Num', 'Description', 'Contract Price',
+            'UOM', 'QOE', 'Effective Date', 'Expiration Date',
+            'ERP Vendor ID']
+    
+    fields_to_modify = [fields[i] for i in pos_to_change]
+    quick_check_modified = row['Quick Check_expck']
+    for i, field in enumerate(fields_to_modify):
+        modified_row[field] = row[field + '_ref'] # use the reference row value to update the modified version
+        if i == 2:
+            pass
+        else:
+            quick_check_modified = quick_check_modified[:i] + 'Y' + quick_check_modified[(i+1):]
+
+    modified_row['Quick Check'] = quick_check_modified
+    
+    update_action, quick_check = actual_action_on_update_row2(original_row,
+                                                              modified_row,
+                                                              update_action_mode = update_action_mode)
+    
+    
+    if update_action == 'Update (New)':
+        modified_row['Actual Action'] = 'Update (New)'
+        modified_row['Expiration Date'] = row['Expiration Date (before action)_expck']  # reset to before action value
+        
+        original_row['Actual Action'] = 'Update (Existing)'
+        original_row['Expiration Date'] = row['Expiration Date (before action)_expck']  # reset to before action value
+
+
+    elif update_action == 'Expire then Create (Create)':
+        modified_row['Actual Action'] = 'Expire then Create (Create)'
+        modified_row['Expiration Date'] = row['Expiration Date (before action)_expck']  # reset to before action value
+        modified_row['Effective Date'] = (pd.to_datetime('today') + pd.Timedelta(days=1)).strftime('%Y-%m-%d')  # set to tomorrow
+
+        original_row['Actual Action'] = 'Expire then Create (Expire)'
+        # original_row['Expiration Date'] will be today (as we already computed)
+
+    modified_row['Primary Action'] = 'Update'
+    modified_row['Group'] = 'Keep2'
+    original_row['Primary Action'] = 'Update'
+    original_row['Group'] = 'Keep2'
+
+    return original_row, modified_row
+
+def safe_to_retain_row_helper(row):
+    """
+    Helper function to create a row that is safe to retain.
+    This is used when the row is not modified and should be kept as is.
+    """
+    return {
+        'File Row': row['File Row'],
+        'Dataset': row['Dataset_expck'],
+        'Contract Number': row['Contract Number_expck'],
+        'Mfg Part Num': row['Mfg Part Num_expck'],
+        'Vendor Part Num': row['Vendor Part Num_expck'],
+        'Buyer Part Num': row['Buyer Part Num_expck'],
+        'Description': row['Description_expck'],
+        'Contract Price': row['Contract Price_expck'],
+        'UOM': row['UOM_expck'],
+        'QOE': row['QOE_expck'],
+        'Effective Date': row['Effective Date_expck'],
+        'Expiration Date': row['Expiration Date (before action)_expck'],  # this will get changed back to the 'before action' value
+        'ERP Vendor ID': row['ERP Vendor ID_expck'],
+        'Actual Action': 'No Change',  # should all be no change
+        'Quick Check': row['Quick Check_expck'],  # will think about this
+        'Primary Action': 'Update',  # should all be update
+        'Group': 'Keep2',  # should all be keep2
+        'Intended Action': row['Intended Action_expck'],  # should all be Upsert
+        'Expiration Date (before action)': row['Expiration Date (before action)_expck'],
+        'Effective Date (before action)': row['Effective Date (before action)_expck'],
+        'Item': row['Item_expck'],
+        'Item_fr': row['Item_fr_expck'],
+        'Do Not Expire': False  # the do not expire flag will be gone
+    }
+
+def safe_to_expire_action_row_helper(row):
+    """
+    Helper function to create a row that is safe to expire, 
+    but we want to put the item master item number to the Buyer Part Number column for the reference row.
+    """
+    return {
+        'File Row': row['File Row'],
+        'Dataset': row['Dataset_ref'],
+        'Contract Number': row['Contract Number_ref'],
+        'Mfg Part Num': row['Mfg Part Num_ref'],
+        'Vendor Part Num': row['Vendor Part Num_ref'],
+        'Buyer Part Num': row['Buyer Part Num_ref'],
+        'Description': row['Description_ref'],
+        'Contract Price': row['Contract Price_ref'],
+        'UOM': row['UOM_ref'],
+        'QOE': row['QOE_ref'],
+        'Effective Date': row['Effective Date_ref'],
+        'Expiration Date': row['Effective Date_ref'],
+        'ERP Vendor ID': row['ERP Vendor ID_ref'],
+        'Actual Action': 'Link',  # should all be expire
+        'Quick Check': row['Quick Check_ref'],  # will think about this
+        'Primary Action': 'Update',  # should all be update
+        'Group': 'Keep2',  # should all be keep2
+        'Intended Action': row['Intended Action_ref'],  # should all be Upsert
+        'Expiration Date (before action)': row['Expiration Date (before action)_ref'],
+        'Effective Date (before action)': row['Effective Date (before action)_ref'],
+        'Item': row['Item_ref'],
+        'Item_fr': row['Item_fr_ref'],
+        'Do Not Expire': False
+    }
+
+def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, update_action_mode = 'new'):
+    """
+    Validate the final do not expire items
+    Args:
+        changes_to_show_df: DataFrame with changes to be applied, the one with item and expire marked
+        reference_for_expire_rows: DataFrame with reference data for items to be expired
+        analyzed_df: DataFrame with all valid buyUOM extracted for matched items (this dataframe can be empty)
+    Returns:
+        final_validation_results: DataFrame with validation flags for each item
+        final_changes_to_commit: DataFrame with changes to be committed
+    """
+    
+    # add type protection
+    if 'Do Not Expire' in changes_to_show_df.columns:
+        changes_to_show_df['Do Not Expire'] = changes_to_show_df['Do Not Expire'].astype('boolean')
+        changes_to_show_df['Do Not Expire'] = changes_to_show_df['Do Not Expire'].fillna(False)
+    if 'Item' in changes_to_show_df.columns:
+        changes_to_show_df['Item'] = changes_to_show_df['Item'].astype(str).str.strip()
+    if 'Item' in reference_for_expire_rows.columns:
+        reference_for_expire_rows['Item'] = reference_for_expire_rows['Item'].astype(str).str.strip()
+    if 'Quick Check' in changes_to_show_df.columns:
+        changes_to_show_df['Quick Check'] = changes_to_show_df['Quick Check'].astype(str).str.strip()
+    
+    expire_ccx_items = changes_to_show_df[
+        (changes_to_show_df['Primary Action'] == 'Expire CCX')
+    ].copy()
+    
+    if expire_ccx_items.empty:
+        final_changes_to_commit = changes_to_show_df[changes_to_show_df['Actual Action'] != 'Update (Existing)'].copy()
+        return pd.DataFrame(), final_changes_to_commit
+    
+    # if we have things to check, join ccx_expire to reference
+
+    df_m = expire_ccx_items.merge(reference_for_expire_rows,
+                                  on = 'File Row',
+                                  how = 'left',
+                                  suffixes = ('_expck', '_ref'))
+    
+    df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m_expire.xlsx'), index=False) #debug
+
+    
+    # Create reference lookup for expire items
+    ref_lookup =establish_reference_dictionary(reference_for_expire_rows)
+
+    
+    final_validation_results = []
+    more_changes_to_append = []
+    item_related_action = []
+    for _, row in df_m.iterrows():
+        file_row = row['File Row']
+        do_not_expire = row['Do Not Expire']
+        quick_check = row['Quick Check_expck']
+        intended_action = row['Intended Action_expck']
+        
+        # Get item master item number for this row
+        item_number = row['Item_expck']
+
+        # Get reference data
+        ref_data = ref_lookup.get(file_row, {}) # possible to get empty list and possible to get multiple rows
+        ref_item_numbers = ref_data.get('item_number', [])
+        ref_data_rows = ref_data.get('ref_data', [])
+        # these should only apply to Upsert record - the reference row for Upsert record will only have 1 reference row
+        ref_vendor_id = ref_data_rows[0]['ERP Vendor ID'] if ref_data_rows else ''
+        ref_item_number = ref_data_rows[0]['Item'] if ref_data_rows else ''
+        ref_contract_number = ref_data_rows[0]['Contract Number'] if ref_data_rows else ''
+        ref_mfg_part_num = ref_data_rows[0]['Mfg Part Num'] if ref_data_rows else ''
+        
+        validation_flag = ''
+        row_action = ''
+        # Scenario 1: do_not_expire == False --> we will expire the item
+        # concept: when expire item master item, we may lose converage on the item, so we need to check
+        # this should cover both upsert and expire as intended action
+        if do_not_expire is False:
+            if item_number == '' or item_number.startswith('('):
+                # non-item master items are generally safe to expire
+                validation_flag = 'PASS - safe to expire'
+                row_action = 'Execute'
+            else:
+                # Check if reference item has the same item number, the item = (xxxxxx) version should already handled above
+                if item_number in ref_item_numbers:
+                    # then double check if the item has the same UOM and QOE --> if not, warn user that they may lose access to certain UOM when try to purchase
+                    if len(quick_check) == 10 and (list(quick_check)[5] == 'N' or list(quick_check)[6] == 'N' or list(quick_check)[9] == 'N'):
+                        validation_flag = f'WARNING - when this item get expired, we still have access to item {item_number} using vendor {ref_vendor_id}, but may no longer buy using contract {row['Contract Number_expck']}, vendor item {row['Vendor Part Num_expck']}, UOM {row['UOM_expck']}, and QOE {row['QOE_expck']}'
+                    else:
+                        validation_flag = 'PASS - safe to expire'
+                    row_action = 'Execute'
+                else:
+                    # reference item number is different or is (xxxxxx) version
+                    if ref_item_number.startswith('(') and ref_item_number[1:-1] == item_number:
+                        # reduce to equal item number case, check if QOE, UOM, and Vendor ID match
+                        if len(quick_check) == 10 and (list(quick_check)[5] == 'N' or list(quick_check)[6] == 'N' or list(quick_check)[9] == 'N'):
+                            validation_flag = f'ACTION - about to lose contract coverage on Itemmast item {item_number}, we can link the item to vendor {row['Vendor Part Num_expck']}, contract {row['Contract Number_expck']}, UOM {row['UOM_expck']}, and QOE {row['QOE_expck']} to retain the item'
+                        else:
+                            validation_flag = f'ACTION - safe to expire, make sure same item on {ref_contract_number} with manufacturer part number {ref_mfg_part_num} is linked to {item_number}'
+                        item_related_action.append(safe_to_expire_action_row_helper(row))
+                        row_action = 'Pending'
+                    else:
+                        # reference item number is different even we know they are the same item
+                        if ref_item_number != '':
+                            validation_flag = f'ERROR - about to lose coverage on item {item_number}, current reference item points to a different item number {ref_item_number}'
+                        else:
+                            validation_flag = f'ERROR - about to lose coverage on item {item_number}'
+                        row_action = 'Pending'
+
+        # Scenario 2: Item set to not expire (do_not_expire == True) and item is intended to be upserted
+        # concept: we need to check if the retain the item will cause data conflict and fix them
+        elif do_not_expire is True:
+            if len(quick_check) == 10:  # Ensure quick_check has enough positions
+                # Parse quick check positions
+                positions = list(quick_check)
+                
+                # Position mapping:
+                # 0: Mfg Part Num
+                # 1: Vendor Part Num  
+                # 2: Buyer Part Num (x)
+                # 3: Description
+                # 4: Contract Price
+                # 5: UOM
+                # 6: QOE
+                # 7: Effective Date
+                # 8: Expiration Date
+                # 9: ERP Vendor ID
+                
+                # since we already know they are same item, then we jsut need to check for vendor and qoe to determine if they are good or not
+                # same VID + VendorItem should have the same MFN, UOM, QOE
+                # same MFN + UOM + QOE + VID should have the same Vendor Item
+                # same item should have the same Item Number (ERP)
+                # So: If same item (file row) from different vendor id, check QOE
+                if positions[9] == 'N':
+                    # If same QOE --> then they should be the same item packaging --> same MFN + UOM; allow different VN
+                    if positions[6] == 'Y':
+                        if positions[0] == 'N' or positions[5] == 'N':
+                            validation_flag = 'ACTION - update MFN and/or UOM to reinforce data integrity'
+                            row_action = 'Execute'
+                            original_row, modified_row = modified_row_helper(row,
+                                                                            pos_to_change = [0, 5],
+                                                                            update_action_mode = update_action_mode)
+                            more_changes_to_append.append(original_row)
+                            more_changes_to_append.append(modified_row)
+                        else:
+                            validation_flag = 'PASS - safe to retain'
+                            row_action = 'Execute'
+                            more_changes_to_append.append(safe_to_retain_row_helper(row))
+                    elif positions[6] == 'N':
+                        # If different QOE --> then they should have different UOM, allow different VN, MFN, price need to be checked so it make sense
+                        if positions[5] == 'Y':
+                            validation_flag = 'ERROR - same item with different QOE cannot have the same UOM, check back with vendor'
+                            row_action = 'Pending'
+                        else:
+                            validation_flag = 'PASS - safe to retain'
+                            row_action = 'Execute'
+                            more_changes_to_append.append(safe_to_retain_row_helper(row))
+                    
+                # if same item (file row) from same vendor id, and if same QOE or VN, check VN, MFN, UOM, QOE, they should be the same
+                elif positions[9] == 'Y':
+                    if positions[6] == 'Y' or positions[1] == 'Y':
+                        if [positions[0] == 'N',
+                            positions[1] == 'N',
+                            positions[5] == 'N',
+                            positions[6] == 'N'].count(True) > 0:
+                            validation_flag = 'ACTION - update MFN, UOM, QOE, and VN to reinforce data integrity'
+                            row_action = 'Execute'
+                            original_row, modified_row = modified_row_helper(row,
+                                                                            pos_to_change = [0, 1, 5, 6],
+                                                                            update_action_mode = update_action_mode)
+                            more_changes_to_append.append(original_row)
+                            more_changes_to_append.append(modified_row)
+                        else:
+                            validation_flag = 'PASS - safe to retain'
+                            row_action = 'Execute'
+                            more_changes_to_append.append(safe_to_retain_row_helper(row))
+                    else:
+                        # in this case vendor part number and QOE are both different, then we need to check if we run into UOM conflict
+                        if positions[5] == 'Y':
+                            validation_flag = 'ERROR - same item with different Vendor Part Number and QOE cannot have the same UOM, check back with vendor'
+                            row_action = 'Pending'
+                        else:
+                            validation_flag = 'PASS - safe to retain'
+                            row_action = 'Execute'
+                            more_changes_to_append.append(safe_to_retain_row_helper(row))
+            else:
+                validation_flag = 'PASS - safe to retain'
+                row_action = 'Execute'
+                more_changes_to_append.append(safe_to_retain_row_helper(row))
+        
+        
+        else:
+            validation_flag = 'CHECK - something unexpected happened, ask developer'
+            row_action = 'Pending'
+        
+        final_validation_results.append({
+            'File Row': file_row,
+            'Dataset': row['Dataset_expck'],
+            'Contract Number': row['Contract Number_expck'],
+            'Mfg Part Num': row['Mfg Part Num_expck'],
+            'Vendor Part Num': row['Vendor Part Num_expck'],
+            'Description': row['Description_expck'],
+            'UOM': row['UOM_expck'],
+            'QOE': row['QOE_expck'],
+            'ERP Vendor ID': row['ERP Vendor ID_expck'],
+            'Do Not Expire': do_not_expire,
+            'Quick Check': quick_check,
+            'Item Number': item_number,
+            'Reference Item Number': ref_item_number,
+            'Intended Action': intended_action,
+            'Validation Flag': validation_flag,
+            'Final Row Action': row_action
+        })
+    
+    final_validation_df = pd.DataFrame(final_validation_results)
+    more_changes_to_append_df = pd.DataFrame(more_changes_to_append)
+    item_related_action_df = pd.DataFrame(item_related_action)
+
+    final_validation_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'validation_df.xlsx'), index=False) #debug
+    more_changes_to_append_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'more_changes_to_append.xlsx'), index=False) #debug
+    item_related_action_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'item_related_action.xlsx'), index=False) #debug
+    
+    return final_validation_df, more_changes_to_append_df, item_related_action_df
+
+
+def compute_dataset_changes_df(data_change_show_df):
+    if 'Do Not Expire' in data_change_show_df.columns:
+        data_change_show_df = data_change_show_df[data_change_show_df['Do Not Expire'] != True].copy()
+    # retrun the dataframes to the frontend for display for each change stats card
+    ccx_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create TP') & (data_change_show_df['Actual Action'] == 'Create')) | 
+                                        (data_change_show_df['Actual Action'] == 'Expire then Create (Create)')].copy()
+    ccx_update = data_change_show_df[(data_change_show_df['Actual Action'] == 'Update (New)')].copy()
+    ccx_expire = data_change_show_df[(data_change_show_df['Actual Action'] == 'Expire') | 
+                                        (data_change_show_df['Actual Action'] == 'Expire then Create (Expire)')].copy()
+    tp_create = data_change_show_df[((data_change_show_df['Primary Action'] == 'Create') & (data_change_show_df['Actual Action'] == 'Create'))].copy()
+    tp_mute = data_change_show_df[data_change_show_df['Actual Action'] == 'Mute'].copy()
+    tp_merged = data_change_show_df[(data_change_show_df['Dataset'] == 'TP') & 
+                                    ~(data_change_show_df['Primary Action'].isin(['Create', 'Mute TP']))].copy()
+    return ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged
+
+
+def final_errors_before_commit(final_validation_df):
+    if final_validation_df.empty:
+        return {'final_validataion': pd.DataFrame(),
+                'final_validation_errors': pd.DataFrame(),
+                'final_validation_warnings': pd.DataFrame(),
+                'final_validation_pass': pd.DataFrame(),
+                'final_validation_action': pd.DataFrame(),
+                'final_validation_check': pd.DataFrame()}
+    
+    final_validation_errors = final_validation_df[final_validation_df['Validation Flag'].str.startswith('ERROR')].copy()
+    final_validation_warnings = final_validation_df[final_validation_df['Validation Flag'].str.startswith('WARNING')].copy()
+    final_validation_pass = final_validation_df[final_validation_df['Validation Flag'].str.startswith('PASS')].copy()
+    final_validation_action = final_validation_df[final_validation_df['Validation Flag'].str.startswith('ACTION')].copy()
+    final_validation_check = final_validation_df[final_validation_df['Validation Flag'].str.startswith('CHECK')].copy()
+
+    return {
+        'final_validataion': final_validation_df,
+        'final_validation_errors': final_validation_errors,
+        'final_validation_warnings': final_validation_warnings,
+        'final_validation_pass': final_validation_pass,
+        'final_validation_action': final_validation_action,
+        'final_validation_check': final_validation_check
+    }
+
+def final_commit(all_changes_df,
+                 changes_to_show_df,
+                 more_changes_to_append_df,
+                 final_validation_df):
+    """ Finalize the changes to be committed to the database."""
+    # remove the do not expire == True items from all_changes_df and changes_to_show_df
+    # make sure we only have value as True or False
+    if 'Do Not Expire' in all_changes_df.columns:
+        all_changes_df['Do Not Expire'] = all_changes_df['Do Not Expire'].astype('boolean')
+    if 'Do Not Expire' in changes_to_show_df.columns:
+        changes_to_show_df['Do Not Expire'] = changes_to_show_df['Do Not Expire'].fillna(False).astype('boolean')
+    if 'Do Not Expire' in more_changes_to_append_df.columns:
+        more_changes_to_append_df['Do Not Expire'] = more_changes_to_append_df['Do Not Expire'].astype('boolean')
+
+
+    # merge the all_changes_df to final_validation_df to get more information
+    x_all_changes_df = pd.concat([all_changes_df, more_changes_to_append_df], ignore_index=True)
+    x_changes_to_show_df = pd.concat([changes_to_show_df, more_changes_to_append_df], ignore_index=True)
+    
+    join_key = ['File Row', 'Dataset', 'Contract Number', 'ERP Vendor ID', 'Mfg Part Num', 'QOE']
+    xx_all_changes_df = x_all_changes_df.merge(final_validation_df[join_key + ['Validation Flag', 'Final Row Action']],
+                                               on = join_key,
+                                                how = 'left')
+    xx_changes_to_show_df = x_changes_to_show_df.merge(final_validation_df[join_key + ['Validation Flag', 'Final Row Action']],
+                                                      on = join_key,
+                                                        how = 'left')
+    
+    
+    xx_all_changes_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'xx_all_changes_df.xlsx'), index=False) #debug
+    xx_changes_to_show_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'xx_changes_to_show_df.xlsx'), index=False) #debug
+    
+    # remove the 'Do Not Expire' == True items if they don't have error
+    final_all_changes_df = xx_all_changes_df[(xx_all_changes_df['Do Not Expire'] == False) |
+                                        ((xx_all_changes_df['Do Not Expire'] == True) &
+                                         (xx_all_changes_df['Final Row Action'] == 'Pending'))].copy()
+    
+    final_changes_to_show_df = xx_changes_to_show_df[(xx_changes_to_show_df['Do Not Expire'] == False) |
+                                                ((xx_changes_to_show_df['Do Not Expire'] == True) & 
+                                                    (xx_changes_to_show_df['Final Row Action'] == 'Pending'))].copy()
+
+    # fill nan so it will not cause issue during JSON serialization
+    final_all_changes_df['Validation Flag'] = final_all_changes_df['Validation Flag'].fillna('SAFE - no further validation needed')
+    final_all_changes_df['Final Row Action'] = final_all_changes_df['Final Row Action'].fillna('Execute')
+    final_changes_to_show_df['Validation Flag'] = final_changes_to_show_df['Validation Flag'].fillna('SAFE - no further validation needed')
+    final_changes_to_show_df['Final Row Action'] = final_changes_to_show_df['Final Row Action'].fillna('Execute')
+
+    final_all_changes_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'final_all_changes_df.xlsx'), index=False) #debug
+    final_changes_to_show_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'final_changes_to_show_df.xlsx'), index=False) #debug
+
+    # in final commit, we don't need to show the 'Update (Existing)' and 'No Change' action since this is not going to be exected
+    final_commit_df = final_changes_to_show_df[~final_changes_to_show_df['Actual Action'].isin(['Update (Existing)',
+                                                                                               'No Change'])].copy()
+    # in final_validation, we need to show the items with errors and we will pause any changes we want to make related the affected file row
+    # user should confirm the data with vendor and re-run everything to make sure things are correct
+    validation_results = final_errors_before_commit(final_validation_df)
+    final_validation_errors = validation_results['final_validation_errors'] 
+    final_validation_check = validation_results['final_validation_check'] 
+
+    problematic_file_rows = set(final_validation_errors['File Row'].unique()) | \
+                            set(final_validation_check['File Row'].unique())
+
+    # for anything that is in the problematic file rows, we will pause all our changes related to those file rows
+    
+
+
+    return final_commit_df, final_changes_to_show_df, final_all_changes_df
+
+def change_simulation_stage4(final_all_changes_df, contract_line_count_df):
+    """ try a different method
+    the final changes we would want to apply"""
+    final_all_changes_df.loc[:, 'Actual Action2'] = final_all_changes_df.apply(lambda x: x['Actual Action'] 
+                                                                               if x['Final Row Action'] == 'Execute'
+                                                                               else 'No Change', axis=1)
+    
+    final_all_changes_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'data_change_show_df_stage4.xlsx'), index=False) #debug
+
+    df_tp = final_all_changes_df[final_all_changes_df['Dataset'] == 'TP'].copy()
+    df_ccx = final_all_changes_df[final_all_changes_df['Dataset'] == 'CCX'].copy()
+
+    df_merge = df_tp[['Contract Number', 
+                      'Primary Action', 
+                      'Intended Action',
+                      'Actual Action',
+                      'Actual Action2', 
+                      'File Row']].merge(
+                df_ccx[['Contract Number', 
+                        'Actual Action', 
+                        'Actual Action2', 
+                        'File Row']],
+                on='File Row',
+                how='outer',
+                suffixes=('_a', '_b')
+            )
+    
+    df_merge['Contract Number_b'] = df_merge['Contract Number_b'].fillna(df_merge['Contract Number_a'])
+    df_merge['Actual Action_b'] = df_merge['Actual Action_b'].fillna(df_merge['Actual Action_a'])
+    df_merge['Actual Action2_b'] = df_merge['Actual Action2_b'].fillna(df_merge['Actual Action2_a'])
+
+    df_merge.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_merge.xlsx'), index=False) #debug
+
+    # port in the map file
+    map_file_path = os.path.join(current_app.root_path, 'data', 'change_simulation_map.xlsx')
+    overlap = pd.read_excel(map_file_path)
+
+    # use corrected actions
+    r2 = df_merge.groupby(['Contract Number_a', 'Contract Number_b',
+                          'Actual Action2_a', 'Actual Action2_b',
+                          'Intended Action'],
+                          observed = True).agg({'File Row': 'count'}).reset_index()
+    r2.loc[:, 'Same Contract'] = r2.apply(lambda x: 1 if x['Contract Number_a'] == x['Contract Number_b'] else 0, axis=1)
+    r2_res = r2.merge(overlap,
+                        on = ['Actual Action2_a', 'Actual Action2_b', 'Same Contract', 'Intended Action'],
+                        how = 'left')
+    r2_res.loc[:, 'Overlap Count'] = r2_res['File Row'] * r2_res['Overlap']
+
+    r2_res.to_excel(os.path.join(current_app.root_path, 'temp_files', 'r2_res.xlsx'), index=False) #debug
+
+    r2_total = \
+    r2_res.groupby(['Contract Number_a',
+                    'Contract Number_b']).agg({'Overlap Count': 'sum'}).reset_index()
+    
+    # recompute the line deltas using actual action2
+    line_operations = compute_line_count_changes(final_all_changes_df, contract_line_count_df, round=2)
+    line_operations.to_excel(os.path.join(current_app.root_path, 'temp_files', 'line_operations_r2.xlsx'), index=False) #debug
+
+    operation_cols_to_use = ['Contract Number', 'Total Contract Line Count',
+                             'Insert_Count', 'Update_Count', 'Delete_Count',
+                             'Total Contract Line Count (Change Applied)']
+
+    temp_df1 = line_operations[operation_cols_to_use].copy()
+    temp_df1.rename(columns={'Contract Number': 'Contract Number_a'}, inplace=True)
+    r2_m1 = r2_total.merge(temp_df1, on='Contract Number_a', how='left')
+    
+    temp_df2 = line_operations[operation_cols_to_use].copy()
+    temp_df2.rename(columns={'Contract Number': 'Contract Number_b'}, inplace=True)
+    r2_m2 = r2_m1.merge(temp_df2, on='Contract Number_b', how='left', suffixes=('_a', '_b'))
+    
+    r2_m2.to_excel(os.path.join(current_app.root_path, 'temp_files', 'r2_m2.xlsx'), index=False) #debug
+
+    df_cross_r2 = r2_m2[['Contract Number_a', 'Contract Number_b',
+                         'Total Contract Line Count (Change Applied)_a', 
+                         'Total Contract Line Count (Change Applied)_b', 
+                         'Insert_Count_b',
+                         'Update_Count_b',
+                         'Delete_Count_b',
+                         'Overlap Count']].copy()
+    df_cross_r2.rename(columns = {'Total Contract Line Count (Change Applied)_a': 'Total Contract Line Count_a',
+                                   'Total Contract Line Count (Change Applied)_b': 'Total Contract Line Count_b',
+                                   'Overlap Count': 'Overlapping Count'},
+                                   inplace = True)
+    df_cross_r2.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross_r2.xlsx'), index=False) #debug
+
+    return df_cross_r2
 
 
 def generate_network_graph(network_df, 

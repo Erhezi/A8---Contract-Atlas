@@ -630,6 +630,7 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
+
     .intended-action-upsert { 
         background-color: #d4edda !important; 
         color: #155724 !important;
@@ -774,6 +775,42 @@
     #commit-changes-btn:focus {
         box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.5) !important;
         color: #ffffff !important;
+    }
+
+    .validation-flag-error {
+    color: #721c24 !important;
+    background-color: #f8d7da !important;
+    padding: 2px 6px !important;
+    border-radius: 3px !important;
+    display: inline-block !important;
+    font-weight: 500 !important;
+    }
+
+    .validation-flag-check {
+        color: #6f42c1 !important;
+        background-color: #e9d8fd !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+
+    .validation-flag-warning {
+        color: #856404 !important;
+        background-color: #fff3cd !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
+    }
+
+    .validation-flag-success {
+        color: #155724 !important;
+        background-color: #d4edda !important;
+        padding: 2px 6px !important;
+        border-radius: 3px !important;
+        display: inline-block !important;
+        font-weight: 500 !important;
     }
 </style>
 
@@ -1110,7 +1147,61 @@
             <button id="finalize-changes-btn" class="btn btn-primary me-2">Finalize Changes</button>
         </div>
         
-        <!-- 2. Network Graphs Container in the middle -->
+        <!-- 2. Final Expiration Item Checks placeholder -->
+        <div id="final-expiration-checks" class="card" style="width: 100%; display: none; margin-bottom: 20px;">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                    Final Validation before Commit
+                </h5>
+            </div>
+
+            <!-- Validation Table Controls -->
+            <div id="validation-table-controls" class="data-change-controls" style="display: none;">
+                <div class="filter-container">
+                    <div class="data-change-search-wrapper">
+                        <select id="validation-search-type" class="data-change-search-type-select">
+                            <option value="contains">Contains</option>
+                            <option value="not-contains">Not Contains</option>
+                            <option value="contract-only">By Contract Number</option>
+                            <option value="validation-flag-only" selected>By Validation Flag</option>
+                            <option value="item-only">By Item</option>
+                        </select>
+                        <input type="text" id="validation-search" class="data-change-search-input" placeholder="Search validation results...">
+                        <button id="validation-clear-search" class="data-change-clear-search-btn">Clear</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Placeholder for validation table -->
+            <div id="validation-table-container" class="data-change-table-container" style="display: none;">
+                <table id="validation-table" class="data-change-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="Intended Action" class="intended-action-col">Intended Action<span class="sort-indicator"></span></th>
+                            <th data-sort="Primary Action" class="primary-action-col">Primary Action<span class="sort-indicator"></span></th>
+                            <th data-sort="Actual Action" class="actual-action-col">Actual Action<span class="sort-indicator"></span></th>
+                            <th data-sort="Validation Flag">Validation Flag<span class="sort-indicator"></span></th>
+                            <th data-sort="Item" class="item-col">Item<span class="sort-indicator"></span></th>
+                            <th data-sort="ERP Vendor ID" class="erp-vendor-id-col">ERP Vendor ID<span class="sort-indicator"></span></th>
+                            <th data-sort="Contract Number" class="contract-col">Contract Number<span class="sort-indicator"></span></th>
+                            <th data-sort="Mfg Part Num" class="part-num-col">Mfg Part Num<span class="sort-indicator"></span></th>
+                            <th data-sort="Vendor Part Num" class="part-num-col">Vendor Part Num<span class="sort-indicator"></span></th>
+                            <th data-sort="UOM" class="uom-col">UOM<span class="sort-indicator"></span></th>
+                            <th data-sort="QOE" class="qoe-col">QOE<span class="sort-indicator"></span></th>
+                            <th data-sort="Contract Price" class="price-col">Contract Price<span class="sort-indicator"></span></th>
+                            <th data-sort="Effective Date" class="date-col">Effective Date<span class="sort-indicator"></span></th>
+                            <th data-sort="Expiration Date" class="date-col">Expiration Date<span class="sort-indicator"></span></th>
+                            <th data-sort="Description" class="description-col">Description<span class="sort-indicator"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="validation-table-body">
+                        <!-- Validation results will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 3. Network Graphs Container in the middle -->
         <div id="finalized-network-graphs" class="network-graphs-container" style="width: 100%; display: none; margin-bottom: 20px;">
             <h4>Final Network Comparison</h4>
             <div class="graph-container-flex">
@@ -1121,49 +1212,6 @@
                 <div class="graph-wrapper">
                     <div class="graph-title">Finalized Network (with Do Not Expire)</div>
                     <div id="finalized-r2-graph" class="network-graph" style="height: 500px;"></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 3. Final Expiration Item Checks placeholder -->
-        <div id="final-expiration-checks" class="card" style="width: 100%; display: none; margin-bottom: 20px;">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
-                    Final Expiration Item Validation
-                </h5>
-            </div>
-            <div class="card-body">
-                <p class="text-muted mb-3">
-                    Validating expiration items to ensure data integrity and prevent unintended item master losses.
-                </p>
-                
-                <!-- Placeholder content - will be implemented later -->
-                <div id="validation-results-container">
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-clock fa-2x mb-3"></i>
-                        <p>Validation functionality will be implemented here.</p>
-                        <small>This will check for item master conflicts and provide safety warnings.</small>
-                    </div>
-                </div>
-                
-                <!-- Placeholder for validation table -->
-                <div id="validation-table-container" class="table-responsive" style="display: none;">
-                    <table class="table table-sm table-striped">
-                        <thead class="thead-light">
-                            <tr>
-                                <th>File Row</th>
-                                <th>Contract Number</th>
-                                <th>Mfg Part Num</th>
-                                <th>Description</th>
-                                <th>Validation Status</th>
-                                <th>Action Required</th>
-                            </tr>
-                        </thead>
-                        <tbody id="validation-table-body">
-                            <!-- Validation results will be populated here -->
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>

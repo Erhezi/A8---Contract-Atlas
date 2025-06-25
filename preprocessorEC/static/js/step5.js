@@ -1084,7 +1084,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Function to show reference data for selected row
 function showReferenceForRow(selectedItem) {
     // If selectedItem is null/undefined, hide reference section
-    if (!selectedItem) {
+    if (!selectedItem || selectedItem['Primary Action'] !== 'Expire CCX') {
         document.getElementById('reference-table-section').style.display = 'none';
         clearFieldDifferenceHighlighting();
         return;
@@ -1257,6 +1257,18 @@ function finalizeChanges() {
         document.getElementById('loading-spinner').style.display = 'none';
         
         if (data.success) {
+            // Display validation table with final commit data
+            if (data.result.final_commit_df) {
+                // Reset sort settings for initial display
+                sortFieldValidation = null;
+                sortDirectionValidation = 'asc';
+                
+                // Store the data for later sorting without re-fetching
+                window.validationData = data.result.final_commit_df;
+                
+                displayValidationTable(data.result.final_commit_df);
+            }
+            
             // All checks passed, show success message
             alert('Changes finalized successfully!');
 
@@ -1326,4 +1338,291 @@ function finalizeChanges() {
         alert('Error during finalization: ' + error.message);
         console.error('Error finalizing changes:', error);
     });
+}
+
+
+// Function to get CSS class for Validation Flag
+function getValidationFlagClass(flag) {
+    if (!flag) return 'validation-flag-success';
+    
+    const flagPrefix = flag.split(' - ')[0]; // Get the part before the dash
+    
+    if (flagPrefix === 'ERROR') return 'validation-flag-error';
+    if (flagPrefix === 'CHECK') return 'validation-flag-check';
+    if (flagPrefix === 'WARNING') return 'validation-flag-warning';
+    return 'validation-flag-success'; // Default for PASS and others
+}
+
+let sortFieldValidation = null;
+let sortDirectionValidation = 'asc';
+// Function to display validation table with final commit data
+function displayValidationTable(validationData) {
+    // Get the validation table container and table body
+    const validationTableContainer = document.getElementById('validation-table-container');
+    const validationTableControls = document.getElementById('validation-table-controls');
+    const validationTableBody = document.getElementById('validation-table-body');
+    
+    if (!validationData || validationData.length === 0) {
+        // If no data, don't display the table
+        if (validationTableContainer) {
+            validationTableContainer.style.display = 'none';
+        }
+        if (validationTableControls) {
+            validationTableControls.style.display = 'none';
+        }
+        return;
+    }
+
+    // show validation table controls
+    if (validationTableControls) {
+        validationTableControls.style.display = 'flex';
+    }
+    
+    // Clear existing table body content
+    validationTableBody.innerHTML = '';
+    
+    // Apply sorting if needed
+    if (sortFieldValidation) {
+        validationData = [...validationData].sort((a, b) => {
+            let aVal = a[sortFieldValidation] || '';
+            let bVal = b[sortFieldValidation] || '';
+            
+            // Handle date fields
+            if (['Effective Date', 'Expiration Date'].includes(sortFieldValidation)) {
+                const parseDate = (dateStr) => {
+                    if (!dateStr) return 0;
+                    const date = new Date(dateStr);
+                    return isNaN(date) ? 0 : date.getTime();
+                };
+                
+                aVal = parseDate(aVal);
+                bVal = parseDate(bVal);
+            }
+            // Handle numeric fields
+            else if (['Contract Price', 'QOE'].includes(sortFieldValidation)) {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+            }
+            // Handle string fields
+            else if (typeof aVal === 'string' && typeof bVal === 'string') {
+                aVal = aVal.toLowerCase();
+                bVal = bVal.toLowerCase();
+            }
+            
+            // Compare based on direction
+            if (sortDirectionValidation === 'asc') {
+                return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+            } else {
+                return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+            }
+        });
+    }
+    
+    // Add a row for each validation item
+    validationData.forEach(item => {
+        const row = document.createElement('tr');
+        
+        // Format contract price
+        const contractPrice = item['Contract Price'] ? 
+            '$' + parseFloat(item['Contract Price']).toFixed(2) : '';
+        
+        // Format description for display (limit length)
+        const description = item['Description'] || '';
+        const shortDescription = description.length > 40 ? 
+            description.substring(0, 37) + '...' : description;
+
+        // Format actions for better visibility
+        const formattedPrimaryAction = formatActionText(item['Primary Action'] || '');
+        const formattedActualAction = formatActionText(item['Actual Action'] || '');
+        
+        // Get CSS classes for color coding
+        const intendedActionClass = getIntendedActionClass(item['Intended Action']);
+        const primaryActionClass = getPrimaryActionClass(item['Primary Action']);
+        const actualActionClass = getActualActionClass(item['Actual Action']);
+        
+        // Get the validation flag and split it for display
+        const validationFlag = item['Validation Flag'] || '';
+        const flagParts = validationFlag.split(' - ');
+        const shortFlag = flagParts[0];
+        const flagClass = getValidationFlagClass(validationFlag);
+        
+        // Create cells in the correct order with proper styling
+        const cellsData = [
+            // 1. Intended Action
+            { content: `<span class="${intendedActionClass}">${item['Intended Action'] || ''}</span>` },
+            
+            // 2. Primary Action
+            { content: `<span class="${primaryActionClass}">${formattedPrimaryAction}</span>` },
+            
+            // 3. Actual Action
+            { content: `<span class="${actualActionClass}">${formattedActualAction}</span>` },
+            
+            // 4. Validation Flag
+            { content: `<span class="${flagClass}" title="${validationFlag}">${shortFlag}</span>` },
+            
+            // Remaining columns
+            { content: item['Item'] || '', className: 'item-col' },
+            { content: item['ERP Vendor ID'] || '', className: 'erp-vendor-id-col' },
+            { content: item['Contract Number'] || '', className: 'contract-col' },
+            { content: item['Mfg Part Num'] || '', className: 'part-num-col' },
+            { content: item['Vendor Part Num'] || '', className: 'part-num-col' },
+            { content: item['UOM'] || '', className: 'uom-col' },
+            { content: item['QOE'] || '', className: 'qoe-col' },
+            { content: contractPrice, className: 'price-col' },
+            { content: item['Effective Date'] || '', className: 'date-col' },
+            { content: item['Expiration Date'] || '', className: 'date-col' },
+            { content: shortDescription, className: 'description-col', title: description }
+        ];
+        
+        // Create each cell and add to row
+        cellsData.forEach(cellData => {
+            const cell = document.createElement('td');
+            if (cellData.className) {
+                cell.className = cellData.className;
+            }
+            cell.innerHTML = cellData.content;
+            
+            if (cellData.title) {
+                cell.title = cellData.title;
+            }
+            
+            row.appendChild(cell);
+        });
+        
+        // Add row to table body
+        validationTableBody.appendChild(row);
+    });
+    
+    // Show the validation table
+    validationTableContainer.style.display = 'block';
+    
+    // Attach sort handlers
+    attachValidationSortHandlers();
+
+    // Attach filter listeners
+    attachValidationFilterListeners();
+}
+
+// Function to attach sort handlers to validation table
+function attachValidationSortHandlers() {
+    document.querySelectorAll('#validation-table th[data-sort]').forEach(th => {
+        // Remove existing handlers
+        const newTh = th.cloneNode(true);
+        th.parentNode.replaceChild(newTh, th);
+        
+        // Add new handler
+        newTh.addEventListener('click', function() {
+            const field = this.getAttribute('data-sort');
+            
+            if (field === sortFieldValidation) {
+                sortDirectionValidation = sortDirectionValidation === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortFieldValidation = field;
+                sortDirectionValidation = 'asc';
+            }
+            
+            // Update sort indicators
+            document.querySelectorAll('#validation-table th').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+            });
+            this.classList.add(sortDirectionValidation === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // Re-display the table with the new sort
+            fetchValidationData();
+        });
+    });
+}
+
+//Function to fetch validation data for sorting
+function fetchValidationData() {
+    const loadingSpinner = document.getElementById('loading-spinner');
+    if (loadingSpinner) loadingSpinner.style.display = 'block';
+    
+    // Re-fetch from server or use cached data
+    fetch(getApiUrl('/change-simulation/finalize-changes'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (loadingSpinner) loadingSpinner.style.display = 'none';
+        
+        if (data.success && data.result.final_commit_df) {
+            displayValidationTable(data.result.final_commit_df);
+        }
+    })
+    .catch(error => {
+        if (loadingSpinner) loadingSpinner.style.display = 'none';
+        console.error('Error fetching validation data:', error);
+    });
+}
+
+
+function filterValidationTable() {
+    const searchTerm = document.getElementById('validation-search').value.toLowerCase();
+    const searchType = document.getElementById('validation-search-type').value;
+    const tableRows = document.querySelectorAll('#validation-table-body tr');
+    
+    let visibleCount = 0;
+    
+    tableRows.forEach(row => {
+        let match = false;
+        
+        if (searchType === 'contains' || searchType === 'not-contains') {
+            // Search in all cells
+            const rowText = row.textContent.toLowerCase();
+            match = rowText.includes(searchTerm);
+            
+            // Invert match for not-contains
+            if (searchType === 'not-contains') {
+                match = !match;
+            }
+        } else if (searchType === 'contract-only') {
+            // Search only in Contract Number column (6th column)
+            const contractCell = row.cells[6]; 
+            if (contractCell) {
+                const contractText = contractCell.textContent.toLowerCase();
+                match = contractText.includes(searchTerm);
+            }
+        } else if (searchType === 'validation-flag-only') {
+            // Search only in Validation Flag column (3rd column)
+            const validationFlagCell = row.cells[3]; 
+            if (validationFlagCell) {
+                const validationFlagText = validationFlagCell.textContent.toLowerCase();
+                match = validationFlagText.includes(searchTerm);
+            }
+        } else if (searchType === 'item-only') {
+            // Search only in Item column (4th column)
+            const itemCell = row.cells[4];
+            if (itemCell) {
+                const itemText = itemCell.textContent.toLowerCase();
+                match = itemText.includes(searchTerm);
+            }
+        }
+        
+        // Show/hide row based on match
+        row.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+    });
+}
+
+// Function to clear validation search
+function clearValidationSearch() {
+    document.getElementById('validation-search').value = '';
+    filterValidationTable();
+}
+
+// Attach event listeners for validation table
+function attachValidationFilterListeners() {
+    const searchInput = document.getElementById('validation-search');
+    const searchType = document.getElementById('validation-search-type');
+    const clearSearch = document.getElementById('validation-clear-search');
+    
+    if (searchInput && searchType && clearSearch) {
+        searchInput.addEventListener('input', filterValidationTable);
+        searchType.addEventListener('change', filterValidationTable);
+        clearSearch.addEventListener('click', clearValidationSearch);
+    }
 }

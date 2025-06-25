@@ -1,7 +1,7 @@
 from flask import Blueprint, session, render_template, request, jsonify, flash, current_app, redirect, url_for
 from flask_login import login_required, current_user
 from ..common.session import (get_validated_data, get_deduped_results, get_infor_cl_matches, 
-store_change_simulation_results, get_change_simulation_results)
+                              store_change_simulation_results, get_change_simulation_results)
 from ..common.utils import (compute_changes_to_show, 
                             apply_change, 
                             change_simulation_stage1, 
@@ -10,7 +10,8 @@ from ..common.utils import (compute_changes_to_show,
                             compute_dataset_changes_df,
                             generate_network_graph,
                             change_simulation_stage4,
-                            final_expire_item_validation
+                            final_expire_item_validation,
+                            final_commit
                             )
 from ..common.db import get_db_connection, get_relevant_contract_line
 import os
@@ -123,7 +124,7 @@ def show_changes():
                                                                                                                        tp_merge, 
                                                                                                                        data_change_show_df,
                                                                                                                        contract_line_count_df)
-
+        
         # Collect contracts and group them by type
         contract_a_set = set()
         contract_b_set = set()
@@ -307,7 +308,6 @@ def update_expire_selections():
         # update ccx_update after the changes applied
         all_changes_df = pd.DataFrame(all_changes)
         ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged = compute_dataset_changes_df(all_changes_df)
-        print(ccx_expire.shape) #debug
 
         current_app.logger.info(f"User {user_id} updated {update_count} 'Do Not Expire' selections")
         
@@ -354,12 +354,20 @@ def finalize_changes():
         contract_line_count_df = pd.DataFrame(contract_line_count)
         changes_to_show_df = pd.DataFrame(changes_to_show)
         reference_for_expire_rows_df = pd.DataFrame(reference_for_expire_rows)
-        
-        # retrieve the 'Do Not Expire' selections and plot
-        df_network_r2 = change_simulation_stage4(all_changes_df, contract_line_count_df)
+
 
         # final expire item validation
-        final_expire_item_validated_df = final_expire_item_validation(changes_to_show_df, reference_for_expire_rows_df)
+        final_expire_item_validated_df, more_changes_to_append_df, item_related_action_df = final_expire_item_validation(changes_to_show_df, 
+                                                                                                 reference_for_expire_rows_df, 
+                                                                                                 update_action_mode=simulation_results.get('update_action_mode', 'new'))
+        
+        final_commit_res, final_changes_to_show_df, final_all_changes_df = final_commit(all_changes_df,
+                                                                                        changes_to_show_df,
+                                                                                        more_changes_to_append_df,
+                                                                                        final_expire_item_validated_df)
+
+         # retrieve the 'Do Not Expire' selections and plot
+        df_network_r2 = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
         
         # Get fixed positions and generate graph JSONs
         modified_network_df = pd.DataFrame(simulation_results.get('modified_network_df', []))
@@ -376,6 +384,7 @@ def finalize_changes():
                 'modified_graph_data': modified_graph_json,
                 'r2_graph_data': r2_graph_json,
                 'final_expire_item_validated': final_expire_item_validated_df.to_dict(orient='records'),
+                'final_commit_df': final_commit_res.to_dict(orient='records'),
             }
         })
 
