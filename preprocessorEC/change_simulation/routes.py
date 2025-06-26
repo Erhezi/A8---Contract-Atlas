@@ -373,7 +373,8 @@ def finalize_changes():
         final_checks = final_validation.get('final_validation_checks', [])
 
          # retrieve the 'Do Not Expire' selections and plot
-        df_network_r2 = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
+        df_network_r2, line_operations = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
+        print(line_operations)
         
         # Get fixed positions and generate graph JSONs
         modified_network_df = pd.DataFrame(simulation_results.get('modified_network_df', []))
@@ -394,6 +395,7 @@ def finalize_changes():
                 'final_errors': final_errors.to_dict(orient='records') if not final_errors.empty else [],
                 'final_warnings': final_warnings.to_dict(orient='records') if not final_warnings.empty else [],
                 'final_checks': final_checks.to_dict(orient='records') if not final_checks.empty else [],
+                'line_operations': line_operations.to_dict(orient='records') if not line_operations.empty else [],
             }
         })
 

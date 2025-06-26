@@ -2765,7 +2765,7 @@ def change_simulation_stage4(final_all_changes_df, contract_line_count_df):
                                    inplace = True)
     df_cross_r2.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_cross_r2.xlsx'), index=False) #debug
 
-    return df_cross_r2
+    return df_cross_r2, line_operations
 
 
 def generate_network_graph(network_df, 

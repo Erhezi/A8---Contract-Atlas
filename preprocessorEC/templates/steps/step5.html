@@ -814,9 +814,23 @@
     }
 
     /* Card styling for validation flags */
-    .validation-error-card-zero { border-left-color: #28a745 !important; }
-    .validation-warning-card-zero { border-left-color: #28a745 !important; }
-    .validation-check-card-zero { border-left-color: #28a745 !important; }
+    .validation-error-card {
+        border-left-color: #dc3545 !important;
+    }
+
+    .validation-warning-card {
+        border-left-color: #fd7e14 !important;
+    }
+
+    .validation-check-card {
+        border-left-color: #6f42c1 !important;
+    }
+
+    .validation-error-card-zero,
+    .validation-warning-card-zero,
+    .validation-check-card-zero {
+        border-left-color: #28a745 !important;
+    }
 
     /* Initially hide validation flag cards */
     .validation-flag-cards {
@@ -940,6 +954,37 @@
     #validationFlagModal .table th:nth-child(4),
     #validationFlagModal .table td:nth-child(4) {
         max-width: 140px;
+    }
+
+    /* Line Operations Table Styling */
+    .line-operations-table {
+        font-size: 0.75rem !important;
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .line-operations-table th {
+        background-color: #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 6px !important;
+        font-size: 0.75rem !important;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .line-operations-table td {
+        padding: 6px !important;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+        vertical-align: middle;
+        font-size: 0.75rem !important;
+        font-weight: normal !important;
+    }
+
+    #line-operations-container .card-body {
+        padding: 0 !important;
     }
 </style>
 
@@ -1289,7 +1334,7 @@
                 <div class="change-stats-column">
                     <div class="change-stat-card validation-error-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">Errors</h5>
+                            <h5 class="card-title">Errors - non-solvable conflict, no execution</h5>
                             <div class="stat-value" id="validation-error-count">0</div>
                         </div>
                     </div>
@@ -1297,7 +1342,7 @@
                 <div class="change-stats-column">
                     <div class="change-stat-card validation-warning-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">Warnings</h5>
+                            <h5 class="card-title">Warnings - will get executed</h5>
                             <div class="stat-value" id="validation-warning-count">0</div>
                         </div>
                     </div>
@@ -1305,7 +1350,7 @@
                 <div class="change-stats-column">
                     <div class="change-stat-card validation-check-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">Checks</h5>
+                            <h5 class="card-title">Checks - unexpected issue, no execution</h5>
                             <div class="stat-value" id="validation-check-count">0</div>
                         </div>
                     </div>
@@ -1413,8 +1458,37 @@
                 </div>
             </div>
         </div>
+
+        <!-- 4. Line Operations Summary Table -->
+        <div id="line-operations-container" class="card" style="width: 100%; display: none; margin-bottom: 20px;">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table text-primary mr-2"></i>
+                    Contract Line Count Summary
+                </h5>
+            </div>
+            <div class="card-body" style="padding: 0.75rem;">
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm line-operations-table">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Contract Number</th>
+                                <th>Total Lines (Original)</th>
+                                <th>Total Lines (Changes Applied)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="line-operations-tbody">
+                            <!-- Data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-line-operations" class="text-center text-muted" style="display: none; padding: 20px;">
+                    <p>No contract line changes to display</p>
+                </div>
+            </div>
+        </div>
         
-        <!-- 4. Commit and Complete Step buttons at the bottom -->
+        <!-- 5. Commit and Complete Step buttons at the bottom -->
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
             <!-- Commit Changes button -->
             <div id="commit-changes-container" style="display: none;">

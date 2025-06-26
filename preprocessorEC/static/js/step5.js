@@ -1275,6 +1275,47 @@ function finalizeChanges() {
                 
                 displayValidationTable(data.result.final_commit_df);
             }
+
+            // Show and populate line operations table if available
+            if (data.result.line_operations && data.result.line_operations.length > 0) {
+                const lineOperationsContainer = document.getElementById('line-operations-container');
+                const lineOperationsTbody = document.getElementById('line-operations-tbody');
+                const noLineOperations = document.getElementById('no-line-operations');
+                
+                // Clear any existing rows
+                lineOperationsTbody.innerHTML = '';
+                
+                // Populate with new data
+                data.result.line_operations.forEach(item => {
+                    const row = document.createElement('tr');
+                    
+                    // Get the counts (no change calculation needed)
+                    const originalCount = parseInt(item['Total Contract Line Count'] || 0);
+                    const finalCount = parseInt(item['Total Contract Line Count (Change Applied)'] || 0);
+                    
+                    row.innerHTML = `
+                        <td>${item['Contract Number'] || ''}</td>
+                        <td>${originalCount}</td>
+                        <td>${finalCount}</td>
+                    `;
+                    
+                    lineOperationsTbody.appendChild(row);
+                });
+                
+                // Show table, hide empty message
+                lineOperationsContainer.style.display = 'block';
+                noLineOperations.style.display = 'none';
+                } else {
+                // If no data, show message
+                const lineOperationsContainer = document.getElementById('line-operations-container');
+                const noLineOperations = document.getElementById('no-line-operations');
+                
+                if (lineOperationsContainer && noLineOperations) {
+                    lineOperationsContainer.style.display = 'block';
+                    document.getElementById('line-operations-tbody').innerHTML = '';
+                    noLineOperations.style.display = 'block';
+                }
+            }
             
             // All checks passed, show success message
             alert('Changes finalized successfully!');
@@ -1675,7 +1716,13 @@ function updateValidationFlagCounts(validationData) {
     const warningCard = document.querySelector('.validation-warning-card');
     const checkCard = document.querySelector('.validation-check-card');
 
-    // Toggle CSS classes based on counts
+    // Apply color coding:
+    // - Count = 0: Green border (adds -zero class)
+    // - Count > 0: Category-specific color (removes -zero class)
+    //   - ERROR: Red border (default .validation-error-card)
+    //   - WARNING: Orange border (default .validation-warning-card)
+    //   - CHECK: Purple border (default .validation-check-card)
+    
     if (errorCount === 0) {
         errorCard.classList.add('validation-error-card-zero');
     } else {
