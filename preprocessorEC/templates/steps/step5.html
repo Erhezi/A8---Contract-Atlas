@@ -814,13 +814,132 @@
     }
 
     /* Card styling for validation flags */
-    .validation-error-card { border-left-color: #dc3545 !important; }
-    .validation-warning-card { border-left-color: #fd7e14 !important; }
-    .validation-check-card { border-left-color: #6f42c1 !important; }
+    .validation-error-card-zero { border-left-color: #28a745 !important; }
+    .validation-warning-card-zero { border-left-color: #28a745 !important; }
+    .validation-check-card-zero { border-left-color: #28a745 !important; }
 
     /* Initially hide validation flag cards */
     .validation-flag-cards {
-        display: none;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr); /* Three cards in one row */
+        gap: 20px; /* Space between cards */
+        width: 100%;
+        margin: 0 auto;
+    }
+
+    .change-stats-column {
+        padding: 0;
+    }
+
+    .change-stat-card .card-body {
+        padding: 10px 15px;
+    }
+
+    .change-stat-card .card-title {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        margin-bottom: 8px;
+        font-weight: normal;
+    }
+
+    .change-stat-card .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+
+    .change-stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .change-stat-card:active {
+        transform: translateY(0);
+    }
+
+    /* Adjust for smaller screens */
+    @media (max-width: 768px) {
+        .validation-flag-cards {
+            grid-template-columns: 1fr; /* One card per row on small screens */
+        }
+    }
+
+    /* Validation Flag Modal Styling - Match Stats Modal */
+    #validationFlagModal .table {
+        font-size: 0.85rem;
+    }
+
+    #validationFlagModal .table th {
+        background-color: #f8f9fa;
+        border-top: none;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 6px;
+        font-size: 0.75rem;
+    }
+
+    #validationFlagModal .table td {
+        vertical-align: middle;
+        padding: 6px;
+        font-size: 0.75rem;
+    }
+
+    /* Action styling in validation modal */
+    #validationFlagModal .table td span[class*="action-"],
+    #validationFlagModal .table td span[class*="validation-flag-"] {
+        padding: 2px 6px;
+        border-radius: 3px;
+        display: inline-block;
+        font-weight: 500;
+        font-size: 0.75rem;
+    }
+
+    /* Hide close button in header */
+    #validationFlagModal .modal-header .close {
+        display: none !important;
+    }
+
+    #validationFlagModal .modal-header {
+        border-bottom: 1px solid #dee2e6;
+        padding: 1rem;
+    }
+
+    /* Modal footer styling - move close button to right */
+    #validationFlagModal .modal-footer {
+        display: flex !important;
+        justify-content: flex-end !important;
+        border-top: 1px solid #dee2e6;
+        padding: 1rem;
+    }
+
+    /* Message column styling */
+    #validationFlagModal .table th:nth-child(2),
+    #validationFlagModal .table td:nth-child(2) {
+        width: 500px;
+        max-width: 500px;
+        white-space: normal;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+
+    /* Other columns should have consistent smaller widths */
+    #validationFlagModal .table th:not(:nth-child(2)),
+    #validationFlagModal .table td:not(:nth-child(2)) {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 120px;
+    }
+
+    /* Validation flag and action columns need slightly more width */
+    #validationFlagModal .table th:nth-child(1),
+    #validationFlagModal .table td:nth-child(1),
+    #validationFlagModal .table th:nth-child(3),
+    #validationFlagModal .table td:nth-child(3),
+    #validationFlagModal .table th:nth-child(4),
+    #validationFlagModal .table td:nth-child(4) {
+        max-width: 140px;
     }
 </style>
 
@@ -1170,7 +1289,7 @@
                 <div class="change-stats-column">
                     <div class="change-stat-card validation-error-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">ERROR</h5>
+                            <h5 class="card-title">Errors</h5>
                             <div class="stat-value" id="validation-error-count">0</div>
                         </div>
                     </div>
@@ -1178,7 +1297,7 @@
                 <div class="change-stats-column">
                     <div class="change-stat-card validation-warning-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">WARNING</h5>
+                            <h5 class="card-title">Warnings</h5>
                             <div class="stat-value" id="validation-warning-count">0</div>
                         </div>
                     </div>
@@ -1186,8 +1305,51 @@
                 <div class="change-stats-column">
                     <div class="change-stat-card validation-check-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">CHECK</h5>
+                            <h5 class="card-title">Checks</h5>
                             <div class="stat-value" id="validation-check-count">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Validation Flag Modal -->
+            <div class="modal fade" id="validationFlagModal" tabindex="-1" role="dialog" aria-labelledby="validationFlagModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header d-flex justify-content-between align-items-center">
+                            <h5 class="modal-title" id="validationFlagModalLabel">Validation Details</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div id="validationFlagTableContainer" style="max-height: 500px; overflow-y: auto;">
+                                <table class="table table-striped table-sm">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Validation Flag</th>
+                                            <th style="width: 500px;">Message</th>
+                                            <th>Primary Action</th>
+                                            <th>Actual Action</th>
+                                            <th>Item</th>
+                                            <th>Contract Number</th>
+                                            <th>ERP Vendor ID</th>
+                                            <th>Mfg Part Num</th>
+                                            <th>Vendor Part Num</th>
+                                            <th>UOM</th>
+                                            <th>QOE</th>
+                                            <th>Contract Price</th>
+                                            <th>File Row</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="validationFlagTableBody">
+                                        <!-- Data will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="noValidationDataMessage" class="text-center text-muted" style="display: none; padding: 40px;">
+                                <h4>No data available</h4>
+                                <p>There are no validation items for this category.</p>
+                            </div>
+                        </div>
+                        <div class="modal-footer" style="justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                         </div>
                     </div>
                 </div>

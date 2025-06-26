@@ -1257,6 +1257,13 @@ function finalizeChanges() {
         document.getElementById('loading-spinner').style.display = 'none';
         
         if (data.success) {
+            // Store the validation data for modal display
+            window.validationFlagData = {
+                error: data.result.final_errors || [],
+                warning: data.result.final_warnings || [],
+                check: data.result.final_checks || []
+            };
+
             // Display validation table with final commit data
             if (data.result.final_commit_df) {
                 // Reset sort settings for initial display
@@ -1353,6 +1360,7 @@ function getValidationFlagClass(flag) {
     return 'validation-flag-success'; // Default for PASS and others
 }
 
+
 let sortFieldValidation = null;
 let sortDirectionValidation = 'asc';
 // Function to display validation table with final commit data
@@ -1372,6 +1380,9 @@ function displayValidationTable(validationData) {
         }
         return;
     }
+
+    // Update validation flag counts and show cards
+    updateValidationFlagCounts(validationData);
 
     // show validation table controls
     if (validationTableControls) {
@@ -1625,4 +1636,153 @@ function attachValidationFilterListeners() {
         searchType.addEventListener('change', filterValidationTable);
         clearSearch.addEventListener('click', clearValidationSearch);
     }
+}
+
+// Function to count validation flags by type and update cards
+function updateValidationFlagCounts(validationData) {
+    let errorCount = 0;
+    let warningCount = 0;
+    let checkCount = 0;
+
+    // Group validation data by flag type
+    const errorItems = [];
+    const warningItems = [];
+    const checkItems = [];
+
+    if (validationData && validationData.length > 0) {
+        validationData.forEach(item => {
+            const validationFlag = item['Validation Flag'] || '';
+            if (validationFlag.startsWith('ERROR')) {
+                errorCount++;
+                errorItems.push(item);
+            } else if (validationFlag.startsWith('WARNING')) {
+                warningCount++;
+                warningItems.push(item);
+            } else if (validationFlag.startsWith('CHECK')) {
+                checkCount++;
+                checkItems.push(item);
+            }
+        });
+    }
+
+    // Update card counts
+    document.getElementById('validation-error-count').textContent = errorCount;
+    document.getElementById('validation-warning-count').textContent = warningCount;
+    document.getElementById('validation-check-count').textContent = checkCount;
+
+    // Update card border colors based on counts using CSS classes
+    const errorCard = document.querySelector('.validation-error-card');
+    const warningCard = document.querySelector('.validation-warning-card');
+    const checkCard = document.querySelector('.validation-check-card');
+
+    // Toggle CSS classes based on counts
+    if (errorCount === 0) {
+        errorCard.classList.add('validation-error-card-zero');
+    } else {
+        errorCard.classList.remove('validation-error-card-zero');
+    }
+    
+    if (warningCount === 0) {
+        warningCard.classList.add('validation-warning-card-zero');
+    } else {
+        warningCard.classList.remove('validation-warning-card-zero');
+    }
+    
+    if (checkCount === 0) {
+        checkCard.classList.add('validation-check-card-zero');
+    } else {
+        checkCard.classList.remove('validation-check-card-zero');
+    }
+
+    // Store the filtered data for modal display
+    window.validationFlagData = {
+        error: errorItems,
+        warning: warningItems,
+        check: checkItems
+    };
+
+    // Show the cards container
+    document.querySelector('.validation-flag-cards').style.display = 'grid';
+
+    // Attach click handlers to the cards
+    attachValidationCardClickHandlers();
+}
+
+// Function to attach click handlers to validation flag cards
+function attachValidationCardClickHandlers() {
+    // ERROR card
+    document.getElementById('validation-error-count').closest('.change-stat-card').addEventListener('click', function() {
+        showValidationFlagModal('ERROR', window.validationFlagData.error);
+    });
+    
+    // WARNING card
+    document.getElementById('validation-warning-count').closest('.change-stat-card').addEventListener('click', function() {
+        showValidationFlagModal('WARNING', window.validationFlagData.warning);
+    });
+    
+    // CHECK card
+    document.getElementById('validation-check-count').closest('.change-stat-card').addEventListener('click', function() {
+        showValidationFlagModal('CHECK', window.validationFlagData.check);
+    });
+}
+
+// Function to show validation flag modal
+function showValidationFlagModal(flagType, data) {
+    // Set modal title
+    document.getElementById('validationFlagModalLabel').textContent = `${flagType} Validation Items`;
+    
+    const tableBody = document.getElementById('validationFlagTableBody');
+    const noDataMessage = document.getElementById('noValidationDataMessage');
+    const tableContainer = document.getElementById('validationFlagTableContainer');
+    
+    // Clear existing content
+    tableBody.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+        // Show no data message
+        tableContainer.style.display = 'none';
+        noDataMessage.style.display = 'block';
+    } else {
+        // Show table and populate data
+        tableContainer.style.display = 'block';
+        noDataMessage.style.display = 'none';
+        
+        data.forEach(item => {
+            const row = document.createElement('tr');
+            
+            // Format contract price
+            const contractPrice = item['Contract Price'] ? 
+                '$' + parseFloat(item['Contract Price']).toFixed(2) : '';
+            
+            // Format validation flag for display
+            const validationFlag = item['Validation Flag'] || '';
+            const flagParts = validationFlag.split(' - ');
+            const flagMessage = flagParts.length > 1 ? flagParts.slice(1).join(' - ') : '';
+            
+            // Format actions
+            const formattedPrimaryAction = formatActionText(item['Primary Action'] || '');
+            const formattedActualAction = formatActionText(item['Actual Action'] || '');
+            
+            row.innerHTML = `
+                <td><span class="${getValidationFlagClass(validationFlag)}">${flagParts[0]}</span></td>
+                <td>${flagMessage}</td>
+                <td><span class="${getPrimaryActionClass(item['Primary Action'])}">${formattedPrimaryAction}</span></td>
+                <td><span class="${getActualActionClass(item['Actual Action'])}">${formattedActualAction}</span></td>
+                <td>${item['Item'] || ''}</td>
+                <td>${item['Contract Number'] || ''}</td>
+                <td>${item['ERP Vendor ID'] || ''}</td>
+                <td>${item['Mfg Part Num'] || ''}</td>
+                <td>${item['Vendor Part Num'] || ''}</td>
+                <td>${item['UOM'] || ''}</td>
+                <td>${item['QOE'] || ''}</td>
+                <td>${contractPrice}</td>
+                <td>${item['File Row'] || ''}</td>
+            `;
+            
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // Show modal
+    $('#validationFlagModal').modal('show');
 }

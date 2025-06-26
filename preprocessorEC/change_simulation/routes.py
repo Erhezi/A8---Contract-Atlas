@@ -11,7 +11,8 @@ from ..common.utils import (compute_changes_to_show,
                             generate_network_graph,
                             change_simulation_stage4,
                             final_expire_item_validation,
-                            final_commit
+                            final_commit,
+                            final_errors_before_commit
                             )
 from ..common.db import get_db_connection, get_relevant_contract_line
 import os
@@ -365,6 +366,11 @@ def finalize_changes():
                                                                                         changes_to_show_df,
                                                                                         more_changes_to_append_df,
                                                                                         final_expire_item_validated_df)
+        
+        final_validation = final_errors_before_commit(final_expire_item_validated_df)
+        final_errors = final_validation.get('final_validation_errors', [])
+        final_warnings = final_validation.get('final_validation_warnings', [])
+        final_checks = final_validation.get('final_validation_checks', [])
 
          # retrieve the 'Do Not Expire' selections and plot
         df_network_r2 = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
@@ -385,6 +391,9 @@ def finalize_changes():
                 'r2_graph_data': r2_graph_json,
                 'final_expire_item_validated': final_expire_item_validated_df.to_dict(orient='records'),
                 'final_commit_df': final_commit_res.to_dict(orient='records'),
+                'final_errors': final_errors.to_dict(orient='records') if not final_errors.empty else [],
+                'final_warnings': final_warnings.to_dict(orient='records') if not final_warnings.empty else [],
+                'final_checks': final_checks.to_dict(orient='records') if not final_checks.empty else [],
             }
         })
 

@@ -12,7 +12,16 @@ import importlib.util
 
 def create_app(config_name=None, test_config=None):
     """Create and configure the Flask application"""
-    app = Flask(__name__)
+    # Get URL prefix BEFORE creating Flask app
+    if config_name == 'production':
+        # For production, load the URL prefix
+        url_prefix = os.environ.get('URL_PREFIX', '/preprocessor')
+    else:
+        # For development, use empty prefix
+        url_prefix = ''
+
+    app = Flask(__name__,
+                static_url_path=f'{url_prefix}/static')
     
     # Load configuration - allow for test config override
     if test_config is None:
@@ -26,6 +35,9 @@ def create_app(config_name=None, test_config=None):
         app.config.from_mapping(test_config)
         print("Using test configuration")
     
+     # Store URL prefix in config for use elsewhere
+    app.config['URL_PREFIX'] = url_prefix
+
     # Ensure session directory exists
     os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
     

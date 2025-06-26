@@ -2593,26 +2593,26 @@ def compute_dataset_changes_df(data_change_show_df):
 
 def final_errors_before_commit(final_validation_df):
     if final_validation_df.empty:
-        return {'final_validataion': pd.DataFrame(),
+        return {
                 'final_validation_errors': pd.DataFrame(),
                 'final_validation_warnings': pd.DataFrame(),
-                'final_validation_pass': pd.DataFrame(),
-                'final_validation_action': pd.DataFrame(),
-                'final_validation_check': pd.DataFrame()}
+                'final_validation_passes': pd.DataFrame(),
+                'final_validation_actions': pd.DataFrame(),
+                'final_validation_checks': pd.DataFrame()
+                }
     
     final_validation_errors = final_validation_df[final_validation_df['Validation Flag'].str.startswith('ERROR')].copy()
     final_validation_warnings = final_validation_df[final_validation_df['Validation Flag'].str.startswith('WARNING')].copy()
-    final_validation_pass = final_validation_df[final_validation_df['Validation Flag'].str.startswith('PASS')].copy()
-    final_validation_action = final_validation_df[final_validation_df['Validation Flag'].str.startswith('ACTION')].copy()
-    final_validation_check = final_validation_df[final_validation_df['Validation Flag'].str.startswith('CHECK')].copy()
+    final_validation_passes = final_validation_df[final_validation_df['Validation Flag'].str.startswith('PASS')].copy()
+    final_validation_actions = final_validation_df[final_validation_df['Validation Flag'].str.startswith('ACTION')].copy()
+    final_validation_checks = final_validation_df[final_validation_df['Validation Flag'].str.startswith('CHECK')].copy()
 
     return {
-        'final_validataion': final_validation_df,
         'final_validation_errors': final_validation_errors,
         'final_validation_warnings': final_validation_warnings,
-        'final_validation_pass': final_validation_pass,
-        'final_validation_action': final_validation_action,
-        'final_validation_check': final_validation_check
+        'final_validation_passes': final_validation_passes,
+        'final_validation_actions': final_validation_actions,
+        'final_validation_checks': final_validation_checks
     }
 
 def final_commit(all_changes_df,
@@ -2671,10 +2671,10 @@ def final_commit(all_changes_df,
     # user should confirm the data with vendor and re-run everything to make sure things are correct
     validation_results = final_errors_before_commit(final_validation_df)
     final_validation_errors = validation_results['final_validation_errors'] 
-    final_validation_check = validation_results['final_validation_check'] 
+    final_validation_checks = validation_results['final_validation_checks'] 
 
     problematic_file_rows = set(final_validation_errors['File Row'].unique()) | \
-                            set(final_validation_check['File Row'].unique())
+                            set(final_validation_checks['File Row'].unique())
 
     # for anything that is in the problematic file rows, we will pause all our changes related to those file rows
     
