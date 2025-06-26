@@ -2678,8 +2678,6 @@ def final_commit(all_changes_df,
 
     # for anything that is in the problematic file rows, we will pause all our changes related to those file rows
     
-
-
     return final_commit_df, final_changes_to_show_df, final_all_changes_df
 
 def change_simulation_stage4(final_all_changes_df, contract_line_count_df):
