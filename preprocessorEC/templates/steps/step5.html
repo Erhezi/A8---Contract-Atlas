@@ -812,6 +812,16 @@
         display: inline-block !important;
         font-weight: 500 !important;
     }
+
+    /* Card styling for validation flags */
+    .validation-error-card { border-left-color: #dc3545 !important; }
+    .validation-warning-card { border-left-color: #fd7e14 !important; }
+    .validation-check-card { border-left-color: #6f42c1 !important; }
+
+    /* Initially hide validation flag cards */
+    .validation-flag-cards {
+        display: none;
+    }
 </style>
 
 <!-- Change Simulation Content -->
@@ -1155,7 +1165,33 @@
                     Final Validation before Commit
                 </h5>
             </div>
-
+            <!-- Validation Flag Count Cards -->
+            <div class="validation-flag-cards change-stats-row" style="margin: 20px 10px;">
+                <div class="change-stats-column">
+                    <div class="change-stat-card validation-error-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">ERROR</h5>
+                            <div class="stat-value" id="validation-error-count">0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="change-stats-column">
+                    <div class="change-stat-card validation-warning-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">WARNING</h5>
+                            <div class="stat-value" id="validation-warning-count">0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="change-stats-column">
+                    <div class="change-stat-card validation-check-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">CHECK</h5>
+                            <div class="stat-value" id="validation-check-count">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- Validation Table Controls -->
             <div id="validation-table-controls" class="data-change-controls" style="display: none;">
                 <div class="filter-container">
