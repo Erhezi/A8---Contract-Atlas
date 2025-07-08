@@ -178,6 +178,16 @@ def create_temp_table(table_name, df, conn):
         print(f"Database error: {str(e)}")
         return False, str(e)
 
+def drop_temp_table(table_name, conn):
+    """Drop the temporary table from the database"""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE {table_name}")
+        return True, ""
+    except Exception as e:
+        print(f"Database error in drop_temp_table: {str(e)}")
+        return False, str(e)
+
 def find_duplicates_with_ccx(temp_table, conn):
     """Find potential duplicates between the temp table and CCX database"""
     try:
@@ -689,3 +699,324 @@ def get_relevant_contract_line(contract_numbers, conn):
         if conn and 'conn' in locals() and not conn.closed:
             conn.close()
         return False, error_msg, None
+
+
+def commit_header(task_id, 
+                  user_id, 
+                  conn,
+                  filename = None, 
+                  precheck_mode = None, 
+                  dedup_policy = None,
+                  custom_direction = None,
+                  custom_field = None,
+                  simulation_mode = None):
+    """
+    Commit a new task header to the database
+    
+    Args:
+        task_id: Unique identifier for the task
+        user_id: ID of the user creating the task
+        filename: Name of the file associated with the task
+        conn: Database connection
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Insert the new task header
+        insert_sql = """
+            INSERT INTO [DM_MONTYNT\\dli2].PreprocessorHeader
+            (TaskID, UserID, TPFileName, PreCheckMode,
+            DedupMode, CustomDirection, CustomFields,
+            SimulationMode,
+            CreateDT, UpdateDT)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
+        """
+        cursor.execute(insert_sql, (task_id, user_id, filename, precheck_mode,
+                                    dedup_policy, custom_direction, custom_field,
+                                    simulation_mode))
+        
+        return True, ""
+        
+    except Exception as e:
+        error_msg = f"Error committing header: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+
+def commit_all_changes(task_id, user_id, conn, final_all_changes=None):
+    """Commit all changes for a given task ID and user ID"""
+    try:
+        cursor = conn.cursor()
+        
+        # Insert the final changes into the database
+        if not final_all_changes or final_all_changes == []:
+            error_msg = "No changes to commit"
+            current_app.logger.error(error_msg)
+            return False, error_msg
+        
+        for record in final_all_changes:
+            # Extract and convert data types to ensure compatibility
+            file_row = int(record.get('File Row', -1))
+            dataset = str(record.get('Dataset', ''))
+            contract_number = str(record.get('Contract Number', ''))
+            mfg_part_num = str(record.get('Mfg Part Num', ''))
+            vendor_part_num = str(record.get('Vendor Part Num', ''))
+            buyer_part_num = str(record.get('Buyer Part Num', ''))
+            description = str(record.get('Description', ''))
+            
+            # Handle numeric values
+            try:
+                contract_price = float(record.get('Contract Price', 0.0))
+            except (TypeError, ValueError):
+                contract_price = 0.0
+                
+            uom = str(record.get('UOM', ''))
+            
+            try:
+                qoe = int(record.get('QOE', 0))
+            except (TypeError, ValueError):
+                qoe = 0
+                
+            effective_date = record.get('Effective Date', '1900-01-01')
+            expiration_date = record.get('Expiration Date', '1900-12-31')
+            erp_vendor_id = str(record.get('ERP Vendor ID', ''))
+            primary_action = str(record.get('Primary Action', ''))
+            actual_action = str(record.get('Actual Action2', ''))
+            intended_action = str(record.get('Intended Action', ''))
+            group = str(record.get('Group', ''))
+            item = str(record.get('Item', ''))
+            row_validation_flag = str(record.get('Final Row Validation Flag', ''))
+            row_action = str(record.get('Final Row Action', ''))
+            
+            # Ensure these are non-empty strings since they're NOT NULL in the database
+            file_row_validation_flag = str(record.get('Validation Flag', ''))
+            if not file_row_validation_flag:
+                file_row_validation_flag = "None"  # Use a placeholder string instead of empty string
+                
+            file_row_action = str(record.get('Final File Row Action', ''))
+            if not file_row_action:
+                file_row_action = "None"  # Use a placeholder string instead of empty string
+            
+            mfg_part_num_original = str(record.get('Mfg Part Num (Original)', ''))
+            uom_original = str(record.get('UOM (Original)', ''))
+
+            # Prepare the insert statement with exact column names matching the schema
+            insert_sql = """
+                INSERT INTO [DM_MONTYNT\\dli2].PreprocessorProcessedRaw
+                (TaskID, UserID, CreateDT, UpdateDT, FileRow, DataSet, [Contract Number],
+                [Mfg Part Num], [Vendor Part Num], [Buyer Part Num], [Description],
+                [Contract Price], [UOM], [QOE], [Effective Date], [Expiration Date],
+                [ERP Vendor ID], [Primary Action], [Actual Action], [Intended Action],
+                [Group], [Item], [Row Validation Flag], [Row Action],
+                [File Row Validation Flag], [File Row Action],
+                [Mfg Part Num (Original)], [UOM (Original)])
+                VALUES (?, ?, GETDATE(), GETDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+
+            cursor.execute(insert_sql, (task_id, user_id, file_row, dataset, contract_number,
+                                       mfg_part_num, vendor_part_num, buyer_part_num,
+                                       description, contract_price, uom, qoe,
+                                       effective_date, expiration_date, erp_vendor_id,
+                                       primary_action, actual_action, intended_action,
+                                       group, item, row_validation_flag, row_action,
+                                       file_row_validation_flag, file_row_action,
+                                       mfg_part_num_original, uom_original))
+        return True, ""
+    except Exception as e:
+        error_msg = f"Error committing all changes: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+    
+
+def commit_commit_res(task_id, user_id, conn, final_commit_res=None):
+    """Commit all changes for a given task ID and user ID"""
+    try:
+        cursor = conn.cursor()
+        
+        # Insert the final changes into the database
+        if not final_commit_res or final_commit_res == []:
+            error_msg = "No commit line to commit"
+            current_app.logger.error(error_msg)
+            return False, error_msg
+        
+        for record in final_commit_res:
+            # Extract and convert data types to ensure compatibility
+            file_row = int(record.get('File Row', -1))
+            dataset = str(record.get('Dataset', ''))
+            contract_number = str(record.get('Contract Number', ''))
+            mfg_part_num = str(record.get('Mfg Part Num', ''))
+            vendor_part_num = str(record.get('Vendor Part Num', ''))
+            buyer_part_num = str(record.get('Buyer Part Num', ''))
+            description = str(record.get('Description', ''))
+            
+            # Handle numeric values
+            try:
+                contract_price = float(record.get('Contract Price', 0.0))
+            except (TypeError, ValueError):
+                contract_price = 0.0
+                
+            uom = str(record.get('UOM', ''))
+            
+            try:
+                qoe = int(record.get('QOE', 0))
+            except (TypeError, ValueError):
+                qoe = 0
+                
+            effective_date = record.get('Effective Date', '1900-01-01')
+            expiration_date = record.get('Expiration Date', '1900-12-31')
+            erp_vendor_id = str(record.get('ERP Vendor ID', ''))
+            primary_action = str(record.get('Primary Action', ''))
+            actual_action = str(record.get('Actual Action2', ''))
+            intended_action = str(record.get('Intended Action', ''))
+            group = str(record.get('Group', ''))
+            item = str(record.get('Item', ''))
+            row_validation_flag = str(record.get('Final Row Validation Flag', ''))
+            row_action = str(record.get('Final Row Action', ''))
+            
+            # Ensure these are non-empty strings since they're NOT NULL in the database
+            file_row_validation_flag = str(record.get('Validation Flag', ''))
+            if not file_row_validation_flag:
+                file_row_validation_flag = "None"  # Use a placeholder string instead of empty string
+                
+            file_row_action = str(record.get('Final File Row Action', ''))
+            if not file_row_action:
+                file_row_action = "None"  # Use a placeholder string instead of empty string
+
+            mfg_part_num_original = str(record.get('Mfg Part Num (Original)', ''))
+            uom_original = str(record.get('UOM (Original)', ''))
+
+            # Prepare the insert statement with exact column names matching the schema
+            insert_sql = """
+                INSERT INTO [DM_MONTYNT\\dli2].PreprocessorCommitLine
+                (TaskID, UserID, CreateDT, UpdateDT, FileRow, DataSet, [Contract Number],
+                [Mfg Part Num], [Vendor Part Num], [Buyer Part Num], [Description],
+                [Contract Price], [UOM], [QOE], [Effective Date], [Expiration Date],
+                [ERP Vendor ID], [Primary Action], [Actual Action], [Intended Action],
+                [Group], [Item], [Row Validation Flag], [Row Action],
+                [File Row Validation Flag], [File Row Action],
+                [Mfg Part Num (Original)], [UOM (Original)])
+                VALUES (?, ?, GETDATE(), GETDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+
+            cursor.execute(insert_sql, (task_id, user_id, file_row, dataset, contract_number,
+                                       mfg_part_num, vendor_part_num, buyer_part_num,
+                                       description, contract_price, uom, qoe,
+                                       effective_date, expiration_date, erp_vendor_id,
+                                       primary_action, actual_action, intended_action,
+                                       group, item, row_validation_flag, row_action,
+                                       file_row_validation_flag, file_row_action,
+                                       mfg_part_num_original, uom_original))
+        return True, ""
+    except Exception as e:
+        error_msg = f"Error committing commit line (action lines): {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+    
+def commit_contract_line_count(task_id, user_id, conn, final_line_operations=None):
+    """Commit contract line count for a given task ID and user ID"""
+    try:
+        cursor = conn.cursor()
+        
+        # Insert the final contract line counts into the database
+        if not final_line_operations or final_line_operations == []:
+            error_msg = "No contract line count to commit"
+            current_app.logger.error(error_msg)
+            return False, error_msg
+        
+        for record in final_line_operations:
+            # Extract and convert data types to ensure compatibility
+            contract_number = str(record.get('Contract Number', ''))
+            total_line_count_original = int(record.get('Total Contract Line Count', 0))
+            create = int(record.get('Create', 0))
+            expire = int(record.get('Expire', 0))
+            etc_create = int(record.get('Expire then Create (Create)', 0))
+            etc_expire = int(record.get('Expire then Create (Expire)', 0))
+            no_change = int(record.get('No Change', 0))
+            update_existing = int(record.get('Update (Existing)', 0))
+            update_new = int(record.get('Update (New)', 0))
+            delta = int(record.get('Delta', 0))
+            insert_count = int(record.get('Insert_Count', 0))
+            update_count = int(record.get('Update_Count', 0))
+            delete_count = int(record.get('Delete_Count', 0))
+            total_line_count_after = int(record.get('Total Contract Line Count (Change Applied)', 0))
+            
+            # Prepare the insert statement with exact column names matching the schema
+            insert_sql = """
+                INSERT INTO [DM_MONTYNT\\dli2].PreprocessorContractLineCount
+                (TaskID, UserID, CreateDT, UpdateDT, [Contract Number], [Total Lines (Original)],
+                [Create], [Expire], [ETC (Create)], [ETC (Expire)],
+                [No Change], [Update (Existing)], [Update (New)], [Delta], [Insert Count],
+                [Update Count], [Delete Count], [Total Lines (Change Applied)])
+                VALUES (?, ?, GETDATE(), GETDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+
+            cursor.execute(insert_sql, (task_id, user_id, contract_number, 
+                                       total_line_count_original, create, expire, 
+                                       etc_create, etc_expire, no_change, 
+                                       update_existing, update_new, delta, 
+                                       insert_count, update_count, delete_count, 
+                                       total_line_count_after))
+        
+        return True, ""
+    except Exception as e:
+        error_msg = f"Error committing contract line count: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+def commit_wrike(task_id, user_id, conn, wrike_task_id=None):
+    """link the Wrike task # to task id and user id"""
+    try:
+        cursor = conn.cursor()
+        
+        # Insert the Wrike task ID into the PreprocessorWrike table
+        insert_sql = """
+            INSERT INTO [DM_MONTYNT\\dli2].PreprocessorWrike
+            (TaskID, UserID, WrikeID, CreateDT, UpdateDT)
+            VALUES (?, ?, ?, GETDATE(), GETDATE())
+        """
+        cursor.execute(insert_sql, (task_id, user_id, wrike_task_id))
+        
+        return True, ""
+        
+    except Exception as e:
+        error_msg = f"Error committing Wrike task: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+def delete_existing_commit(user_id, task_id, conn):
+    """
+    Delete existing commit lines for a given task ID and user ID
+    
+    Args:
+        user_id: ID of the user performing the delete
+        task_id: Unique identifier for the task
+        conn: Database connection
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Delete existing commit for the given task ID
+        for table in ['PreprocessorProcessedRaw', 
+                      'PreprocessorCommitLine', 
+                      'PreprocessorContractLineCount',
+                      'PreprocessorHeader',
+                      'PreprocessorWrike']:
+        
+            delete_sql = f"""
+                DELETE FROM [DM_MONTYNT\\dli2].{table}
+                WHERE TaskID = ? AND UserID = ?
+            """
+            cursor.execute(delete_sql, (task_id, user_id))
+        
+        return True, ""
+        
+    except Exception as e:
+        error_msg = f"Error deleting existing commited result for {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg

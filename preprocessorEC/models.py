@@ -21,10 +21,19 @@ _USERS = {
         'id': 'testuser',
         'username': 'testuser',
         'email': 'dli2@montefiore.org',
-        'name': 'Test User',
+        'name': 'Test Sourcing User',
         'password_hash': generate_password_hash('testuser'),  # Password: testuser -- in real we need to hash it
-        'role': 'user'
-    }
+        'role': 'sourcing'
+    },
+    # add another user for testing purpose
+    'testmdm': {
+        'id': 'testmdm',
+        'username': 'testmdm',
+        'email': 'xyzmdm@montefiore.org',
+        'name': 'Test MDM User',
+        'password_hash': generate_password_hash('testmdm'),  # Password: testmdm -- in real we need to hash it
+        'role': 'mdm'
+        }
 }
 
 class User(UserMixin):

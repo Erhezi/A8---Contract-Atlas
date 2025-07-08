@@ -9,7 +9,7 @@ class StepManager:
             {'id': 4, 'name': 'Item Master Matching', 'description': 'Match items to the existing catalog'},
             {'id': 5, 'name': 'Change Simulation', 'description': 'Preview proposed changes before applying'},
             {'id': 6, 'name': 'Export Changes', 'description': 'Export changes to target systems'},
-            {'id': 7, 'name': 'Synchronization', 'description': 'Verify synchronization with target systems'},
+            {'id': 7, 'name': 'Sync Inspection', 'description': 'Verify synchronization with target systems'},
             {'id': 8, 'name': 'Completion', 'description': 'Final verification and completion'}
         ]
     

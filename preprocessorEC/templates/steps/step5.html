@@ -395,7 +395,7 @@
     }
     
     .data-change-table .item-col {
-        min-width: 50px;
+        min-width: 60px;
         max-width: 60px;
         white-space: normal;
         word-break: break-word;
@@ -986,6 +986,35 @@
     #line-operations-container .card-body {
         padding: 0 !important;
     }
+
+    #line-operations-container .table-responsive {
+        max-height: 250px;
+        overflow-y: auto;
+    }
+
+    #line-operations-container th, #line-operations-container td {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    #line-operations-tbody td {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    /* Additional styles for committed state */
+    .committed {
+        opacity: 0.85;
+        box-shadow: none !important;
+        background-color: #5cb85c !important; 
+        border-color: #4cae4c !important;
+    }
+    
+    .committed-input {
+        border-color: #ddd !important;
+        box-shadow: none !important;
+        opacity: 0.9;
+    }
 </style>
 
 <!-- Change Simulation Content -->
@@ -1097,7 +1126,7 @@
         
         <!-- Data Change Table Section -->
         <div id="data-change-section" style="margin-top: 30px;">
-            <h5>Detailed Change Actions</h5>
+            <h4>Detailed Change Actions</h4>
             <p class="text-muted">Review specific actions that will be taken for affected contract line(s). You can prevent expiration of CCX existing line(s) by checking "Do Not Expire".</p>
             
             <!-- Action Reference Guide - Table format with 4 columns, 6 rows -->
@@ -1229,7 +1258,7 @@
                 <h5 style="font-size: 0.75rem; color: #495057;">Reference upsert record for highlighting 'Expire CCX' row, check carefully to exempt any un-wanted item expiration.</h5>
                 
                 <!-- Reference Table -->
-                <div id="reference-table-container" class="data-change-table-container" style="display: block; max-height: 180px; margin-top: 10px;">
+                <div id="reference-table-container" class="data-change-table-container" style="display: none; max-height: 180px; margin-top: 10px;">
                     <table id="reference-table" class="data-change-table">
                         <thead>
                             <tr>
@@ -1324,10 +1353,10 @@
         <!-- 2. Final Expiration Item Checks placeholder -->
         <div id="final-expiration-checks" class="card" style="width: 100%; display: none; margin-bottom: 20px;">
             <div class="card-header">
-                <h5 class="mb-0">
+                <h4 class="mb-0">
                     <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
                     Final Validation before Commit
-                </h5>
+                </h4>
             </div>
             <!-- Validation Flag Count Cards -->
             <div class="validation-flag-cards change-stats-row" style="margin: 20px 10px;">
@@ -1342,7 +1371,7 @@
                 <div class="change-stats-column">
                     <div class="change-stat-card validation-warning-card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">Warnings - will get executed</h5>
+                            <h5 class="card-title">Warnings - row action will get executed</h5>
                             <div class="stat-value" id="validation-warning-count">0</div>
                         </div>
                     </div>
@@ -1352,6 +1381,59 @@
                         <div class="card-body text-center">
                             <h5 class="card-title">Checks - unexpected issue, no execution</h5>
                             <div class="stat-value" id="validation-check-count">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Validation Flag Reference Guide -->
+            <div class="mb-3">
+                <div class="card-header" style="background-color: #f8f9fa; cursor: pointer; border: none; padding: 0px 0 0px 0; margin-top: 10px; margin-bottom: -5px;" id="validation-flag-guide-header">
+                    <h5 class="mb-0" style="color: #495057;">
+                        <i class="fas fa-info-circle text-primary mr-2"></i>
+                        Validation Flag Reference Guide
+                        <small class="text-muted float-right">Click to expand</small>
+                    </h5>
+                </div>
+                <div id="validation-flag-guide" class="collapse">
+                    <div style="padding: -15px 0 20px 0;">
+                        <table class="action-guide-table">
+                            <thead>
+                                <tr>
+                                    <th>Validation Flag</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                                <tr>
+                                    <td><span class="validation-flag-warning">WARNING</span></td>
+                                    <td>The retain/expire action can be executed but might affect our ability to buy from certain vendor using certain UOM</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="validation-flag-error">ERROR</span></td>
+                                    <td>Expire an item causes complete loss of item master item or run into packaging conflict for upsert item which the program cannot resolve</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="validation-flag-check">CHECK</span></td>
+                                    <td>Unexpected case, we will review and discuss resolution strategy</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="validation-flag-success">PASS</span></td>
+                                    <td>The retain/expire action is checked and safe to proceed</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="validation-flag-success">ACTION</span></td>
+                                    <td>Program automatically resolves data integrity issue by taking appropriate actions</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="validation-flag-success">SAFE</span></td>
+                                    <td>Execution that does not need to undergo the final validation process</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="text-center mt-3 pt-2" style="border-top: 1px solid #dee2e6; margin-bottom: 20px;">
+                            <small class="text-muted">
+                                <em>Important: Items with ERROR or CHECK flags will not be processed until issues are resolved</em>
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -1460,12 +1542,12 @@
         </div>
 
         <!-- 4. Line Operations Summary Table -->
-        <div id="line-operations-container" class="card" style="width: 100%; display: none; margin-bottom: 20px;">
+        <div id="line-operations-container" class="card" style="width: 100%; display: none; margin-bottom: 15px; margin-bottom: 20px;">
             <div class="card-header">
-                <h5 class="mb-0">
+                <h4 class="mb-0">
                     <i class="fas fa-table text-primary mr-2"></i>
                     Contract Line Count Summary
-                </h5>
+                </h4>
             </div>
             <div class="card-body" style="padding: 0.75rem;">
                 <div class="table-responsive">
@@ -1475,6 +1557,8 @@
                                 <th>Contract Number</th>
                                 <th>Total Lines (Original)</th>
                                 <th>Total Lines (Changes Applied)</th>
+                                <th>Close Entire Contract</th>
+                                <th>Count Change Direction</th>
                             </tr>
                         </thead>
                         <tbody id="line-operations-tbody">
@@ -1488,20 +1572,36 @@
             </div>
         </div>
         
-        <!-- 5. Commit and Complete Step buttons at the bottom -->
-        <div style="display: flex; justify-content: flex-end; gap: 10px;">
-            <!-- Commit Changes button -->
-            <div id="commit-changes-container" style="display: none;">
-                <button id="commit-changes-btn" class="btn btn-success">
-                    <i class="fas fa-database mr-2"></i>Commit Changes
-                </button>
+        <!-- 5. Commit, Wrike Task ID, and Complete Step buttons at the bottom -->
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 15px;">
+            <!-- Wrike Task ID and Commit Changes on the same row -->
+            <div style="display: flex; width: 100%; gap: 15px; align-items: center;">
+                <!-- Wrike Task ID input field with prepended label -->
+                <div id="wrike-task-container" style="display: none; flex: 1;">
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text" style="height: 25px;">Wrike Task ID</span>
+                        </div>
+                        <input type="text" class="form-control" id="wrike-task-id" placeholder="Enter 10-digit Wrike Task ID" 
+                            pattern="\d{10}" title="Please enter a 10-digit number" maxlength="10" style="height: 21px;">
+                    </div>
+                    <small class="form-text text-muted">Required for task tracking. You can find the number at the end of Wrike Task URL.</small>
+                </div>
+                
+                <!-- Commit Changes button -->
+                <div id="commit-changes-container" style="display: none; margin-top: -32px">
+                    <button id="commit-changes-btn" class="btn btn-success" style="height: 38px;">
+                        <i class="fas fa-database mr-2"></i>Commit Changes
+                    </button>
+                </div>
             </div>
             
-            <!-- Complete Step button -->
-            <div id="complete-step-container" style="display: none;">
+            <!-- Complete Step button - below commit and wrike task ID -->
+            <div id="complete-step-container" style="display: none; width: 100%; text-align: right;">
                 <form method="POST" action="{{ url_for('common.process_step', step_id=5) }}">
                     <input type="hidden" name="substep_completed" value="5.1">
                     <input type="hidden" name="step_completed" value="true">
+                    <input type="hidden" name="wrike_task_id" id="wrike-task-id-hidden">
                     <button type="submit" id="complete-step-btn" class="btn btn-success">Complete Step 5</button>
                 </form>
             </div>

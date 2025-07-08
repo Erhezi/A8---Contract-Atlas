@@ -788,7 +788,6 @@ document.querySelectorAll('#data-change-table th[data-sort]').forEach(th => {
 });
 
 // Function to attach event listeners for data change table
-// Added parameter to optionally remove existing listeners first
 function attachDataChangeEventListeners(removeExisting = false) {
     // Sort listeners - remove and reattach to prevent duplicates
     const sortHeaders = document.querySelectorAll('#data-change-table th[data-sort]');
@@ -1238,6 +1237,37 @@ function highlightFieldDifferences(selectedItem, referenceItem) {
     });
 }
 
+// Add validation flag guide collapsible functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const validationFlagGuideHeader = document.getElementById('validation-flag-guide-header');
+    const validationFlagGuide = document.getElementById('validation-flag-guide');
+    
+    if (validationFlagGuideHeader && validationFlagGuide) {
+        // Initialize - ensure it's collapsed by default
+        if (validationFlagGuide.classList.contains('show')) {
+            validationFlagGuide.classList.remove('show');
+        }
+        
+        validationFlagGuideHeader.addEventListener('click', function() {
+            // Toggle the collapse
+            if (validationFlagGuide.classList.contains('show')) {
+                validationFlagGuide.classList.remove('show');
+                const headerText = validationFlagGuideHeader.querySelector('small');
+                if (headerText) {
+                    headerText.textContent = 'Click to expand';
+                }
+            } else {
+                validationFlagGuide.classList.add('show');
+                const headerText = validationFlagGuideHeader.querySelector('small');
+                if (headerText) {
+                    headerText.textContent = 'Click to collapse';
+                }
+            }
+        });
+    }
+});
+
+// Function to finalize changes
 function finalizeChanges() {
     // Show loading spinner
     document.getElementById('loading-spinner').style.display = 'block';
@@ -1288,17 +1318,39 @@ function finalizeChanges() {
                 // Populate with new data
                 data.result.line_operations.forEach(item => {
                     const row = document.createElement('tr');
+
+                    // Format numbers with separators
+                    const originalCount = parseInt(item['Total Contract Line Count'] || 0).toLocaleString();
+                    const finalCount = parseInt(item['Total Contract Line Count (Change Applied)'] || 0).toLocaleString();
+
+                    // Compute 'Close Entire Contract'
+                    const closeEntireContract = parseInt(item['Total Contract Line Count (Change Applied)'] || 0) === 0
+                        ? '<strong style="color: red;">Yes</strong>'
+                        : 'No';                    
                     
-                    // Get the counts (no change calculation needed)
-                    const originalCount = parseInt(item['Total Contract Line Count'] || 0);
-                    const finalCount = parseInt(item['Total Contract Line Count (Change Applied)'] || 0);
-                    
+                        // Compute change direction based on delta with FontAwesome icons and colors
+                    const delta = parseInt(item['Delta'] || 0);
+                    let changeDirectionIcon;
+
+                    if (delta > 0) {
+                        // Up arrow for increase
+                        changeDirectionIcon = '<span style="color: green; font-weight: bold; font-size: 1rem;">▲</span>';
+                    } else if (delta < 0) {
+                        // Down arrow for decrease
+                        changeDirectionIcon = '<span style="color: red; font-weight: bold; font-size: 1rem;">▼</span>';
+                    } else {
+                        // Square for no change
+                        changeDirectionIcon = '<span style="color: orange; font-weight: bold; font-size: 1rem;">■</span>';
+                    }
+
                     row.innerHTML = `
                         <td>${item['Contract Number'] || ''}</td>
                         <td>${originalCount}</td>
                         <td>${finalCount}</td>
+                        <td>${closeEntireContract}</td>
+                        <td>${changeDirectionIcon}</td>
                     `;
-                    
+
                     lineOperationsTbody.appendChild(row);
                 });
                 
@@ -1320,11 +1372,9 @@ function finalizeChanges() {
             // All checks passed, show success message
             alert('Changes finalized successfully!');
 
-            // Show the commit button first
+            // Show both commit button and Wrike Task ID input together
             document.getElementById('commit-changes-container').style.display = 'inline-block';
-            
-            // Show the complete step button
-            document.getElementById('complete-step-container').style.display = 'inline-block';
+            document.getElementById('wrike-task-container').style.display = 'block';
             
             // Display the network graphs if available
             if (data.result.modified_graph_data && data.result.r2_graph_data) {
@@ -1579,8 +1629,12 @@ function attachValidationSortHandlers() {
             });
             this.classList.add(sortDirectionValidation === 'asc' ? 'sort-asc' : 'sort-desc');
             
-            // Re-display the table with the new sort
-            fetchValidationData();
+            // Use stored validation data instead of fetching again
+            if (window.validationData) {
+                displayValidationTable(window.validationData);
+                // Reapply any filtering that was active
+                filterValidationTable();
+            }
         });
     });
 }
@@ -1622,7 +1676,11 @@ function filterValidationTable() {
     tableRows.forEach(row => {
         let match = false;
         
-        if (searchType === 'contains' || searchType === 'not-contains') {
+        // Only apply filter if there's a search term
+        if (searchTerm.trim() === '') {
+            // Show all rows if no search term
+            match = true;
+        } else if (searchType === 'contains' || searchType === 'not-contains') {
             // Search in all cells
             const rowText = row.textContent.toLowerCase();
             match = rowText.includes(searchTerm);
@@ -1651,6 +1709,20 @@ function filterValidationTable() {
             if (itemCell) {
                 const itemText = itemCell.textContent.toLowerCase();
                 match = itemText.includes(searchTerm);
+            }
+        } else if (searchType === 'action-only') {
+            // Search in Action columns (0th, 1st, and 2nd columns)
+            const intendedActionCell = row.cells[0]; // Intended Action
+            const primaryActionCell = row.cells[1]; // Primary Action
+            const actualActionCell = row.cells[2]; // Actual Action
+            
+            if (intendedActionCell && primaryActionCell && actualActionCell) {
+                const intendedActionText = intendedActionCell.textContent.toLowerCase();
+                const primaryActionText = primaryActionCell.textContent.toLowerCase();
+                const actualActionText = actualActionCell.textContent.toLowerCase();
+                match = intendedActionText.includes(searchTerm) || 
+                       primaryActionText.includes(searchTerm) || 
+                       actualActionText.includes(searchTerm);
             }
         }
         
@@ -1758,18 +1830,21 @@ function updateValidationFlagCounts(validationData) {
 // Function to attach click handlers to validation flag cards
 function attachValidationCardClickHandlers() {
     // ERROR card
-    document.getElementById('validation-error-count').closest('.change-stat-card').addEventListener('click', function() {
+    document.querySelector('.validation-error-card').addEventListener('click', function() {
         showValidationFlagModal('ERROR', window.validationFlagData.error);
+        $('#validationFlagModal').modal('show'); 
     });
-    
+
     // WARNING card
-    document.getElementById('validation-warning-count').closest('.change-stat-card').addEventListener('click', function() {
+    document.querySelector('.validation-warning-card').addEventListener('click', function() {
         showValidationFlagModal('WARNING', window.validationFlagData.warning);
+        $('#validationFlagModal').modal('show');
     });
-    
+
     // CHECK card
-    document.getElementById('validation-check-count').closest('.change-stat-card').addEventListener('click', function() {
+    document.querySelector('.validation-check-card').addEventListener('click', function() {
         showValidationFlagModal('CHECK', window.validationFlagData.check);
+        $('#validationFlagModal').modal('show');
     });
 }
 
@@ -1801,6 +1876,7 @@ function showValidationFlagModal(flagType, data) {
             const contractPrice = item['Contract Price'] ? 
                 '$' + parseFloat(item['Contract Price']).toFixed(2) : '';
             
+                       
             // Format validation flag for display
             const validationFlag = item['Validation Flag'] || '';
             const flagParts = validationFlag.split(' - ');
@@ -1829,7 +1905,78 @@ function showValidationFlagModal(flagType, data) {
             tableBody.appendChild(row);
         });
     }
+}
+
+// Add event listener for commit changes button
+document.getElementById('commit-changes-btn').addEventListener('click', function() {
+    commitChanges();
+});
+
+// Function to commit changes to the database
+function commitChanges() {
+    // Check if Wrike Task ID is valid before proceeding
+    const wrikeTaskId = document.getElementById('wrike-task-id').value.trim();
+    const isValid = /^\d{10}$/.test(wrikeTaskId);
     
-    // Show modal
-    $('#validationFlagModal').modal('show');
+    if (!isValid) {
+        // Show alert asking for valid Wrike Task ID
+        alert('Please enter a valid 10-digit Wrike Task ID to proceed.');
+        // Focus on the Wrike Task ID input field
+        document.getElementById('wrike-task-id').focus();
+        return; // Stop execution
+    }
+    
+    // Show loading spinner
+    document.getElementById('loading-spinner').style.display = 'block';
+    
+    fetch(getApiUrl('/change-simulation/commit-changes'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            wrike_task_id: wrikeTaskId // Pass the Wrike Task ID to the backend
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide loading spinner
+        document.getElementById('loading-spinner').style.display = 'none';
+        
+        if (data.success) {
+            // Show success message
+            showAlert('success', `Changes committed successfully! Task ID: ${data.taskId}`);
+            
+            // Disable commit button and update its appearance
+            const commitButton = document.getElementById('commit-changes-btn');
+            commitButton.disabled = true;
+            commitButton.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Committed (ID: ${data.taskId})`;
+            commitButton.classList.add('committed');
+            commitButton.style.cursor = 'not-allowed';
+            
+            // Make Wrike Task ID field read-only and update its appearance
+            const wrikeInput = document.getElementById('wrike-task-id');
+            wrikeInput.readOnly = true;
+            wrikeInput.classList.add('committed-input');
+            wrikeInput.style.backgroundColor = '#e9ecef';
+            wrikeInput.style.cursor = 'not-allowed';
+            wrikeInput.style.color = '#6c757d';
+            wrikeInput.blur(); // Remove focus/cursor from the input
+            
+            // Copy Wrike Task ID to hidden field for form submission
+            document.getElementById('wrike-task-id-hidden').value = wrikeTaskId;
+            
+            // Show the Complete Step button
+            document.getElementById('complete-step-container').style.display = 'block';
+        } else {
+            // Show error message
+            showAlert('danger', 'Error committing changes: ' + data.message);
+        }
+    })
+    .catch(error => {
+        // Hide loading spinner
+        document.getElementById('loading-spinner').style.display = 'none';
+        showAlert('danger', 'Error: ' + error.message);
+        console.error('Error committing changes:', error);
+    });
 }

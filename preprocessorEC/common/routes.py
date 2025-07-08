@@ -18,8 +18,14 @@ from .session import (
     get_deduped_results, store_deduplication_results,
     get_infor_cl_matches,
     get_infor_im_matches,
-    get_uom_qoe_validation
+    get_uom_qoe_validation,
+    get_change_simulation_results
 )
+
+# Import speific db helpers
+from .db import (
+    drop_temp_table,
+    get_db_connection)
 
 # Create the blueprint
 common_bp = Blueprint('common', __name__,
@@ -263,10 +269,33 @@ def process_step(step_id):
 
         elif step_id == 5:
             # Step 5: Change Simulation completion check
-            # Add checks relevant to step 5
-            import time; time.sleep(0.1) # Simulate check
+            change_simulation = get_change_simulation_results(user_id) # Use helper
+            if not change_simulation:
+                raise ValueError("Change simulation results not available. Please run the simulation first.")
+            # check if we have commited the results (we should be able get the _task_id from session)
+            task_id = session.get('_task_id')
+            if not task_id:
+                raise ValueError("No task ID found for this task. Please re-run the pre-processor.")
+            
+            # if we reach here, meaning now the process for sourcing is all completed.
+            # we will clear out session data that are not needed anymore and we will also drop the temp_contract_table created
+            # drop temp table
+            table_to_drop = f'temp_contract_table_{user_id}'
+            try:
+                conn = get_db_connection() # Use helper
+                success_drop, drop_error_msg = drop_temp_table(table_to_drop, conn)
+                if not success_drop:
+                    raise ValueError(f"Error dropping temporary table {table_to_drop}: {drop_error_msg}")
+            except Exception as e:
+                current_app.logger.exception(f"Error dropping temporary table {table_to_drop}: {e}")
+                raise ValueError(f"Error dropping temporary table {table_to_drop}: {str(e)}")
+            # clear session data
+            for key in list(session.keys()):
+                if key not in ['_user_id', '_fresh', '_id', f'current_step_id_{user_id}', f'completed_steps_{user_id}']:
+                    session.pop(key, None)
+            
             success = True
-            flash("Step 5 completed (Placeholder).", "success")
+            flash(f"Step 5 completed. Your task ID is {task_id}", "success")
 
         elif step_id == 6:
             # Step 6: Export Changes completion check

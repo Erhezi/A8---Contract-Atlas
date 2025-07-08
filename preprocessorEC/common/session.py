@@ -84,6 +84,17 @@ def get_temp_table_name(user_id):
     key = f'temp_contract_table_{user_id}'
     return session.get(key)
 
+def store_precheck_mode(user_id, mode):
+    """Store the deduplication mode for a user."""
+    key = f'duplicate_check_mode_{user_id}'
+    session[key] = mode
+    session.modified = True
+
+def get_precheck_mode(user_id):
+    """Get the deduplication mode for a user."""
+    key = f'duplicate_check_mode_{user_id}'
+    return session.get(key)
+
 def store_contract_duplicates(user_id, contract_list):
     """Store the initial contract duplicate list for a user."""
     key = f'contract_duplicates_{user_id}'

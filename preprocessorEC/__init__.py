@@ -57,18 +57,19 @@ def create_app(config_name=None, test_config=None):
         app.logger.setLevel(logging.INFO)
         app.logger.info('Preprocessor startup')
     
-    # an additional function to log my requests
-    @app.before_request
-    def log_request_info():
-        """Log request information before each request"""
-        app.logger.info(f"Request: {request.method} {request.url}")
-        if request.method == 'POST':
-            app.logger.info(f"Form data: {request.form.to_dict()}")
-        if request.args:
-            app.logger.info(f"Query parameters: {request.args.to_dict()}")
-        app.logger.info(f'Request: {request.method} {request.path} {request.url} -> Endpoint: {request.endpoint}')
+    # # an additional function to log my requests
+    # @app.before_request
+    # def log_request_info():
+    #     """Log request information before each request"""
+    #     app.logger.info(f"Request: {request.method} {request.url}")
+    #     if request.method == 'POST':
+    #         app.logger.info(f"Form data: {request.form.to_dict()}")
+    #     if request.args:
+    #         app.logger.info(f"Query parameters: {request.args.to_dict()}")
+    #     app.logger.info(f'Request: {request.method} {request.path} {request.url} -> Endpoint: {request.endpoint}')
     
-     # Store URL prefix in config for use elsewhere
+    
+    # Store URL prefix in config for use elsewhere
     app.config['URL_PREFIX'] = url_prefix
 
     # Ensure session directory exists

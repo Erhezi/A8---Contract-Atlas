@@ -1,7 +1,8 @@
 from flask import Blueprint, session, render_template, request, jsonify, flash, current_app, redirect, url_for
 from flask_login import login_required, current_user
 from ..common.session import (get_validated_data, get_deduped_results, get_infor_cl_matches, 
-                              store_change_simulation_results, get_change_simulation_results)
+                              store_change_simulation_results, get_change_simulation_results,
+                              get_file_info, get_precheck_mode)
 from ..common.utils import (compute_changes_to_show, 
                             apply_change, 
                             change_simulation_stage1, 
@@ -14,11 +15,17 @@ from ..common.utils import (compute_changes_to_show,
                             final_commit,
                             final_errors_before_commit
                             )
-from ..common.db import get_db_connection, get_relevant_contract_line
+from ..common.db import (get_db_connection, get_relevant_contract_line, 
+                         commit_header, commit_all_changes, commit_commit_res,
+                         commit_contract_line_count, delete_existing_commit,
+                         commit_wrike)
 import os
 import json
 import pandas as pd
 import networkx as nx
+import string
+import random
+import re
 
 change_simulation_bp = Blueprint('change_simulation', __name__,
                               url_prefix='/change-simulation',
@@ -374,7 +381,6 @@ def finalize_changes():
 
          # retrieve the 'Do Not Expire' selections and plot
         df_network_r2, line_operations = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
-        print(line_operations)
         
         # Get fixed positions and generate graph JSONs
         modified_network_df = pd.DataFrame(simulation_results.get('modified_network_df', []))
@@ -384,14 +390,21 @@ def finalize_changes():
         modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=fixed_pos, show_IUD=True)
         r2_graph_json = generate_network_graph(df_network_r2, fixed_pos=fixed_pos, show_IUD=True)
 
+        # store simulation results in session
+        simulation_results['final_commit_res'] = final_commit_res.to_dict(orient='records') if not final_commit_res.empty else []
+        simulation_results['final_all_changes'] = final_all_changes_df.to_dict(orient='records') if not final_all_changes_df.empty else []
+        simulation_results['final_line_operations'] = line_operations.to_dict(orient='records') if not line_operations.empty else []
+        store_change_simulation_results(user_id, simulation_results)
+        session.modified = True
+
         return jsonify({
             'success': True,
             'message': "Changes finalized successfully.",
             'result': {
                 'modified_graph_data': modified_graph_json,
                 'r2_graph_data': r2_graph_json,
-                'final_expire_item_validated': final_expire_item_validated_df.to_dict(orient='records'),
-                'final_commit_df': final_commit_res.to_dict(orient='records'),
+                'final_expire_item_validated': final_expire_item_validated_df.to_dict(orient='records') if not final_expire_item_validated_df.empty else [],
+                'final_commit_df': final_commit_res.to_dict(orient='records') if not final_commit_res.empty else [],
                 'final_errors': final_errors.to_dict(orient='records') if not final_errors.empty else [],
                 'final_warnings': final_warnings.to_dict(orient='records') if not final_warnings.empty else [],
                 'final_checks': final_checks.to_dict(orient='records') if not final_checks.empty else [],
@@ -405,3 +418,159 @@ def finalize_changes():
             'success': False,
             'message': f"An error occurred: {str(e)}"
         }), 500
+    
+
+@change_simulation_bp.route("/commit-changes", methods=["POST"])
+@login_required
+def commit_changes():
+    """Commit finalized changes to the database"""
+    try:
+        user_id = current_user.id
+
+        # Get the Wrike Task ID from the request
+        request_data = request.get_json() or {}
+        wrike_task_id = request_data.get('wrike_task_id')
+        # Validate Wrike Task ID (10-digit number)
+        if not wrike_task_id or not re.match(r'^\d{10}$', wrike_task_id):
+            return jsonify({
+                'success': False,
+                'message': "Invalid Wrike Task ID. Please provide a valid 10-digit number."
+            }), 400
+        
+        # Generate a unique task ID (10 characters alphanumeric)
+        task_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+        
+        # Get simulation results from session
+        simulation_results = get_change_simulation_results(user_id)
+        if not simulation_results:
+            return jsonify({
+                'success': False,
+                'message': "No finalized changes found. Please finalize changes first."
+            }), 404
+            
+        # Get the original filename from session (uploaded in step 1)
+        uploaded_filename = get_file_info(user_id).get('saved_name', '')
+
+        # get precheck mode
+        precheck_mode = get_precheck_mode(user_id)
+
+        # get dedup policy
+        dedup_mode = get_deduped_results(user_id).get('policy', {})
+        if not dedup_mode or dedup_mode == {}:
+            dedup_policy = ''
+            custom_direction = ''
+            custom_field = ''
+        else:
+            dedup_policy = dedup_mode.get('type', '')
+            custom_direction = dedup_mode.get('custom_directions', '')
+            custom_field = dedup_mode.get('custom_fields', '')
+            if custom_direction == []:
+                custom_direction = ''
+            if custom_field == []:
+                custom_field = ''
+            else:
+                custom_direction = ', '.join(custom_direction)
+                custom_field = ', '.join(custom_field)
+        
+        # get simulation mode
+        simulation_mode = simulation_results.get('update_action_mode', 'new')
+
+        # debug
+        print(f"Committing changes for user {user_id} with task ID {task_id} and filename {uploaded_filename}")
+        print(f"Precheck mode: {precheck_mode}, Dedup policy: {dedup_policy}, Custom direction: {custom_direction}, Custom field: {custom_field}, Simulation mode: {simulation_mode}")
+        print(f"Wrike Task ID: {wrike_task_id}")
+
+        # Get database connection
+        conn = get_db_connection()
+        if not conn:
+            current_app.logger.error(f"Failed to get DB connection for user {user_id} during commit.")
+            return jsonify({'success': False, 'message': 'Database connection error.'}), 500
+        
+        try:
+            # delete existing commit - if exists
+            existing_task_id = session.get('_task_id', None)
+            if existing_task_id:
+                current_app.logger.info(f"Deleting existing commit for user {user_id} with task ID {existing_task_id}")
+                delete_success, delete_error_msg = delete_existing_commit(user_id, existing_task_id, conn)
+            
+            # insert task header record
+            res_header, error_msg_header = commit_header(
+                task_id,
+                user_id,
+                conn,
+                filename=uploaded_filename,
+                precheck_mode=precheck_mode,
+                dedup_policy=dedup_policy,
+                custom_direction=custom_direction,
+                custom_field=custom_field,
+                simulation_mode=simulation_mode)
+            
+            # Insert final_commit_res records
+            # it is possible this is empty and there is no changes to commit
+            final_commit_res = simulation_results.get('final_commit_res', [])
+            if final_commit_res == []:
+                res_commit_res = True
+                error_msg_commit_res = "No changes need to be made on CCX."
+            else:
+                res_commit_res, error_msg_commit_res = commit_commit_res(
+                    task_id,
+                    user_id,
+                    conn,
+                    final_commit_res = final_commit_res)
+            
+            # Insert final_all_changes records
+            final_all_changes = simulation_results.get('final_all_changes', [])
+            res_all_changes, error_msg_header = commit_all_changes(
+                task_id,
+                user_id,
+                conn,
+                final_all_changes = final_all_changes)
+            
+            # Insert final_line_operations records
+            final_line_operations = simulation_results.get('final_line_operations', [])
+            res_line_operations, error_msg_line_operations = commit_contract_line_count(
+                task_id,
+                user_id,
+                conn,
+                final_line_operations = final_line_operations)
+            
+            # Insert wrike task record
+            res_wrike, error_msg_wrike = commit_wrike(
+                task_id,
+                user_id,
+                conn,
+                wrike_task_id=wrike_task_id)
+            
+            # Commit the transaction if all operations were successful
+            if not (res_header and res_commit_res and res_all_changes and res_line_operations and res_wrike):
+                current_app.logger.error(f"Error committing changes for user {user_id}: {error_msg_header}, {error_msg_commit_res}, {error_msg_line_operations}")
+                conn.rollback()
+                return jsonify({
+                    'success': False,
+                    'message': f"Error committing changes: {error_msg_header}, {error_msg_commit_res}, {error_msg_line_operations}"
+                }), 500
+            
+            current_app.logger.info(f"Changes committed successfully for user {user_id} with task ID {task_id}")
+            conn.commit()
+
+            # store task ID in session for tracking purpose
+            session['_task_id'] = task_id
+            session.modified = True
+            
+            return jsonify({
+                'success': True,
+                'message': "Changes committed successfully.",
+                'taskId': task_id
+            })
+            
+        except Exception as e:
+            conn.rollback()
+            current_app.logger.error(f"Database error in commit_changes: {str(e)}")
+            return jsonify({'success': False, 'message': f"Database error: {str(e)}"}), 500
+        finally:
+            if conn:
+                conn.close()
+                
+    except Exception as e:
+        current_app.logger.error(f"Error in commit_changes: {str(e)}")
+        return jsonify({'success': False, 'message': f"An error occurred: {str(e)}"}), 500
