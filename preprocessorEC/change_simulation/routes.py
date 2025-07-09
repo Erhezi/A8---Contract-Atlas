@@ -35,6 +35,7 @@ change_simulation_bp = Blueprint('change_simulation', __name__,
 @login_required
 def show_changes():
     """API endpoint to show simulated changes between validated data and stacked data"""
+    conn = None  # Initialize connection variable
     try:
         user_id = current_user.id
         

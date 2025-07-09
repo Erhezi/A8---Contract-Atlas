@@ -18,7 +18,26 @@ def clear_session_data(key):
         session.pop(key)
         session.modified = True
 
-# --- User Specific Helpers ---
+# --- Step Management Helpers ---
+def store_current_step(user_id, step_id):
+    """Store the current step ID for a user in the session"""
+    current_step_key = f'current_step_id_{user_id}'
+    session[current_step_key] = step_id
+
+def get_current_step_from_session(user_id):
+    """Get the current step ID for a user from the session"""
+    current_step_key = f'current_step_id_{user_id}'
+    return session.get(current_step_key, 1)  # Default to step 1
+
+def store_completed_steps(user_id, steps):
+    """Store the completed steps for a user in the session"""
+    completed_steps_key = f'completed_steps_{user_id}'
+    session[completed_steps_key] = steps
+
+def get_completed_steps(user_id):
+    """Get the completed steps for a user from the session"""
+    completed_steps_key = f'completed_steps_{user_id}'
+    return session.get(completed_steps_key, [])  # Default to empty list
 
 # --- File Processing Data ---
 def store_file_info(user_id, info_dict):

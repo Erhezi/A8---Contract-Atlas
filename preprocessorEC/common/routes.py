@@ -66,9 +66,10 @@ def home():
 def dashboard():
     user_id = current_user.id
     # Check if we need to restart the process
-    if request.args.get('restart'):
+    if request.args.get('restart') or request.args.get('new_process'):
         store_current_step(user_id, 1) # Use helper
         store_completed_steps(user_id, []) # Use helper
+        session.modified = True
         # Optionally clear other user-specific data here
         flash('Starting a new process', 'info')
         # Redirect to remove 'restart' from URL args
@@ -289,13 +290,20 @@ def process_step(step_id):
             except Exception as e:
                 current_app.logger.exception(f"Error dropping temporary table {table_to_drop}: {e}")
                 raise ValueError(f"Error dropping temporary table {table_to_drop}: {str(e)}")
+            
             # clear session data
+            session['_commit_task_id'] = session.get('_task_id', None) # Store the latest commit task ID for reference
             for key in list(session.keys()):
-                if key not in ['_user_id', '_fresh', '_id', f'current_step_id_{user_id}', f'completed_steps_{user_id}']:
+                if key not in ['_user_id', '_fresh', '_id', 
+                               f'current_step_id_{user_id}', f'completed_steps_{user_id}',
+                               '_commit_task_id']:
                     session.pop(key, None)
             
             success = True
             flash(f"Step 5 completed. Your task ID is {task_id}", "success")
+
+            if current_user.role == 'sourcing' or current_user.role == 'admin':
+                return redirect(url_for('common.home'))
 
         elif step_id == 6:
             # Step 6: Export Changes completion check

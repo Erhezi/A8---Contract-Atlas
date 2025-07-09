@@ -1634,6 +1634,25 @@ def final_data_helper(row, group = 'keep',
                       actual_action = None,
                       quick_check = None,
                       primary_action = None):
+    
+    def get_original_mfn(row, group = group):
+        if row['Contract Number_keep'] == row['Contract Number_drop']:
+            if row['Dataset_keep'] == 'CCX':
+                return row['Mfg Part Num_keep']
+            else:
+                return row['Mfg Part Num_drop']
+        else:
+            return row['Mfg Part Num_keep'] if group == 'keep' else row['Mfg Part Num_drop']
+    
+    def get_original_uom(row, group = group):
+        if row['Contract Number_keep'] == row['Contract Number_drop']:
+            if row['Dataset_keep'] == 'CCX':
+                return row['UOM_keep']
+            else:
+                return row['UOM_drop']
+        else:
+            return row['UOM_keep'] if group == 'keep' else row['UOM_drop']
+
     if group == 'keep':
         return {
             'File Row': row['File Row'],
@@ -1652,7 +1671,9 @@ def final_data_helper(row, group = 'keep',
             'Actual Action': actual_action,
             'Quick Check': quick_check,
             'Primary Action': primary_action,
-            'Group': 'Keep'
+            'Group': 'Keep',
+            'Mfg Part Num (Original)': get_original_mfn(row, group = group),
+            'UOM (Original)': get_original_uom(row, group = group)
         }
     elif group == 'drop':
         return {
@@ -1672,7 +1693,9 @@ def final_data_helper(row, group = 'keep',
             'Actual Action': actual_action,
             'Quick Check': quick_check,
             'Primary Action': primary_action,
-            'Group': 'Drop'
+            'Group': 'Drop',
+            'Mfg Part Num (Original)': get_original_mfn(row, group = group),
+            'UOM (Original)': get_original_uom(row, group = group)
         }
     else:
         raise ValueError("Invalid group specified. Use 'keep' or 'drop'.")
@@ -1691,6 +1714,7 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     
     df_m['Intended Action'] = df_m['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
     
+
     # for df_m matched lines that marked as intention as 'Upsert'
     primary_action = []
     actual_action = []
@@ -1782,7 +1806,7 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index=False) #debug
 
     data_change_df1 = pd.DataFrame(final_data)
-
+    
     data_change_df1.loc[:, 'Intended Action'] = data_change_df1['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
     # if update_row has value then we need to solve potential conflict
     if len(update_rows) > 0:
@@ -1806,6 +1830,8 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     net_new_df['Quick Check'] = net_new_df['Intended Action'].apply(lambda x: 'x' if x == 'Upsert' else 'xx')  # No quick check for new items
     net_new_df['Primary Action'] = net_new_df['Intended Action'].apply(lambda x: 'Create' if x == 'Upsert' else 'Mute TP')  # New items are created
     net_new_df['Group'] = 'Keep'  # New items are considered as 'Keep'
+    net_new_df['Mfg Part Num (Original)'] = net_new_df['Mfg Part Num']
+    net_new_df['UOM (Original)'] = net_new_df['UOM']
     data_change_df2 = net_new_df[list(data_change_df1.columns)].copy()
 
     # combine the two dataframes

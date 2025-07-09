@@ -1,17 +1,72 @@
+<style>
+    /* Ensure input groups render correctly - copied from step5.html */
+    .input-group {
+        display: flex;
+        flex-wrap: nowrap;
+    }
+    
+    .input-group-prepend {
+        display: flex;
+    }
+    
+    .input-group-text {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin-bottom: 0;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        text-align: center;
+        white-space: nowrap;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem 0 0 0.25rem;
+    }
+    
+    /* Add matching form-text styling */
+    .form-text {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    /* Add button styling for consistency */
+    .btn-primary {
+        background-color: #3498db;
+        border-color: #3498db;
+    }
+    
+    .btn-primary:hover {
+        background-color: #2980b9;
+        border-color: #2980b9;
+    }
+</style>
+
 <!-- Export Changes Content -->
 <div class="step-content">
-    <p>Export the approved changes.</p>
+    <p>Export the changes to be uploaded to CCX.</p>
+    
     <div class="export-options">
         <form method="POST" action="{{ url_for('common.process_step', step_id=6) }}">
-            <div class="form-group">
-                <label>Export Format</label>
-                <select class="form-control" name="export_format">
+            <!-- Use consistent prepended input group style -->
+            <div class="input-group mb-3">
+                <div class="input-group-prepend">
+                    <span class="input-group-text">Export Format</span>
+                </div>
+                <select class="form-control" name="export_format" id="export_format">
+                    <option value="excel" selected>Excel</option>
                     <option value="csv">CSV</option>
-                    <option value="excel">Excel</option>
-                    <option value="json">JSON</option>
                 </select>
             </div>
-            <button type="submit" class="btn btn-primary">Export Now</button>
+            
+            <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
+                Select the export format and click "Export Preview" to generate the file.
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Export Preview</button>
         </form>
     </div>
 </div>
+
+<!-- Add JavaScript for step6 -->
+<script src="{{ url_for('static', filename='js/step6.js') }}"></script>

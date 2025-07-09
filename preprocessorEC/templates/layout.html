@@ -285,6 +285,32 @@
                 max-width: 50%;
             }
         }
+
+        .user-info .home-link {
+            margin-left: 15px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 5px 12px;
+        }
+        
+        .user-info .home-link:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            text-decoration: none;
+        }
+        
+        /* Ensure alignment on smaller screens */
+        @media (max-width: 768px) {
+            .user-info {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+            
+            .user-info span,
+            .user-info a {
+                margin-bottom: 5px;
+            }
+        }
     </style>
     {% block extra_styles %}{% endblock %}
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
@@ -301,7 +327,9 @@
 </head>
 <body>
     <div class="header">
-        <h1 class="logo">Contract Atlas</h1>
+        <div class="header-left">
+            <h1 class="logo">Contract Atlas</h1>
+        </div>
         <div class="user-info">
             {% if current_user.is_authenticated %}
                 <span>Welcome, {{ current_user.username }}</span>
@@ -310,6 +338,10 @@
                 <a href="{{ url_for('auth.login') }}">Login</a>
                 <a href="{{ url_for('auth.register') }}">Register</a>
             {% endif %}
+            <!-- Added home link here, after login/logout -->
+            <a href="{{ url_for('common.home') }}" class="nav-link home-link">
+                <i class="fas fa-home"></i> Home
+            </a>
         </div>
     </div>
     

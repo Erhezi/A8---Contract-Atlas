@@ -105,6 +105,7 @@ def create_app(config_name=None, test_config=None):
     from .duplicate_detection.routes import duplicate_bp
     from .item_matching.routes import item_matching_bp
     from .change_simulation.routes import change_simulation_bp
+    from .data_export.routes import data_export_bp
 
     #add url prefix
     url_prefix = app.config.get('URL_PREFIX', '')
@@ -116,6 +117,7 @@ def create_app(config_name=None, test_config=None):
     app.register_blueprint(duplicate_bp, url_prefix=f'{url_prefix}/duplicate-detection')
     app.register_blueprint(item_matching_bp, url_prefix=f'{url_prefix}/item-matching')
     app.register_blueprint(change_simulation_bp, url_prefix=f'{url_prefix}/change-simulation')
+    app.register_blueprint(data_export_bp, url_prefix=f'{url_prefix}/data-export')
 
     # Initialize model management
     # Initialize app config with model status

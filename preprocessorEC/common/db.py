@@ -869,7 +869,7 @@ def commit_commit_res(task_id, user_id, conn, final_commit_res=None):
             expiration_date = record.get('Expiration Date', '1900-12-31')
             erp_vendor_id = str(record.get('ERP Vendor ID', ''))
             primary_action = str(record.get('Primary Action', ''))
-            actual_action = str(record.get('Actual Action2', ''))
+            actual_action = str(record.get('Actual Action', ''))
             intended_action = str(record.get('Intended Action', ''))
             group = str(record.get('Group', ''))
             item = str(record.get('Item', ''))
@@ -1020,3 +1020,126 @@ def delete_existing_commit(user_id, task_id, conn):
         error_msg = f"Error deleting existing commited result for {task_id}: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
+    
+
+def get_task_history(conn, user_id = None, user_role = None):
+    """
+    Get task history for the user
+    
+    Args:
+        conn: Database connection
+        user_role: Role of the user (optional)
+        user_id: ID of the user (optional)
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Build the query based on user role
+        if user_role == 'admin' or user_role == 'mdm':
+            query = """
+                SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
+                       CustomDirection, CustomFields, SimulationMode,
+                       Status, CompletedBy,
+                       h.CreateDT, h.UpdateDT
+                FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
+                LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
+                ON h.TaskID = w.TaskID
+                WHERE Status <> 'Deleted'
+                ORDER BY UpdateDT DESC, createDT DESC, WrikeID
+            """
+        else:
+            query = """
+                SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
+                       CustomDirection, CustomFields, SimulationMode,
+                       Status, CompletedBy,
+                       h.CreateDT, h.UpdateDT
+                FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
+                LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
+                ON h.TaskID = w.TaskID
+                where h.UserID = ? AND
+                Status <> 'Deleted'
+                ORDER BY UpdateDT DESC, createDT DESC, WrikeID
+            """
+        
+        # Execute the query
+        if user_role == 'admin' or user_role == 'mdm':
+            cursor.execute(query)
+        else:
+            cursor.execute(query, (user_id,))
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error getting task history: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
+
+
+def data_export_preview(conn, user_id = None, user_role = None):
+    """
+    Get data export preview for the user
+    
+    Args:
+        conn: Database connection
+        user_role: Role of the user (optional)
+        user_id: ID of the user (optional)
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Build the query based on user role
+        if user_role == 'admin' or user_role == 'mdm':
+            query = """
+                SELECT TaskID, UserID, TPFileName, PreCheckMode, DedupMode,
+                       CustomDirection, CustomFields, SimulationMode,
+                       Status, CompletedBy,
+                       CreateDT, UpdateDT
+                FROM [DM_MONTYNT\\dli2].PreprocessorHeader
+                WHERE Status <> 'Deleted'
+                ORDER BY UpdateDT DESC, createDT DESC
+            """
+        else:
+            query = """
+                SELECT TaskID, UserID, TPFileName, PreCheckMode, DedupMode,
+                       CustomDirection, CustomFields, SimulationMode,
+                       Status, CompletedBy,
+                       CreateDT, UpdateDT
+                FROM [DM_MONTYNT\\dli2].PreprocessorHeader
+                WHERE UserID = ? AND Status <> 'Deleted'
+                ORDER BY UpdateDT DESC, createDT DESC
+            """
+        
+        # Execute the query
+        if user_role == 'admin' or user_role == 'mdm':
+            cursor.execute(query)
+        else:
+            cursor.execute(query, (user_id,))
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error getting data export preview: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
