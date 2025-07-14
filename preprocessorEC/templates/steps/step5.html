@@ -8,15 +8,30 @@
         display: none;
     }
     
-    .loader {
+    #loading-spinner {
         display: none;
+    }
+    
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255,255,255,0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+    
+    .spinner {
+        width: 50px;
+        height: 50px;
         border: 5px solid #f3f3f3;
         border-top: 5px solid #3498db;
         border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        animation: spin 2s linear infinite;
-        margin: 20px auto;
+        animation: spin 1s linear infinite;
     }
     
     @keyframes spin {
@@ -1047,7 +1062,6 @@
     </div>
     
     <button id="view-changes-btn" class="btn btn-primary">View Changes</button>
-    <div class="loader" id="loading-spinner"></div>
 
     <div id="results-container" class="mb-4">    
         
@@ -1606,6 +1620,11 @@
                 </form>
             </div>
         </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
     </div>
 </div>
 

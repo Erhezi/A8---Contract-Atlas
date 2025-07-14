@@ -61,7 +61,7 @@ document.addEventListener('click', function(event) {
 
 document.getElementById('view-changes-btn').addEventListener('click', function() {
     // Show loading spinner
-    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('loading-spinner').style.display = 'flex';
     document.getElementById('results-container').style.display = 'none';
     
     // Get the selected change mode (renamed to update_action_mode)
@@ -958,7 +958,7 @@ function filterDataChangeTable() {
 // Function to save expire selections
 function saveExpireSelections() {
     // Show loading spinner
-    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('loading-spinner').style.display = 'flex';
     
     // First, update checkboxStates with current DOM checkbox states
     document.querySelectorAll('#data-change-tbody .expire-checkbox').forEach(checkbox => {
@@ -1276,7 +1276,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Function to finalize changes
 function finalizeChanges() {
     // Show loading spinner
-    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('loading-spinner').style.display = 'flex';
 
     // Show the final expiration checks placeholder
     document.getElementById('final-expiration-checks').style.display = 'block';
@@ -1648,7 +1648,7 @@ function attachValidationSortHandlers() {
 //Function to fetch validation data for sorting
 function fetchValidationData() {
     const loadingSpinner = document.getElementById('loading-spinner');
-    if (loadingSpinner) loadingSpinner.style.display = 'block';
+    if (loadingSpinner) loadingSpinner.style.display = 'flex';
     
     // Re-fetch from server or use cached data
     fetch(getApiUrl('/change-simulation/finalize-changes'), {
@@ -1933,7 +1933,7 @@ function commitChanges() {
     }
     
     // Show loading spinner
-    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('loading-spinner').style.display = 'flex';
     
     fetch(getApiUrl('/change-simulation/commit-changes'), {
         method: 'POST',

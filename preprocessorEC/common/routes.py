@@ -281,10 +281,11 @@ def process_step(step_id):
             # if we reach here, meaning now the process for sourcing is all completed.
             # we will clear out session data that are not needed anymore and we will also drop the temp_contract_table created
             # drop temp table
-            table_to_drop = f'temp_contract_table_{user_id}'
+            table_to_drop = f'temp_contract_{user_id}'
             try:
                 conn = get_db_connection() # Use helper
                 success_drop, drop_error_msg = drop_temp_table(table_to_drop, conn)
+                print("temp table drop: ", table_to_drop)
                 if not success_drop:
                     raise ValueError(f"Error dropping temporary table {table_to_drop}: {drop_error_msg}")
             except Exception as e:

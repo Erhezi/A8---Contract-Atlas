@@ -246,7 +246,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // New functions for deduplication
     function applyResolution() {
         // Show loading indicator
-        showSpinner('Applying deduplication policy...');
+        showSpinner();
         
         // Get form data
         const formData = new FormData(resolutionForm);
@@ -567,7 +567,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function saveKeepSelections() {
-        showSpinner('Saving selections...');
+        showSpinner();
         
         const currentPolicy = document.getElementById('resolution_strategy').value;
         console.log('Sending policy:', currentPolicy);
@@ -774,7 +774,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function completeStep() {
-        showSpinner('Completing step 3...');
+        showSpinner();
         
         fetch(getApiUrl('/duplicate-detection/complete-step3'), {
             method: 'POST'
@@ -801,44 +801,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Utility functions
-    function showSpinner(message) {
-        const existingSpinner = document.getElementById('loading-spinner');
-        if (existingSpinner) {
-            existingSpinner.remove();
+    function showSpinner() {
+        // Use the existing spinner element instead of creating a new one
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) {
+            // Show the spinner
+            spinner.style.display = 'flex';
         }
-        
-        const spinner = document.createElement('div');
-        spinner.id = 'loading-spinner';
-        spinner.className = 'loading-overlay';
-        spinner.style.position = 'fixed';
-        spinner.style.top = '0';
-        spinner.style.left = '0';
-        spinner.style.width = '100%';
-        spinner.style.height = '100%';
-        spinner.style.backgroundColor = 'rgba(0,0,0,0.4)';
-        spinner.style.zIndex = '1000';
-        spinner.style.display = 'flex';
-        spinner.style.justifyContent = 'center';
-        spinner.style.alignItems = 'center';
-        
-        // Create a simpler spinner without text
-        const spinnerElement = document.createElement('div');
-        spinnerElement.className = 'spinner-border text-primary';
-        spinnerElement.style.width = '3rem';
-        spinnerElement.style.height = '3rem';
-        spinnerElement.style.borderWidth = '0.25rem';
-        spinnerElement.setAttribute('role', 'status');
-        
-        // Add spinner directly to the overlay
-        spinner.appendChild(spinnerElement);
-        
-        document.body.appendChild(spinner);
     }
-    
+
     function hideSpinner() {
         const spinner = document.getElementById('loading-spinner');
         if (spinner) {
-            spinner.remove();
+            spinner.style.display = 'none';
         }
     }
     

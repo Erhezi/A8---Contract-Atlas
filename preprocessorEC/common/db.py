@@ -709,7 +709,8 @@ def commit_header(task_id,
                   dedup_policy = None,
                   custom_direction = None,
                   custom_field = None,
-                  simulation_mode = None):
+                  simulation_mode = None,
+                  with_error = 'No'):
     """
     Commit a new task header to the database
     
@@ -730,13 +731,13 @@ def commit_header(task_id,
             INSERT INTO [DM_MONTYNT\\dli2].PreprocessorHeader
             (TaskID, UserID, TPFileName, PreCheckMode,
             DedupMode, CustomDirection, CustomFields,
-            SimulationMode,
+            SimulationMode, WithError,
             CreateDT, UpdateDT)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
         """
         cursor.execute(insert_sql, (task_id, user_id, filename, precheck_mode,
                                     dedup_policy, custom_direction, custom_field,
-                                    simulation_mode))
+                                    simulation_mode, with_error))
         
         return True, ""
         
@@ -1086,9 +1087,10 @@ def get_task_history(conn, user_id = None, user_role = None):
         return False, error_msg, None
 
 
-def data_export_preview(conn, user_id = None, user_role = None):
+
+def get_data_export_line(conn, user_id = None, user_role = None):
     """
-    Get data export preview for the user
+    Get data export line for the user
     
     Args:
         conn: Database connection
@@ -1104,23 +1106,14 @@ def data_export_preview(conn, user_id = None, user_role = None):
         # Build the query based on user role
         if user_role == 'admin' or user_role == 'mdm':
             query = """
-                SELECT TaskID, UserID, TPFileName, PreCheckMode, DedupMode,
-                       CustomDirection, CustomFields, SimulationMode,
-                       Status, CompletedBy,
-                       CreateDT, UpdateDT
-                FROM [DM_MONTYNT\\dli2].PreprocessorHeader
-                WHERE Status <> 'Deleted'
-                ORDER BY UpdateDT DESC, createDT DESC
+                SELECT *
+                FROM [DM_MONTYNT\\dli2].[vw_PreprocessorExportFinal]
             """
         else:
             query = """
-                SELECT TaskID, UserID, TPFileName, PreCheckMode, DedupMode,
-                       CustomDirection, CustomFields, SimulationMode,
-                       Status, CompletedBy,
-                       CreateDT, UpdateDT
-                FROM [DM_MONTYNT\\dli2].PreprocessorHeader
-                WHERE UserID = ? AND Status <> 'Deleted'
-                ORDER BY UpdateDT DESC, createDT DESC
+                SELECT *
+                FROM [DM_MONTYNT\\dli2].[vw_PreprocessorExportFinal]
+                WHERE UserID = ?
             """
         
         # Execute the query
@@ -1140,6 +1133,6 @@ def data_export_preview(conn, user_id = None, user_role = None):
         return True, "", results
         
     except Exception as e:
-        error_msg = f"Error getting data export preview: {str(e)}"
+        error_msg = f"Error getting data export line: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg, None

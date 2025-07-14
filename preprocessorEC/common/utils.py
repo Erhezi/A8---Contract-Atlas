@@ -1806,7 +1806,7 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index=False) #debug
 
     data_change_df1 = pd.DataFrame(final_data)
-    
+
     data_change_df1.loc[:, 'Intended Action'] = data_change_df1['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
     # if update_row has value then we need to solve potential conflict
     if len(update_rows) > 0:
@@ -2412,13 +2412,23 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
     if 'Quick Check' in changes_to_show_df.columns:
         changes_to_show_df['Quick Check'] = changes_to_show_df['Quick Check'].astype(str).str.strip()
     
-    expire_ccx_items = changes_to_show_df[
-        (changes_to_show_df['Primary Action'] == 'Expire CCX')
-    ].copy()
+    expire_ccx_items = changes_to_show_df[(changes_to_show_df['Primary Action'] == 'Expire CCX')].copy()
     
     if expire_ccx_items.empty:
-        final_changes_to_commit = changes_to_show_df[changes_to_show_df['Actual Action'] != 'Update (Existing)'].copy()
-        return pd.DataFrame(), final_changes_to_commit
+        dummy_final_validation_df = pd.DataFrame(columns=[
+            'File Row', 'Dataset', 'Contract Number', 'Mfg Part Num', 'Vendor Part Num', 
+            'Description', 'UOM', 'QOE', 'ERP Vendor ID', 'Do Not Expire', 'Quick Check', 
+            'Item Number', 'Reference Item Number', 'Intended Action', 'Validation Flag', 
+            'Final Row Action'
+        ])
+        dummy_more_changes_to_append_df = pd.DataFrame(columns=[
+            'File Row', 'Dataset', 'Contract Number', 'Mfg Part Num', 'Vendor Part Num',  'Buyer Part Num',
+            'Description', 'UOM', 'QOE', 'Effective Date', 'Expiration Date', 'ERP Vendor ID', 
+            'Actual Action', 'Quick Check', 'Primary Action', 'Group', 'Intended Action',
+            'Expiration Date (before action)', 'Effective Date (before action)', 'Item', 'Item_fr',
+            'Do Not Expire', 'Mfg Part Num (Original)', 'UOM (Original)'
+        ])
+        return dummy_final_validation_df, dummy_more_changes_to_append_df, pd.DataFrame()
     
     # if we have things to check, join ccx_expire to reference
 
@@ -2510,7 +2520,7 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
                 # 6: QOE
                 # 7: Effective Date
                 # 8: Expiration Date
-                # 9: ERP Vendor ID
+                # 9: ERP Vendor ID  - this when use quick_check, is only looking at the first 7 digits, so we ignore BXXXX portion
                 
                 # since we already know they are same item, then we jsut need to check for vendor and qoe to determine if they are good or not
                 # same VID + VendorItem should have the same MFN, UOM, QOE
@@ -2628,11 +2638,11 @@ def compute_dataset_changes_df(data_change_show_df):
 def final_errors_before_commit(final_validation_df):
     if final_validation_df.empty:
         return {
-                'final_validation_errors': pd.DataFrame(),
-                'final_validation_warnings': pd.DataFrame(),
-                'final_validation_passes': pd.DataFrame(),
-                'final_validation_actions': pd.DataFrame(),
-                'final_validation_checks': pd.DataFrame()
+                'final_validation_errors': final_validation_df,
+                'final_validation_warnings': final_validation_df,
+                'final_validation_passes': final_validation_df,
+                'final_validation_actions': final_validation_df,
+                'final_validation_checks': final_validation_df,
                 }
     
     final_validation_errors = final_validation_df[final_validation_df['Validation Flag'].str.startswith('ERROR')].copy()
@@ -2654,6 +2664,10 @@ def final_commit(all_changes_df,
                  more_changes_to_append_df,
                  final_validation_df):
     """ Finalize the changes to be committed to the database."""
+    # return if no changes
+    if all_changes_df.empty:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
     # remove the do not expire == True items from all_changes_df and changes_to_show_df
     # make sure we only have value as True or False
     if 'Do Not Expire' in all_changes_df.columns:
@@ -2687,7 +2701,7 @@ def final_commit(all_changes_df,
     else:
         x_changes_to_show_df['UOM (Original)'] = x_changes_to_show_df['UOM (Original)'].fillna(x_changes_to_show_df['UOM'])
 
-    
+
     join_key = ['File Row', 'Dataset', 'Contract Number', 'ERP Vendor ID', 'Mfg Part Num', 'QOE']
     xx_all_changes_df = x_all_changes_df.merge(final_validation_df[join_key + ['Validation Flag', 'Final Row Action']],
                                                on = join_key,

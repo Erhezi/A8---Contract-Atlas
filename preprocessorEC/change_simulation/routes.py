@@ -214,7 +214,7 @@ def show_changes():
                 'reference_for_expire_rows': reference_for_expire_rows.to_dict(orient='records') if not reference_for_expire_rows.empty else [],
                 'line_count_before_after': line_count_before_after.to_dict(orient='records') if not line_count_before_after.empty else [],
                 'ccx_create': ccx_create.to_dict(orient='records') if not ccx_create.empty else [],
-                'ccx_update': ccx_update.to_dict(orient='records') if not ccx_create.empty else [],
+                'ccx_update': ccx_update.to_dict(orient='records') if not ccx_update.empty else [],
                 'ccx_expire': ccx_expire.to_dict(orient='records') if not ccx_expire.empty else [],
                 'tp_create': tp_create.to_dict(orient='records') if not tp_create.empty else [],
                 'tp_mute': tp_mute.to_dict(orient='records') if not tp_mute.empty else [],
@@ -369,7 +369,8 @@ def finalize_changes():
         final_expire_item_validated_df, more_changes_to_append_df, item_related_action_df = final_expire_item_validation(changes_to_show_df, 
                                                                                                  reference_for_expire_rows_df, 
                                                                                                  update_action_mode=simulation_results.get('update_action_mode', 'new'))
-        
+
+
         final_commit_res, final_changes_to_show_df, final_all_changes_df = final_commit(all_changes_df,
                                                                                         changes_to_show_df,
                                                                                         more_changes_to_append_df,
@@ -476,6 +477,18 @@ def commit_changes():
         # get simulation mode
         simulation_mode = simulation_results.get('update_action_mode', 'new')
 
+        # check if we have any error lines (error + check) before commit
+        # those lines will not get executed in subsequent steps
+        with_error = 'No'
+        if len(simulation_results.get('final_errors', [])) > 0 or len(simulation_results.get('final_checks', [])) > 0:
+            with_error = 'Yes'
+            current_app.logger.warning(f"User {user_id} has errors or checks before commit. Changes will not be applied.")
+            return jsonify({
+                'success': False,
+                'message': "There are errors or checks that need to be resolved before committing changes.",
+                'with_error': with_error
+            }), 400
+
         # debug
         print(f"Committing changes for user {user_id} with task ID {task_id} and filename {uploaded_filename}")
         print(f"Precheck mode: {precheck_mode}, Dedup policy: {dedup_policy}, Custom direction: {custom_direction}, Custom field: {custom_field}, Simulation mode: {simulation_mode}")
@@ -504,7 +517,8 @@ def commit_changes():
                 dedup_policy=dedup_policy,
                 custom_direction=custom_direction,
                 custom_field=custom_field,
-                simulation_mode=simulation_mode)
+                simulation_mode=simulation_mode,
+                with_error = with_error)
             
             # Insert final_commit_res records
             # it is possible this is empty and there is no changes to commit
