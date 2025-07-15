@@ -2,13 +2,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Cache DOM elements
     const previewBtn = document.getElementById('preview-btn');
     const dataPreview = document.getElementById('data-preview');
-    const exportAllBtn = document.getElementById('export-all-btn'); // Single export button
+    const exportAllBtn = document.getElementById('export-all-btn');
     const loadingSpinner = document.getElementById('loading-spinner');
     const skipGpoCheckbox = document.getElementById('skip_gpo');
     const exportFormatSelect = document.getElementById('export_format');
     const contractFilterSelect = document.getElementById('contract-filter');
     const exportResults = document.getElementById('export-results');
     const fileLinksContainer = document.getElementById('file-links-container');
+
+    const itemLinkPreview = document.getElementById('item-link-preview');
+    const contractToClosePreview = document.getElementById('contract-to-close-preview');
 
     // Store data after preview
     let exportData = null;
@@ -62,23 +65,39 @@ document.addEventListener('DOMContentLoaded', function() {
                         dataPreview.style.display = 'block';
                     }
 
+                    // show the item and contract to close previews
+                    if (itemLinkPreview) {
+                        itemLinkPreview.style.display = 'block';
+                    }
+
+                    if (contractToClosePreview) {
+                        contractToClosePreview.style.display = 'block';
+                    }
+
                     // Show the export button
                     if (exportAllBtn) {
                         exportAllBtn.style.display = 'block';
                     }
-
-                    // Show the preview section
-                    dataPreview.style.display = 'block';
 
                     // Update batch table
                     updateBatchTable(data.batch_data || []);
 
                     // Update single contract table
                     updateSingleTable(data.single_data || []);
+                    
+                    // Update item link table (new)
+                    updateItemLinkTable(data.item_link_data || []);
+                    
+                    // Update contract to close table (new)
+                    updateContractToCloseTable(data.contract_to_close_data || []);
 
                     // Enable export button if there's data
-                    if (exportAllBtn && ((data.batch_data && data.batch_data.length > 0) || 
-                                         (data.single_data && data.single_data.length > 0))) {
+                    if (exportAllBtn && (
+                        (data.batch_data && data.batch_data.length > 0) || 
+                        (data.single_data && data.single_data.length > 0) ||
+                        (data.item_link_data && data.item_link_data.length > 0) ||
+                        (data.contract_to_close_data && data.contract_to_close_data.length > 0)
+                    )) {
                         exportAllBtn.disabled = false;
                     } else {
                         exportAllBtn.disabled = true;
@@ -236,6 +255,43 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Add this function to your step6.js file
+    function filterTableByContract(contractNumber) {
+        const singleTable = document.getElementById('single-table');
+        if (!singleTable) return;
+        
+        const rows = singleTable.querySelectorAll('tbody tr');
+        
+        // If "all" is selected, show all rows
+        if (contractNumber === 'all') {
+            rows.forEach(row => {
+                row.style.display = '';
+            });
+            return;
+        }
+        
+        // Otherwise, filter rows based on the selected contract
+        rows.forEach(row => {
+            // First column contains the contract number
+            const contractCell = row.querySelector('td:first-child');
+            if (contractCell) {
+                const rowContractNumber = contractCell.textContent || '';
+                if (rowContractNumber === contractNumber) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+        
+        // Update the count badge to show filtered count
+        const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+        const singleCount = document.getElementById('single-count');
+        if (singleCount) {
+            singleCount.textContent = `${visibleRows.length} records`;
+        }
+    }
+
     // Function to update single contract table with data
     function updateSingleTable(singleData) {
         const singleTable = document.getElementById('single-table');
@@ -330,6 +386,128 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Enable the dropdown
                 contractFilterSelect.disabled = false;
             }
+        }
+    }
+
+    // Function to update item link table
+    function updateItemLinkTable(itemLinkData) {
+        const itemLinkTable = document.getElementById('item-link-table');
+        const itemLinkCount = document.getElementById('item-link-count');
+        const itemLinkNoData = document.getElementById('item-link-no-data');
+
+        if (!itemLinkTable || !itemLinkCount) {
+            console.error('Item link table elements not found');
+            return;
+        }
+
+        const tbody = itemLinkTable.querySelector('tbody');
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        // Update count badge
+        itemLinkCount.textContent = `${itemLinkData.length} records`;
+
+        if (itemLinkData.length === 0) {
+            // Show no data message
+            if (itemLinkNoData) itemLinkNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="14" class="no-data-message">No item link records available</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message
+            if (itemLinkNoData) itemLinkNoData.style.display = 'none';
+
+            // Populate table with data
+            itemLinkData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // Check for conditions that require red highlighting
+                const hasError = 
+                    (record['Inconsistent Mfg Part Num'] === 'Inconsistent') || 
+                    (record['Invalid Buy UOM'] === 'Invalid') || 
+                    (record['Invalid Item'] === 'Invalid');
+                
+                // Check for condition that requires yellow highlighting
+                const isManualLink = record['Item Master Auto Link'] === 'Manual';
+                
+                // Apply appropriate class (prioritize red over yellow)
+                if (hasError) {
+                    row.classList.add('item-error'); // Red highlighting
+                } else if (isManualLink) {
+                    row.classList.add('manual-link'); // Yellow highlighting
+                }
+                
+                // Add the row HTML
+                row.innerHTML = `
+                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
+                    <td title="${escapeHtml(record['Vendor'] || '')}">${escapeHtml(record['Vendor'] || '')}</td>
+                    <td title="${escapeHtml(record['VendorItem'] || '')}">${escapeHtml(record['VendorItem'] || '')}</td>
+                    <td title="${escapeHtml(record['UOM'] || '')}">${escapeHtml(record['UOM'] || '')}</td>
+                    <td title="${record['QOE'] || ''}">${record['QOE'] || ''}</td>
+                    <td class="description-col" title="${escapeHtml(record['Description'] || '')}">${escapeHtml(record['Description'] || '')}</td>
+                    <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Item'] || '')}">${escapeHtml(record['Item'] || '')}</td>
+                    <td title="${escapeHtml(record['Item Master Auto Link'] || '')}">${escapeHtml(record['Item Master Auto Link'] || '')}</td>
+                    <td title="${escapeHtml(record['Infor Mfg Part Num'] || '')}">${escapeHtml(record['Infor Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}">${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Invalid Buy UOM'] || '')}">${escapeHtml(record['Invalid Buy UOM'] || '')}</td>
+                    <td title="${escapeHtml(record['Invalid Item'] || '')}">${escapeHtml(record['Invalid Item'] || '')}</td>
+                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    }
+
+    // Function to update contract to close table
+    function updateContractToCloseTable(contractToCloseData) {
+        const contractToCloseTable = document.getElementById('contract-to-close-table');
+        const contractToCloseCount = document.getElementById('contract-to-close-count');
+        const contractToCloseNoData = document.getElementById('contract-to-close-no-data');
+
+        if (!contractToCloseTable || !contractToCloseCount) {
+            console.error('Contract to close table elements not found');
+            return;
+        }
+
+        const tbody = contractToCloseTable.querySelector('tbody');
+
+        // Clear existing rows
+        tbody.innerHTML = '';
+
+        // Update count badge
+        contractToCloseCount.textContent = `${contractToCloseData.length} records`;
+
+        if (contractToCloseData.length === 0) {
+            // Show no data message
+            if (contractToCloseNoData) contractToCloseNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="6" class="no-data-message">No contracts to close available</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message
+            if (contractToCloseNoData) contractToCloseNoData.style.display = 'none';
+
+            // Populate table with data
+            contractToCloseData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // Add the row HTML
+                row.innerHTML = `
+                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
+                    <td title="${record['Total Lines (Original)'] || '0'}">${record['Total Lines (Original)'] || '0'}</td>
+                    <td title="${record['Total Lines (Change Applied)'] || '0'}">${record['Total Lines (Change Applied)'] || '0'}</td>
+                    <td title="${record['Total Lines Expired'] || '0'}">${record['Total Lines Expired'] || '0'}</td>
+                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
+                    <td title="${escapeHtml(record['UserID'] || '')}">${escapeHtml(record['UserID'] || '')}</td>
+                `;
+                tbody.appendChild(row);
+            });
         }
     }
 

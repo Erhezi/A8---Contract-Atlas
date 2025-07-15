@@ -196,12 +196,13 @@
         padding: 0.75rem 1.25rem;
         display: flex !important;
         justify-content: flex-end !important;
+        margin-right: 0;
     }
 
     /* Add some spacing if needed */
     #export-all-btn {
         margin-left: auto;
-        margin-top: -20px;
+        margin-top: 20px;
     }
 
     .input-group {
@@ -289,6 +290,25 @@
         display: flex;
         align-items: center;
         margin-bottom: 5px;
+    }
+
+    .item-error {
+        background-color: #f8d7da !important;
+    }
+
+    .manual-link {
+        background-color: #fff3cd !important;
+    }
+
+    /* Ensure these classes override Bootstrap's striping */
+    .table-striped tbody tr.item-error:nth-of-type(odd),
+    .table-striped tbody tr.item-error:nth-of-type(even) {
+        background-color: #f8d7da !important;
+    }
+
+    .table-striped tbody tr.manual-link:nth-of-type(odd),
+    .table-striped tbody tr.manual-link:nth-of-type(even) {
+        background-color: #fff3cd !important;
     }
 
 </style>
@@ -436,6 +456,84 @@
             </div>
             <div class="card-footer bg-light"></div>
         </div>
+    </div>
+
+    <!-- Item Link Preview -->
+    <div class="card mb-4" id="item-link-preview" style="display: none;">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Item Link Preview</h5>
+            <span class="badge badge-light" id="item-link-count">0 records</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="preview-table-container">
+                <table class="table table-striped table-bordered preview-table" id="item-link-table">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Contract Number</th>
+                            <th>Vendor</th>
+                            <th>VendorItem</th>
+                            <th>UOM</th>
+                            <th>QOE</th>
+                            <th>Description</th>
+                            <th>Mfg Part Num</th>
+                            <th>Item</th>
+                            <th>Item Master Auto Link</th>
+                            <th>Infor Mfg Part Num</th>
+                            <th>Inconsistent Mfg Part Num</th>
+                            <th>Invalid Buy UOM</th>
+                            <th>Invalid Item</th>
+                            <th>TaskID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="no-data-row">
+                            <td colspan="14" class="no-data-message">Click "Preview Export Data" to load records</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="item-link-no-data" class="no-data-message" style="display: none;">
+                No item link records available
+            </div>
+        </div>
+        <div class="highlight-explanation">
+            <div><span class="highlight-key red"></span> Red: Item with data issues - Inconsistent manufacturer part numbers, invalid UOM, or invalid item</div>
+    <div><span class="highlight-key yellow"></span> Yellow: Manual item master link required</div>
+        </div>
+        <div class="card-footer bg-light"></div>
+    </div>
+
+    <!-- Contract to Close Preview -->
+    <div class="card mb-4" id="contract-to-close-preview" style="display: none;">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Contract to Close Preview</h5>
+            <span class="badge badge-light" id="contract-to-close-count">0 records</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="preview-table-container">
+                <table class="table table-striped table-bordered preview-table" id="contract-to-close-table">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Contract Number</th>
+                            <th>Total Lines (Original)</th>
+                            <th>Total Lines (Change Applied)</th>
+                            <th>Total Lines Expired</th>
+                            <th>TaskID</th>
+                            <th>UserID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="no-data-row">
+                            <td colspan="6" class="no-data-message">Click "Preview Export Data" to load records</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="contract-to-close-no-data" class="no-data-message" style="display: none;">
+                No contracts to close available
+            </div>
+        </div>
+        <div class="card-footer bg-light"></div>
     </div>
 
     <!-- Export Button Card - New container -->
