@@ -2097,13 +2097,14 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
 
     return df_cross_new, ccx_line_count_cal, tp_line_count_cal, line_count_before_after
 
-def compute_changes_to_show(data_change_show_df, merged_df):
+def compute_changes_to_show(data_change_show_df, merged_df, analyzed_df):
     """
     Compute changes to show in the UI based on the data change DataFrame and analyzed DataFrame.
     
     Args:
         data_change_show_df: DataFrame with changes to show from change simulation
-        merged_df: DataFrame contains finalized item matching results to infor
+        merged_df: DataFrame contains finalized item matching results to infor using infor contract line
+        analyzed_df: DataFrame contains all items match to infor item master
     
     Returns:
         changes_simulation_result_df: DataFrame with changes to show in the UI
@@ -2116,8 +2117,11 @@ def compute_changes_to_show(data_change_show_df, merged_df):
     im_df.rename(columns = {'File_Row': 'File Row',
                             'item_number_infor': 'Item',
                             'contract_number_infor': 'Contract Number'}, inplace = True)
-    im_df = im_df.drop_duplicates(subset=['File Row', 'Contract Number'])
-    im_fr_mapping = dict(zip(im_df['File Row'], im_df['Item']))
+
+    im_fr_df = analyzed_df[analyzed_df['False Positive'] == False].copy()
+    # only take the first one if we see multiple (this usually should not happen)
+    im_fr_df = im_fr_df[['File Row', 'Item']].drop_duplicates(subset = ['File Row'], keep = 'first').copy()
+    im_fr_mapping = dict(zip(im_fr_df['File Row'], im_fr_df['Item']))
 
     if im_df.empty:
         base_im_df = base_df.copy()
@@ -2342,17 +2346,18 @@ def safe_to_retain_row_helper(row):
         'ERP Vendor ID': row['ERP Vendor ID_expck'],
         'Actual Action': 'No Change',  # should all be no change
         'Quick Check': row['Quick Check_expck'],  # will think about this
-        'Primary Action': 'Update',  # should all be update
+        'Primary Action': 'Update',  # should all be No Change for actual action, so primary action is Update
         'Group': 'Keep2',  # should all be keep2
-        'Intended Action': row['Intended Action_expck'],  # should all be Upsert
+        'Intended Action': row['Intended Action_expck'],
         'Expiration Date (before action)': row['Expiration Date (before action)_expck'],
         'Effective Date (before action)': row['Effective Date (before action)_expck'],
         'Item': row['Item_expck'],
         'Item_fr': row['Item_fr_expck'],
-        'Do Not Expire': False,  # the do not expire flag will be gone
+        'Do Not Expire': False,  # the do not expire flag will be gone in this new good data
         'Mfg Part Num (Original)': row['Mfg Part Num_expck'],
         'UOM (Original)': row['UOM_expck'],
     }
+    
 
 def safe_to_expire_action_row_helper(row):
     """
@@ -2682,6 +2687,7 @@ def final_commit(all_changes_df,
     x_all_changes_df = pd.concat([all_changes_df, more_changes_to_append_df], ignore_index=True)
     x_changes_to_show_df = pd.concat([changes_to_show_df, more_changes_to_append_df], ignore_index=True)
 
+
     # fill na for the column Mfg Part Num (Original) and UOM (Origianl)
     if 'Mfg Part Num (Original)' not in x_all_changes_df.columns:
         x_all_changes_df['Mfg Part Num (Original)'] = x_all_changes_df['Mfg Part Num']
@@ -2718,6 +2724,18 @@ def final_commit(all_changes_df,
     final_changes_to_show_df = xx_changes_to_show_df[(xx_changes_to_show_df['Do Not Expire'] == False) |
                                                 ((xx_changes_to_show_df['Do Not Expire'] == True) & 
                                                     (xx_changes_to_show_df['Final Row Action'] == 'Pending'))].copy()
+
+    # take care of intended action == 'Expire'
+    tp_set_to_adjust = \
+    set(xx_all_changes_df[(xx_all_changes_df['Intended Action'] == 'Expire') & 
+                      (xx_all_changes_df['Group'] == 'Keep2') &
+                      (xx_all_changes_df['Actual Action'] == 'No Change') &
+                      (xx_all_changes_df['Final Row Action'] == 'Execute')]['File Row'])
+    final_all_changes_df.loc[:, 'Actual Action'] = final_all_changes_df.apply(lambda x: 'No Change'
+                                                                        if (x['File Row'] in tp_set_to_adjust and 
+                                                                            x['Intended Action'] == 'Expire' and
+                                                                            x['Dataset'] == 'TP' and
+                                                                            x['Actual Action'] == 'Merged') else x['Actual Action'], axis=1)
 
     # fill nan so it will not cause issue during JSON serialization
     final_all_changes_df['Validation Flag'] = final_all_changes_df['Validation Flag'].fillna('SAFE - no further validation needed')
@@ -2763,6 +2781,8 @@ def final_commit(all_changes_df,
 def change_simulation_stage4(final_all_changes_df, contract_line_count_df):
     """ try a different method
     the final changes we would want to apply"""
+
+    # changes will only be taken into consideration if the Final Row Action is Executed
     final_all_changes_df.loc[:, 'Actual Action2'] = final_all_changes_df.apply(lambda x: x['Actual Action'] 
                                                                                if x['Final File Row Action'] == 'Execute'
                                                                                else 'No Change', axis=1)

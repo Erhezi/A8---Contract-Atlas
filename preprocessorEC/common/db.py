@@ -1136,3 +1136,149 @@ def get_data_export_line(conn, user_id = None, user_role = None):
         error_msg = f"Error getting data export line: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg, None
+
+def get_im_link_line(conn, user_id = None, user_role = None):
+    """
+    Get item master link line for the user
+    
+    Args:
+        conn: Database connection
+        user_role: Role of the user (optional)
+        user_id: ID of the user (optional)
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Build the query based on user role
+        if user_role == 'admin' or user_role == 'mdm':
+            query = """
+                SELECT *
+                FROM [DM_MONTYNT\\dli2].[vw_PreprocessorItemToLink]
+            """
+        else:
+            query = """
+                SELECT *
+                FROM [DM_MONTYNT\\dli2].[vw_PreprocessorItemToLink]
+                WHERE UserID = ?
+            """
+        
+        # Execute the query
+        if user_role == 'admin' or user_role == 'mdm':
+            cursor.execute(query)
+        else:
+            cursor.execute(query, (user_id,))
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error getting item master link line: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
+    
+
+def get_contract_to_close(conn, user_id = None, user_role = None):
+    """
+    Get contract lines to close for the user
+    
+    Args:
+        conn: Database connection
+        user_role: Role of the user (optional)
+        user_id: ID of the user (optional)
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Build the query based on user role
+        if user_role == 'admin' or user_role == 'mdm':
+            query = """
+                select *
+                from [DM_MONTYNT\\dli2].vw_PreprocessorCloseContract
+            """
+        else:
+            query = """
+                select lc.*
+                from [DM_MONTYNT\\dli2].vw_PreprocessorCloseContract
+            """
+        
+        # Execute the query
+        # note this is the place we alllow sourcing to view other's work
+        # if user A thinks they are trying to update something but find out here that
+        # after consolidation the contract will get expired, then user may need to
+        # get into touch with other user to try to resolve the issue
+        if user_role == 'admin' or user_role == 'mdm':
+            cursor.execute(query)
+        else:
+            cursor.execute(query)
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error getting contract to close: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
+    
+def data_persistence_after_export(conn, user_id = None, user_role = None):
+    """
+    Get data persistence after export for the user
+    
+    Args:
+        conn: Database connection
+        user_role: Role of the user (optional)
+        user_id: ID of the user (optional)
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        # Ensure only 'mdm' or 'admin' roles can call this function
+        if user_role not in ['mdm', 'admin']:
+            error_msg = "Unauthorized access: Only 'mdm' or 'admin' roles can call this function."
+            current_app.logger.error(error_msg)
+            return False, error_msg, None
+        
+        cursor = conn.cursor()
+        
+        # Stored procedure call with @ExportedBy parameter
+        query = """
+            EXEC [DM_MONTYNT\dli2].[sp_ExportPreprocessorData] @ExportedBy = ?
+        """
+        
+        # Execute the query
+        cursor.execute(query, (user_id,))
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error getting data persistence after export: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None

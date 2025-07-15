@@ -1,33 +1,41 @@
 document.addEventListener('DOMContentLoaded', function() {
-    
     // Cache DOM elements
     const previewBtn = document.getElementById('preview-btn');
     const dataPreview = document.getElementById('data-preview');
-    const exportResults = document.getElementById('export-results');
+    const exportAllBtn = document.getElementById('export-all-btn'); // Single export button
     const loadingSpinner = document.getElementById('loading-spinner');
-    const exportBatchBtn = document.getElementById('export-batch-btn');
-    const exportSingleBtn = document.getElementById('export-single-btn');
     const skipGpoCheckbox = document.getElementById('skip_gpo');
     const exportFormatSelect = document.getElementById('export_format');
-    
+    const contractFilterSelect = document.getElementById('contract-filter');
+    const exportResults = document.getElementById('export-results');
+    const fileLinksContainer = document.getElementById('file-links-container');
+
     // Store data after preview
     let exportData = null;
-    
+
+    // If contract filter exists, add event listener
+    if (contractFilterSelect) {
+        contractFilterSelect.addEventListener('change', function() {
+            const selectedContract = this.value;
+            filterTableByContract(selectedContract);
+        });
+    }
+
     // Preview data function
     if (previewBtn) {
         previewBtn.addEventListener('click', function() {
             console.log('Preview button clicked');
-            
+
             if (loadingSpinner) {
                 loadingSpinner.style.display = 'flex';
             }
-            
+
             // Prepare data for the request
             const requestData = {
                 skip_gpo: skipGpoCheckbox.checked,
                 export_format: exportFormatSelect.value
             };
-            
+
             // Fetch data preview
             fetch(getApiUrl('/data-export/preview-data'), {
                 method: 'POST',
@@ -43,29 +51,39 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(data => {
                 loadingSpinner.style.display = 'none';
-                
+
                 if (data.success) {
                     // Store the data for export later
                     exportData = data;
-                    
+
+                    // Show the preview section
+                    const dataPreview = document.getElementById('data-preview');
+                    if (dataPreview) {
+                        dataPreview.style.display = 'block';
+                    }
+
+                    // Show the export button
+                    if (exportAllBtn) {
+                        exportAllBtn.style.display = 'block';
+                    }
+
                     // Show the preview section
                     dataPreview.style.display = 'block';
-                    
+
                     // Update batch table
                     updateBatchTable(data.batch_data || []);
-                    
+
                     // Update single contract table
                     updateSingleTable(data.single_data || []);
-                    
-                    // Enable export buttons if there's data and user has permission
-                    if (exportBatchBtn && data.batch_data && data.batch_data.length > 0) {
-                        exportBatchBtn.disabled = false;
+
+                    // Enable export button if there's data
+                    if (exportAllBtn && ((data.batch_data && data.batch_data.length > 0) || 
+                                         (data.single_data && data.single_data.length > 0))) {
+                        exportAllBtn.disabled = false;
+                    } else {
+                        exportAllBtn.disabled = true;
                     }
-                    
-                    if (exportSingleBtn && data.single_data && data.single_data.length > 0) {
-                        exportSingleBtn.disabled = false;
-                    }
-                    
+
                     // Scroll to the preview section
                     dataPreview.scrollIntoView({ behavior: 'smooth' });
                 } else {
@@ -79,42 +97,119 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
-    // Export batch data function is fine, no changes needed
-    // Export single contract data function is fine, no changes needed
-    
+
+    // Export all data function
+    if (exportAllBtn) {
+        exportAllBtn.addEventListener('click', function() {
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'flex';
+            }
+
+            // Prepare data for the request
+            const requestData = {
+                skip_gpo: skipGpoCheckbox.checked,
+                export_format: exportFormatSelect.value,
+                export_type: 'all' // Export all types at once
+            };
+
+            // Send export request
+            fetch(getApiUrl('/data-export/export-data'), {
+                method: 'POST',
+                body: JSON.stringify(requestData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingSpinner.style.display = 'none';
+
+                if (data.success) {
+                    // Show export results section
+                    exportResults.style.display = 'block';
+
+                    // Clear previous file links
+                    fileLinksContainer.innerHTML = '';
+
+                    // Add link to the ZIP file
+                    if (data.zipFile) {
+                        const zipLinkHtml = `
+                            <div class="file-link">
+                                <a href="${data.zipFile.url}" download class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-file-archive"></i> ${data.zipFile.name}
+                                </a>
+                                <span class="ml-2 text-muted">${data.zipFile.description || 'All export files'}</span>
+                            </div>
+                        `;
+                        fileLinksContainer.innerHTML += zipLinkHtml;
+                    }
+
+                    // Scroll to the results section
+                    exportResults.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    alert('Export failed: ' + data.message);
+                }
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                console.error('Error:', error);
+                alert('An error occurred during export. Please try again.');
+            });
+        });
+    }
+
     // Function to update batch table with data
     function updateBatchTable(batchData) {
         const batchTable = document.getElementById('batch-table');
         const batchCount = document.getElementById('batch-count');
         const batchNoData = document.getElementById('batch-no-data');
-        
+
         if (!batchTable || !batchCount) {
             console.error('Batch table elements not found');
             return;
         }
-        
+
         const tbody = batchTable.querySelector('tbody');
-        
+
         // Clear existing rows
         tbody.innerHTML = '';
-        
+
         // Update count badge
         batchCount.textContent = `${batchData.length} records`;
-        
+
         if (batchData.length === 0) {
             // Show no data message
             if (batchNoData) batchNoData.style.display = 'block';
-            const noDataRow = document.createElement('tr');
-            noDataRow.className = 'no-data-row';
-            noDataRow.innerHTML = '<td colspan="16" class="no-data-message">No batch upload records available</td>';
-            tbody.appendChild(noDataRow);
+
+            const explanationDiv = document.querySelector('.card-body .highlight-explanation');
+            if (explanationDiv) {
+                explanationDiv.style.display = 'none';
+            }
         } else {
             // Hide no data message and populate table
             if (batchNoData) batchNoData.style.display = 'none';
-            
+
             batchData.forEach(record => {
                 const row = document.createElement('tr');
+
+                // Check for date conflicts
+                const hasDateConflict = 
+                    (record['Final Date L Check'] && record['Final Date L Check'] !== 'pass') || 
+                    (record['Final Date H Check'] && record['Final Date H Check'] !== 'pass');
+
+                // Check for missing vendor part with additional condition
+                const missingVendorPart = !record['Vendor Part Num'] && 
+                    ['Create', 'Expire then Create (Create)', 'Update (New)'].includes(record['Actual Action']);
+
+                // Apply appropriate class (prioritize date conflict over missing vendor part)
+                if (hasDateConflict) {
+                    row.classList.add('date-conflict');
+                } else if (missingVendorPart) {
+                    row.classList.add('missing-vendor-part');
+                }
+
+                // Add the row HTML
                 row.innerHTML = `
                     <td title="${escapeHtml(record.Organization || '')}">${escapeHtml(record.Organization || '')}</td>
                     <td title="${escapeHtml(record.Vendor || '')}">${escapeHtml(record.Vendor || '')}</td>
@@ -122,7 +217,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
                     <td title="${escapeHtml(record['Contract Description'] || '')}">${escapeHtml(record['Contract Description'] || '')}</td>
                     <td title="${escapeHtml(record['Tier Level'] || '')}">${escapeHtml(record['Tier Level'] || '')}</td>
+                    <td title="${escapeHtml(record['Tier Description'] || '')}">${escapeHtml(record['Tier Description'] || '')}</td>
                     <td title="${escapeHtml(record['Source Type'] || '')}">${escapeHtml(record['Source Type'] || '')}</td>
+                    <td title="${formatDate(record['Start Date'])}">${formatDate(record['Start Date'])}</td>
+                    <td title="${formatDate(record['End Date'])}">${formatDate(record['End Date'])}</td>
                     <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
                     <td title="${escapeHtml(record['Vendor Part Num'] || '')}">${escapeHtml(record['Vendor Part Num'] || '')}</td>
                     <td title="${escapeHtml(record['Buyer Part Num'] || '')}">${escapeHtml(record['Buyer Part Num'] || '')}</td>
@@ -137,39 +235,65 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-    
+
     // Function to update single contract table with data
     function updateSingleTable(singleData) {
         const singleTable = document.getElementById('single-table');
         const singleCount = document.getElementById('single-count');
         const singleNoData = document.getElementById('single-no-data');
-        
+        const contractFilterSelect = document.getElementById('contract-filter');
+
         if (!singleTable || !singleCount) {
             console.error('Single table elements not found');
             return;
         }
-        
+
         const tbody = singleTable.querySelector('tbody');
-        
+
         // Clear existing rows
         tbody.innerHTML = '';
-        
+
         // Update count badge
         singleCount.textContent = `${singleData.length} records`;
-        
+
         if (singleData.length === 0) {
             // Show no data message
             if (singleNoData) singleNoData.style.display = 'block';
-            const noDataRow = document.createElement('tr');
-            noDataRow.className = 'no-data-row';
-            noDataRow.innerHTML = '<td colspan="10" class="no-data-message">No single contract records available</td>';
-            tbody.appendChild(noDataRow);
+
+            // Disable and clear contract filter
+            if (contractFilterSelect) {
+                contractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+                contractFilterSelect.disabled = true;
+            }
+
+            const explanationDiv = document.querySelector('.card-body .highlight-explanation');
+            if (explanationDiv) {
+                explanationDiv.style.display = 'none';
+            }
         } else {
-            // Hide no data message and populate table
+            // Hide no data message
             if (singleNoData) singleNoData.style.display = 'none';
-            
+
+            // Populate table with data
             singleData.forEach(record => {
                 const row = document.createElement('tr');
+
+                // Check for date conflicts (if present in single contract data)
+                const hasDateConflict = 
+                    (record['Final Date L Check'] && record['Final Date L Check'] !== 'pass') || 
+                    (record['Final Date H Check'] && record['Final Date H Check'] !== 'pass');
+
+                // Check for missing vendor part with additional condition
+                const missingVendorPart = !record['Vendor Part Num'] && 
+                    ['Create', 'Expire then Create (Create)', 'Update (New)'].includes(record['Actual Action']);
+
+                // Apply appropriate class
+                if (hasDateConflict) {
+                    row.classList.add('date-conflict');
+                } else if (missingVendorPart) {
+                    row.classList.add('missing-vendor-part');
+                }
+
                 row.innerHTML = `
                     <td title="${escapeHtml(record['Contract Number (PrP)'] || '')}">${escapeHtml(record['Contract Number (PrP)'] || '')}</td>
                     <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
@@ -184,11 +308,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 tbody.appendChild(row);
             });
+
+            // Populate contract filter dropdown
+            if (contractFilterSelect) {
+                // Get unique contract numbers
+                const uniqueContracts = [...new Set(singleData.map(record => record['Contract Number (PrP)']))];
+
+                // Clear previous options except "All Contracts"
+                contractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+
+                // Add each contract as an option
+                uniqueContracts.forEach(contract => {
+                    if (contract) { // Skip empty values
+                        const option = document.createElement('option');
+                        option.value = contract;
+                        option.textContent = contract;
+                        contractFilterSelect.appendChild(option);
+                    }
+                });
+
+                // Enable the dropdown
+                contractFilterSelect.disabled = false;
+            }
         }
     }
-    
-    // Function to perform the actual export - no changes needed
-    
+
     // Helper function to escape HTML
     function escapeHtml(str) {
         if (!str) return '';
@@ -199,7 +343,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
-    
+
     // Helper function to format dates
     function formatDate(dateStr) {
         if (!dateStr) return '';

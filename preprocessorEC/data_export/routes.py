@@ -3,7 +3,12 @@ from flask_login import login_required, current_user
 import os
 import pandas as pd
 from datetime import datetime
-from ..common.db import get_db_connection, get_task_history, get_data_export_line
+from ..common.db import (get_db_connection, 
+                         get_task_history, 
+                         get_data_export_line, 
+                         get_im_link_line, 
+                         get_contract_to_close,
+                         data_persistence_after_export)
 from ..common.session import store_current_step, store_completed_steps
 
 data_export_bp = Blueprint('data_export', __name__,
@@ -134,49 +139,105 @@ def preview_data():
                                                          user_id=user_id, 
                                                          user_role=user_role)
         
-        if not success or not export_data:
+        if not success:
             return jsonify({
                 'success': False,
                 'message': f'Failed to retrieve export data: {msg}'
             }), 500
         
+        # get lines need to be linked to item master item
+        success, msg, im_data = get_im_link_line(conn,
+                                                    user_id=user_id, 
+                                                    user_role=user_role)
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to retrieve item master link data: {msg}'
+            }), 500
+        
+        # get contract to be closed
+        success, msg, contract_data = get_contract_to_close(conn,
+                                                            user_id=user_id, 
+                                                            user_role=user_role)
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to retrieve contract data: {msg}'
+            }), 500
+        
         # Convert to DataFrame
         df = pd.DataFrame(export_data)
-        # consolidate by select the final rank = 1
-        df = df[df['Final Rank'] == 1].copy()
-        
-        # Process the data
-        batch_df = df[df['Export Group'] == 'Batch Upload'].copy()
-        single_df = df[df['Export Group'] == 'Single Contract'].copy()
+        item_link_df = pd.DataFrame(im_data)
+        contract_to_close_df = pd.DataFrame(contract_data)
 
+        if not df.empty:
+            # consolidate by select the final rank = 1
+            df = df[df['Final Rank'] == 1].copy()
+            # sort df so data with issues (date conflicts, missing vendor parts) are at the top
+            df.sort_values(by=['Final L Date Check', 'Final H Date Check', 'Vendor Part Num'], 
+                        ascending=[True, True, True], inplace=True)
         
-        # Handle batch data
-        batch_data = []
-        if not batch_df.empty:
-            # Split GPO records
-            gpo_batch = batch_df[batch_df['Source Type'].str.startswith('GPO', na=False)]
-            other_batch = batch_df[~batch_df['Source Type'].str.startswith('GPO', na=False)]
+            # Process the data
+            batch_df = df[df['Export Group'] == 'Batch Upload'].copy()
+            single_df = df[df['Export Group'] == 'Single Contract'].copy()
+
             
-            # Handle GPO records based on skip_gpo option
-            if skip_gpo:
-                # Only include non-GPO records
-                batch_data = other_batch.to_dict('records')
-                gpo_data = gpo_batch.to_dict('records')
-            else:
-                # Include all records
-                batch_data = batch_df.to_dict('records')
-                gpo_data = []
+            # Handle batch data
+            batch_data = []
+            if not batch_df.empty:
+                # Split GPO records
+                gpo_batch = batch_df[batch_df['Source Type'].str.startswith('GPO', na=False)]
+                other_batch = batch_df[~batch_df['Source Type'].str.startswith('GPO', na=False)]
+                
+                # Handle GPO records based on skip_gpo option
+                if skip_gpo:
+                    # Only include non-GPO records
+                    batch_data = other_batch.to_dict('records')
+                    gpo_data = gpo_batch.to_dict('records')
+                else:
+                    # Include all records
+                    batch_data = batch_df.to_dict('records')
+                    gpo_data = []
+            
+            # Handle single contract data
+            single_data = []
+            if not single_df.empty:
+                single_data = single_df.to_dict('records')
         
-        # Handle single contract data
-        single_data = []
-        if not single_df.empty:
-            single_data = single_df.to_dict('records')
+        else:
+            batch_data = []
+            single_data = []
+            gpo_data = []
+
+        # handle item master link data
+        item_link_data = []
+        if not item_link_df.empty:
+            item_link_df.loc[:, 'Item Master Auto Link'] = item_link_df['Active Vendor Item'].apply(lambda x: 'Manual' if pd.isnull(x) else 'Auto')
+            item_link_df.loc[:, 'Inconsistent Mfg Part Num'] = item_link_df.apply(lambda x: 'Consistent' 
+                                                                                  if x['Infor Mfg Part Num'] == x['Mfg Part Num'] 
+                                                                                  else 'Inconsistent', axis=1)
+            item_link_df.loc[:, 'Invalid Buy UOM'] = item_link_df['Valid Buy UOM'].apply(lambda x: 'Invalid' if pd.isnull(x) else 'valid')
+            item_link_data = item_link_df.to_dict('records')
+        
+        # handle contract to close data
+        contract_to_close_data = []
+        if not contract_to_close_df.empty:
+            contract_to_close_df.columns = ['Contract Number',
+                                            'Total Lines (Original)',
+                                            'Total Lines (Change Applied)',
+                                            'Total Lines Expired',
+                                            'TaskID',
+                                            'UserID']
+            item_link_data = contract_to_close_df.to_dict('records')
         
         return jsonify({
             'success': True,
             'batch_data': batch_data,
             'single_data': single_data,
-            'gpo_data': gpo_data if skip_gpo and 'gpo_data' in locals() else []
+            'gpo_data': gpo_data if skip_gpo and 'gpo_data' in locals() else [],
+            'item_link_data': item_link_data,
+            'contract_to_close_data': contract_to_close_data
         })
     
     except Exception as e:

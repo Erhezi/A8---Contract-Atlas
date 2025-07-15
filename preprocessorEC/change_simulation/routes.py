@@ -2,7 +2,7 @@ from flask import Blueprint, session, render_template, request, jsonify, flash, 
 from flask_login import login_required, current_user
 from ..common.session import (get_validated_data, get_deduped_results, get_infor_cl_matches, 
                               store_change_simulation_results, get_change_simulation_results,
-                              get_file_info, get_precheck_mode)
+                              get_file_info, get_precheck_mode, get_uom_qoe_validation)
 from ..common.utils import (compute_changes_to_show, 
                             apply_change, 
                             change_simulation_stage1, 
@@ -90,7 +90,12 @@ def show_changes():
         # this can be empty if there nothing to be validated (no item master matching found for items)
         merged_data = get_infor_cl_matches(user_id).get("merged_df", [])
         if not merged_data or merged_data == []:
-            flash("No Item Master Item seems to attach to these screened items.", "info")
+            flash("No Item Master Item seems to attach to these screened items using infor contract.", "info")
+
+         # analyzed_df from step4 for all file rows with matched item numbers
+        analyzed_data = get_uom_qoe_validation(user_id).get('analyzed_df', [])
+        if not analyzed_data or analyzed_data == []:
+            flash("No Item Master Item seems to attach to these screened items", "info")
         
         # Convert data to DataFrames
         validated_df = pd.DataFrame(validated_data)
@@ -98,6 +103,8 @@ def show_changes():
         stacked_df = pd.DataFrame(stacked_data)
         # items from step4 when matching to infor contract line with item numbers
         merged_df = pd.DataFrame(merged_data)
+        # items from step4 match to item master
+        analyzed_df = pd.DataFrame(analyzed_data)
 
         
         # multiple stages to process the change simulation
@@ -184,7 +191,7 @@ def show_changes():
         original_graph_json = generate_network_graph(origianl_network_df, fixed_pos=master_pos, show_IUD=False)
         modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=master_pos, show_IUD=True)
         
-        changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, merged_df)
+        changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, merged_df, analyzed_df)
 
         # retrun the dataframes to the frontend for display for each change stats card
         ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged = compute_dataset_changes_df(data_change_show_df)
