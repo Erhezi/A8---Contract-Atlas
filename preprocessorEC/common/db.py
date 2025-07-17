@@ -420,6 +420,7 @@ def match_to_infor_contract_lines(temp_table, conn):
                         cl.Manufacturer = mf.Manufacturer
                     WHERE 
                         [Contract.ContractStatus] = 'Active'
+                        AND [Contract.OnHold] = 'No'
                         AND ContractLineState = 'Active'
                         AND OnHold = 'No'
                         AND ActiveLine = 'Yes'
@@ -1210,7 +1211,7 @@ def get_contract_to_close(conn, user_id = None, user_role = None):
             """
         else:
             query = """
-                select lc.*
+                select *
                 from [DM_MONTYNT\\dli2].vw_PreprocessorCloseContract
             """
         

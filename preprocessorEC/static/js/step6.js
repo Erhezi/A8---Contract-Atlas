@@ -1,20 +1,26 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Cache DOM elements
     const previewBtn = document.getElementById('preview-btn');
-    const dataPreview = document.getElementById('data-preview');
     const exportAllBtn = document.getElementById('export-all-btn');
     const loadingSpinner = document.getElementById('loading-spinner');
     const skipGpoCheckbox = document.getElementById('skip_gpo');
     const exportFormatSelect = document.getElementById('export_format');
+    const batchContractFilterSelect = document.getElementById('batch-contract-filter');
     const contractFilterSelect = document.getElementById('contract-filter');
     const exportResults = document.getElementById('export-results');
     const fileLinksContainer = document.getElementById('file-links-container');
-
     const itemLinkPreview = document.getElementById('item-link-preview');
     const contractToClosePreview = document.getElementById('contract-to-close-preview');
 
-    // Store data after preview
-    let exportData = null;
+    // If batch contract filter exists, add event listener
+    if (batchContractFilterSelect) {
+        batchContractFilterSelect.addEventListener('change', function() {
+            const selectedContract = this.value;
+            filterBatchTableByContract(selectedContract);
+        });
+    }
+
+    console.log('batchContractFilterSelect:', batchContractFilterSelect);
 
     // If contract filter exists, add event listener
     if (contractFilterSelect) {
@@ -56,13 +62,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadingSpinner.style.display = 'none';
 
                 if (data.success) {
-                    // Store the data for export later
-                    exportData = data;
 
                     // Show the preview section
                     const dataPreview = document.getElementById('data-preview');
                     if (dataPreview) {
                         dataPreview.style.display = 'block';
+                    }
+
+                    // Show the horizontal line
+                    const horizontalLine = document.getElementById('horizontal-line');
+                    if (horizontalLine) {
+                        horizontalLine.style.display = 'block';
                     }
 
                     // show the item and contract to close previews
@@ -99,7 +109,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         (data.contract_to_close_data && data.contract_to_close_data.length > 0)
                     )) {
                         exportAllBtn.disabled = false;
-                    } else {
+                    } else if (exportAllBtn) {
                         exportAllBtn.disabled = true;
                     }
 
@@ -178,6 +188,43 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // function to do filter batch table by contract number
+    function filterBatchTableByContract(contractNumber) {
+        const batchTable = document.getElementById('batch-table');
+        if (!batchTable) return;
+        
+        const rows = batchTable.querySelectorAll('tbody tr');
+        
+        // If "all" is selected, show all rows
+        if (contractNumber === 'all') {
+            rows.forEach(row => {
+                row.style.display = '';
+            });
+            return;
+        }
+        
+        // Otherwise, filter rows based on the selected contract
+        rows.forEach(row => {
+            // Contract number is in the fourth column
+            const contractCell = row.querySelector('td:nth-child(4)');
+            if (contractCell) {
+                const rowContractNumber = contractCell.textContent || '';
+                if (rowContractNumber === contractNumber) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+        
+        // Update the count badge to show filtered count
+        const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+        const batchCount = document.getElementById('batch-count');
+        if (batchCount) {
+            batchCount.textContent = `${visibleRows.length} records`;
+        }
+    }
+
     // Function to update batch table with data
     function updateBatchTable(batchData) {
         const batchTable = document.getElementById('batch-table');
@@ -200,6 +247,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (batchData.length === 0) {
             // Show no data message
             if (batchNoData) batchNoData.style.display = 'block';
+
+            // Disable and clear batch contract filter
+            if (batchContractFilterSelect) {
+                batchContractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+                batchContractFilterSelect.disabled = true;
+            }
 
             const explanationDiv = document.querySelector('.card-body .highlight-explanation');
             if (explanationDiv) {
@@ -252,10 +305,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 tbody.appendChild(row);
             });
+
+            // Populate batch contract filter dropdown
+            if (batchContractFilterSelect) {
+                // Get unique contract numbers
+                const uniqueContracts = [...new Set(batchData.map(record => record['Contract Number']))];
+
+                // Clear previous options except "All Contracts"
+                batchContractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+
+                // Add each contract as an option
+                uniqueContracts.forEach(contract => {
+                    if (contract) { // Skip empty values
+                        const option = document.createElement('option');
+                        option.value = contract;
+                        option.textContent = contract;
+                        batchContractFilterSelect.appendChild(option);
+                    }
+                });
+
+                // Enable the dropdown
+                batchContractFilterSelect.disabled = false;
+            }
         }
     }
 
-    // Add this function to your step6.js file
+    // filter by contract number for better user experience
     function filterTableByContract(contractNumber) {
         const singleTable = document.getElementById('single-table');
         if (!singleTable) return;

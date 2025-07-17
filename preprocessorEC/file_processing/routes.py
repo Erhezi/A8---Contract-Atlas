@@ -51,7 +51,9 @@ def upload_file():
         
         # Secure filename and save
         filename = secure_filename(file.filename)
-        saved_name = f"{int(time.time())}_{filename}"
+        filename_no_extension = filename.rsplit('.', 1)[0]  # Remove extension for saving
+        filename_extension = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        saved_name = f"{filename_no_extension}_{int(time.time())}.{filename_extension}"  # Append timestamp to avoid conflicts
         file_path = os.path.join(upload_dir, saved_name)
         file.save(file_path)
         

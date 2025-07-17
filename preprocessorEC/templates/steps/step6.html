@@ -229,6 +229,11 @@
         border-radius: 0.25rem 0 0 0.25rem;
     }
 
+    #batch-count {
+        margin-top: 10px;
+        display: inline-block;
+    }
+
     #single-count {
         margin-top: 10px;
         display: inline-block;
@@ -325,7 +330,7 @@
                 <label class="custom-control-label" for="skip_gpo">Skip CCX changes for GPO records</label>
             </div>
             <small class="form-text text-muted">
-                When selected, GPO batch upload records will be exported separately as 'Infor_direct_change' file
+                When selected, batch upload file will skip changes made on GPO contract records since update GPO contract line directly on CCX is not currently supported. GPO contract batch changes, if any, will be recorded in 'infor_direct_changes_{...}.xlsx' file in the exported zip file.
             </small>
         </div>
 
@@ -354,8 +359,21 @@
         <div class="card mb-4">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Batch Upload Preview</h5>
-                <span class="badge badge-light" id="batch-count">0 records</span>
             </div>
+            <!-- Add this contract filter dropdown below the card-header -->
+            <div class="card-subheader p-2 bg-light border-bottom">
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">View By Contract</span>
+                    </div>
+                    <select class="form-control" id="batch-contract-filter" disabled>
+                        <option value="all" selected>All Contracts</option>
+                        <!-- Contract options will be added dynamically -->
+                    </select>
+                </div>
+            </div>
+            <span class="badge badge-light" id="batch-count">0 records</span>
+
             <div class="card-body p-0">
                 <div class="preview-table-container">
                     <table class="table table-striped table-bordered preview-table" id="batch-table">
@@ -395,8 +413,8 @@
                 </div>
             </div>
             <div class="highlight-explanation">
-                <div><span class="highlight-key red"></span> Red: Date conflict - The record's effective or expiration date failed validation</div>
-                <div><span class="highlight-key yellow"></span> Yellow: Missing vendor part number</div>
+                <div><span class="highlight-key red"></span> Red: Date conflict - The record's effective or expiration date failed validation after final date adjustment before export. Manually adjust before upload to CCX.</div>
+                <div><span class="highlight-key yellow"></span> Yellow: Empty vendor part number - Some distributor contract come with vendor part number blank, CCX will take the record, but it will not get sent to Infor.</div>
             </div>
             <div class="card-footer bg-light"></div>
         </div>
@@ -451,17 +469,20 @@
                 </div>
             </div>
             <div class="highlight-explanation">
-                <div><span class="highlight-key red"></span> Red: Date conflict - The record's effective or expiration date failed validation</div>
-                <div><span class="highlight-key yellow"></span> Yellow: Missing vendor part number</div>
+                <div><span class="highlight-key red"></span> Red: Date conflict - The record's effective or expiration date failed validation after final date adjustment before export. Manually adjust before upload to CCX.</div>
+                <div><span class="highlight-key yellow"></span> Yellow: Empty vendor part number - Some distributor contract come with vendor part number blank, CCX will take the record, but it will not get sent to Infor.</div>
             </div>
             <div class="card-footer bg-light"></div>
         </div>
     </div>
 
+    <!-- Horizontal line for visual separation -->
+    <hr id="horizontal-line" style="border: 1px solid #dee2e6; margin: 30px 0; display: none;">
+
     <!-- Item Link Preview -->
     <div class="card mb-4" id="item-link-preview" style="display: none;">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Item Link Preview</h5>
+            <h5 class="mb-0">Item to Link Preview</h5>
             <span class="badge badge-light" id="item-link-count">0 records</span>
         </div>
         <div class="card-body p-0">
@@ -497,8 +518,8 @@
             </div>
         </div>
         <div class="highlight-explanation">
-            <div><span class="highlight-key red"></span> Red: Item with data issues - Inconsistent manufacturer part numbers, invalid UOM, or invalid item</div>
-    <div><span class="highlight-key yellow"></span> Yellow: Manual item master link required</div>
+            <div><span class="highlight-key red"></span> Red: Item with data issues - Inconsistent manufacturer part numbers, invalid UOM, or invalid item, look into Infor to make necessary adjustment.</div>
+    <div><span class="highlight-key yellow"></span> Yellow: Manual item master linkage required. The item will not get recognized automatically by Infor as the designated item master item, manually add it to Infor if necessary.</div>
         </div>
         <div class="card-footer bg-light"></div>
     </div>
