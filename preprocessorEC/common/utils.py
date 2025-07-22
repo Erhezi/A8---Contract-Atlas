@@ -418,6 +418,9 @@ def check_duplicates(error_df, duplicate_mode):
     if duplicate_mode == 'default':
         # Use default keys: Reduced Mfg Part Num
         duplicate_keys = ['Reduced Mfg Part Num']
+    elif duplicate_mode == 'strict':
+        # Use strict keys: Mfg Part Num
+        duplicate_keys = ['Mfg Part Num']
     elif duplicate_mode == 'distributor':
         # Use distributor keys: ERP Vendor ID + Mfg Part Num + UOM + Contract Number
         duplicate_keys = ['ERP Vendor ID', 'Mfg Part Num', 'UOM', 'Contract Number']
@@ -763,7 +766,7 @@ def calculate_description_similarity(ccx_desc, upload_desc, model=None):
         
         return intersection / union
 
-def calculate_confidence_score(item, model=None, apply_to_step=2):
+def calculate_confidence_score(item, model=None, apply_to_step=2, duplicate_mode='default'):
     """Calculate overall confidence score based on weighted factors
     apply_to_step: 2 apply to step 2, 4 apply to step 4"""
     # Make a copy of the item to avoid modifying the original
@@ -774,7 +777,8 @@ def calculate_confidence_score(item, model=None, apply_to_step=2):
                             'qoe_a': 'qoe_ccx', 'qoe_upload': 'QOE',
                             'price_a': 'price_ccx', 'price_upload': 'Contract_Price',
                             'desc_a': 'description_ccx', 'desc_upload': 'Description',
-                            'ea_price_a': 'ccx_ea_price', 'ea_price_upload': 'upload_ea_price'
+                            'ea_price_a': 'ccx_ea_price', 'ea_price_upload': 'upload_ea_price',
+                            'cn_a': 'contract_number_ccx', 'cn_upload': 'Contract_Number',
                         },
                     4: {
                             'mpn_a': 'mfg_part_num_infor', 'mpn_upload': 'Mfg_Part_Num',
@@ -782,7 +786,8 @@ def calculate_confidence_score(item, model=None, apply_to_step=2):
                             'qoe_a': 'qoe_infor', 'qoe_upload': 'QOE',
                             'price_a': 'price_infor', 'price_upload': 'Contract_Price',
                             'desc_a': 'description_infor', 'desc_upload': 'Description',
-                            'ea_price_a': 'infor_ea_price', 'ea_price_upload': 'upload_ea_price'
+                            'ea_price_a': 'infor_ea_price', 'ea_price_upload': 'upload_ea_price',
+                            'cn_a': 'contract_number_infor', 'cn_upload': 'Contract_Number',
                         }
                     }
 
@@ -843,6 +848,14 @@ def calculate_confidence_score(item, model=None, apply_to_step=2):
     result['weighted_score'] = weighted_score
     result[apply_to_dict[apply_to_step]['ea_price_a']] = ccx_ea_price
     result[apply_to_dict[apply_to_step]['ea_price_upload']] = upload_ea_price
+
+    if duplicate_mode == 'strict' or duplicate_mode == 'explicit':
+    # for strict or explicit mode, if the contract number is the same, we will consider anything that is not an exact match 
+    # as wrong mathicng, thus assign a score of 0.0
+        if item[apply_to_dict[apply_to_step]['cn_a']] == item[apply_to_dict[apply_to_step]['cn_upload']]:
+            if item[apply_to_dict[apply_to_step]['mpn_a']] != item[apply_to_dict[apply_to_step]['mpn_upload']]:
+                result['weighted_score'] = 0.0
+                weighted_score = 0.0
     
     # Assign confidence level
     if weighted_score >= 0.8:
@@ -857,7 +870,7 @@ def calculate_confidence_score(item, model=None, apply_to_step=2):
     
     return result
 
-def process_item_comparisons(contract_items, skip_scoring=False, model=None, apply_to_step=2):
+def process_item_comparisons(contract_items, skip_scoring=False, model=None, apply_to_step=2, duplicate_mode='default'):
     """Process all items and calculate confidence scores"""
     # If model is provided, use it - no need to load again
     # Otherwise, check if we should load it (if not skip_scoring)
@@ -879,7 +892,8 @@ def process_item_comparisons(contract_items, skip_scoring=False, model=None, app
     else:
         # Calculate confidence scores for each item
         for item in contract_items:
-            scored_item = calculate_confidence_score(item, model=model, apply_to_step=apply_to_step)
+            scored_item = calculate_confidence_score(item, model=model, apply_to_step=apply_to_step,
+                                                     duplicate_mode = duplicate_mode)
             scored_items.append(scored_item)
             # print(f"Scored Item: {scored_item}")  # Debug log
     
@@ -1177,6 +1191,10 @@ def three_way_contract_line_matching(comparison_results,
     all_items_df['Need Review'] = 'Yes'
 
     merged_df = all_items_df.copy()
+
+    # merged_df since merge without UOM and Vendor ID, this can easily bring in cartesian product, typically this is not a problem here
+    # but when join to merged_df for other uses, we need to be very cautious
+    # medline contract can typically have same item on different UOM
 
     return merged_df
 
@@ -1599,8 +1617,11 @@ def actual_action_on_update_row(row, update_action_mode = None):
             comparison_results.append('Y' if res == True else 'N')
         else:
             comparison_results.append('x')
-    
+       
     quick_check = ''.join(comparison_results)
+
+    # 2025-07-18, set effective date check always to Y (even they are different)
+    quick_check = quick_check[:7] + 'Y' + quick_check[8:]  # Set Effective Date to 'Y' always
     
     if quick_check[:9] == 'YYxYYYYYY':
         # No change in the fields we care about
@@ -2117,6 +2138,7 @@ def compute_changes_to_show(data_change_show_df, merged_df, analyzed_df):
     im_df.rename(columns = {'File_Row': 'File Row',
                             'item_number_infor': 'Item',
                             'contract_number_infor': 'Contract Number'}, inplace = True)
+    im_df = im_df.drop_duplicates(subset = ['File Row', 'Contract Number'], keep = 'first').copy()
 
     im_fr_df = analyzed_df[analyzed_df['False Positive'] == False].copy()
     # only take the first one if we see multiple (this usually should not happen)
@@ -2194,6 +2216,9 @@ def actual_action_on_update_row2(row_original,
             comparison_results.append('x')
     
     quick_check = ''.join(comparison_results)
+
+    # 2025-07-18, set effective date check always to Y (even they are different)
+    quick_check = quick_check[:7] + 'Y' + quick_check[8:]  # Set Effective Date to 'Y' always
     
     if quick_check[:9] == 'YYxYYYYYY':
         # No change in the fields we care about
@@ -2486,7 +2511,7 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
                 if item_number in ref_item_numbers:
                     # then double check if the item has the same UOM and QOE --> if not, warn user that they may lose access to certain UOM when try to purchase
                     if len(quick_check) == 10 and (list(quick_check)[5] == 'N' or list(quick_check)[6] == 'N' or list(quick_check)[9] == 'N'):
-                        validation_flag = f'WARNING - when this item get expired, we still have access to item {item_number} using vendor {ref_vendor_id}, contract {ref_contract_number} under UOM {row['UOM_ref']} and QOE {row['QOE_ref']}'
+                        validation_flag = f'WARNING - (Expire) when this item get expired, we still have access to item {item_number} using vendor {ref_vendor_id}, contract {ref_contract_number} under UOM {row['UOM_ref']} and QOE {row['QOE_ref']}'
                     else:
                         validation_flag = 'PASS - safe to expire'
                     row_action = 'Execute'
@@ -2495,7 +2520,7 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
                     if ref_item_number.startswith('(') and ref_item_number[1:-1] == item_number:
                         # reduce to equal item number case, check if QOE, UOM, and Vendor ID match
                         if len(quick_check) == 10 and (list(quick_check)[5] == 'N' or list(quick_check)[6] == 'N' or list(quick_check)[9] == 'N'):
-                            validation_flag = f'WARNING - about to lose contract coverage on Itemmast item {item_number}, we can link the item to vendor {ref_vendor_id}, contract {ref_contract_number}, manufacturer number {ref_mfg_part_num},  UOM {row['UOM_ref']}, and QOE {row['QOE_ref']} to retain the item access'
+                            validation_flag = f'WARNING - (Expire) about to lose contract coverage on Itemmast item {item_number}, we can link the item to vendor {ref_vendor_id}, contract {ref_contract_number}, manufacturer number {ref_mfg_part_num},  UOM {row['UOM_ref']}, and QOE {row['QOE_ref']} to retain the item access'
                         else:
                             validation_flag = f'ACTION - safe to expire, make sure same item on {ref_contract_number} with manufacturer part number {ref_mfg_part_num} is linked to {item_number}'
                         item_related_action.append(safe_to_expire_action_row_helper(row))
@@ -2503,9 +2528,9 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
                     else:
                         # reference item number is different even we know they are the same item
                         if ref_item_number != '':
-                            validation_flag = f'ERROR - about to lose coverage on item {item_number}, current reference item points to a different item number {ref_item_number}'
+                            validation_flag = f'ERROR - (Expire) about to lose coverage on item {item_number}, current reference item points to a different item number {ref_item_number}'
                         else:
-                            validation_flag = f'ERROR - about to lose coverage on item {item_number}'
+                            validation_flag = f'ERROR - (Expire) about to lose coverage on item {item_number}'
                         row_action = 'Pending'
 
         # Scenario 2: Item set to not expire (do_not_expire == True) and item is intended to be upserted
@@ -2533,13 +2558,13 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
                 # same item should have the same Item Number (ERP)
                 # So: If same item (file row) from different vendor id, check QOE
                 if positions[9] == 'N':
-                    # If same QOE --> then they should be the same item packaging --> same MFN + UOM; allow different VN
-                    if positions[6] == 'Y':
-                        if positions[0] == 'N' or positions[5] == 'N':
-                            validation_flag = 'ACTION - update MFN and/or UOM to reinforce data integrity'
+                    # If same UOM and QOE but different MFN --> update MFN
+                    if positions[6] == 'Y' and positions[5] == 'Y':
+                        if positions[0] == 'N':
+                            validation_flag = 'ACTION - update MFN to reinforce data integrity'
                             row_action = 'Execute'
                             original_row, modified_row = modified_row_helper(row,
-                                                                            pos_to_change = [0, 5],
+                                                                            pos_to_change = [0],
                                                                             update_action_mode = update_action_mode)
                             more_changes_to_append.append(original_row)
                             more_changes_to_append.append(modified_row)
@@ -2547,43 +2572,46 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
                             validation_flag = 'PASS - safe to retain'
                             row_action = 'Execute'
                             more_changes_to_append.append(safe_to_retain_row_helper(row))
-                    elif positions[6] == 'N':
+                    elif positions[5] == 'Y' and positions[6] == 'N' and positions[1] == 'Y':
                         # If different QOE --> then they should have different UOM, allow different VN, MFN, price need to be checked so it make sense
-                        if positions[5] == 'Y':
-                            validation_flag = f'ERROR - same item with different QOE cannot have the same UOM, contract {ref_contract_number} is having QOE as {row['QOE_ref']}, check back with vendor/supplier'
+                            validation_flag = f'ERROR - (Retain) same item with same UOM and same Vendor Part Num should have the same QOE'
                             row_action = 'Pending'
-                        else:
-                            validation_flag = 'PASS - safe to retain'
-                            row_action = 'Execute'
-                            more_changes_to_append.append(safe_to_retain_row_helper(row))
-                    
-                # if same item (file row) from same vendor id, and if same QOE or VN, check VN, MFN, UOM, QOE, they should be the same
+                    else:
+                        validation_flag = 'PASS - safe to retain'
+                        row_action = 'Execute'
+                        more_changes_to_append.append(safe_to_retain_row_helper(row))
+                
+                # if same item (file row) from same vendor id, and if same QOE and VN, check UOM --> same UOM, update MFN if needed; --> different UOM, error
                 elif positions[9] == 'Y':
-                    if positions[6] == 'Y' or positions[1] == 'Y':
-                        if [positions[0] == 'N',
-                            positions[1] == 'N',
-                            positions[5] == 'N',
-                            positions[6] == 'N'].count(True) > 0:
-                            validation_flag = 'ACTION - update MFN, UOM, QOE, and VN to reinforce data integrity'
+                    if positions[6] == 'Y' and positions[1] == 'Y' and positions[0] == 'N':
+                        if positions[5] == 'Y':
+                            validation_flag = 'ACTION - update MFN to reinforce data integrity'
                             row_action = 'Execute'
                             original_row, modified_row = modified_row_helper(row,
-                                                                            pos_to_change = [0, 1, 5, 6],
+                                                                            pos_to_change = [0],
                                                                             update_action_mode = update_action_mode)
                             more_changes_to_append.append(original_row)
                             more_changes_to_append.append(modified_row)
                         else:
-                            validation_flag = 'PASS - safe to retain'
+                            validation_flag = 'WARNING - (Retain) same Vendor Item with same Vendor Part Number and QOE, but different UOMs, we usually expect the same UOM, verify with vendor.'
                             row_action = 'Execute'
                             more_changes_to_append.append(safe_to_retain_row_helper(row))
+                    elif positions[1] == 'Y' and positions[5] == 'Y' and positions[6] == 'N':
+                        # in this case vendor part number and UOM, should ahve same QOE
+                        validation_flag = 'ERROR - (Retain) same Vendor Item with same Vendor Part Number and same UOM should have the same QOE'
+                        row_action = 'Pending'
+                    elif positions[5] == 'Y' and positions[6] == 'Y' and positions[1] == 'N':
+                        # in this case vendor part number and QOE, should have same UOM
+                        validation_flag = 'ERROR - (Retain) same Vendor Item with same UOM and QOE should have the same Vendor Part Number'
+                        row_action = 'Pending'
+                    elif positions[1] == 'Y' and positions[6] == 'N':
+                        # same vendor part number should have the same QOE
+                        validation_flag = 'ERROR - (Retain) same Vendor Item with same Vendor Part Number should have the same QOE'
+                        row_action = 'Pending'
                     else:
-                        # in this case vendor part number and QOE are both different, then we need to check if we run into UOM conflict
-                        if positions[5] == 'Y':
-                            validation_flag = 'ERROR - same item with different Vendor Part Number and QOE cannot have the same UOM, check back with vendor'
-                            row_action = 'Pending'
-                        else:
-                            validation_flag = 'PASS - safe to retain'
-                            row_action = 'Execute'
-                            more_changes_to_append.append(safe_to_retain_row_helper(row))
+                        validation_flag = 'PASS - safe to retain'
+                        row_action = 'Execute'
+                        more_changes_to_append.append(safe_to_retain_row_helper(row))
             else:
                 validation_flag = 'PASS - safe to retain'
                 row_action = 'Execute'
@@ -2616,6 +2644,8 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
     final_validation_df = pd.DataFrame(final_validation_results)
     more_changes_to_append_df = pd.DataFrame(more_changes_to_append)
     item_related_action_df = pd.DataFrame(item_related_action)
+
+    more_changes_to_append_df = more_changes_to_append_df.drop_duplicates()
 
     final_validation_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'validation_df.xlsx'), index=False) #debug
     more_changes_to_append_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'more_changes_to_append.xlsx'), index=False) #debug
@@ -2672,7 +2702,8 @@ def final_commit(all_changes_df,
     # return if no changes
     if all_changes_df.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
+    
+    
     # remove the do not expire == True items from all_changes_df and changes_to_show_df
     # make sure we only have value as True or False
     if 'Do Not Expire' in all_changes_df.columns:
@@ -2770,6 +2801,7 @@ def final_commit(all_changes_df,
         df['Validation Flag'] = df.apply(lambda x: x['Final Row Validation Flag'] 
                                          if x['Final Row Action'] == x['Final File Row Action']
                                          else compose_group_validation_flag(x['File Row'], error_file_rows), axis=1)
+
 
     final_all_changes_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'final_all_changes_df.xlsx'), index=False) #debug
     final_changes_to_show_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'final_changes_to_show_df.xlsx'), index=False) #debug

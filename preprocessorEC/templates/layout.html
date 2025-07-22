@@ -77,10 +77,11 @@
         .milestone-item.completed {
             opacity: 1;
         }
+        /* Default milestone number - circle shape */
         .milestone-number {
             width: 40px;
             height: 40px;
-            border-radius: 50%;
+            border-radius: 50%;  /* Circle shape by default */
             background-color: #7f8c8d;
             display: flex;
             align-items: center;
@@ -90,12 +91,19 @@
             color: white;
             position: relative;
         }
+        /* Hexagon shape for steps 6-8 */
+        .milestone-number-hex {
+            border-radius: 0;
+            height: 45px;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        }
         .milestone-item.active .milestone-number {
             background-color: #3498db;
         }
         .milestone-item.completed .milestone-number {
             background-color: #2ecc71;
         }
+        /* Default solid connector */
         .milestone-connector {
             position: absolute;
             width: 2px;
@@ -105,7 +113,15 @@
             left: 19px;
             z-index: 0;
         }
-        .milestone-item:last-child .milestone-connector {
+        /* Adjust connector position for hexagons */
+        .milestone-number-hex .milestone-connector{
+            top: 35px; /* Adjusted for hexagon height */
+        }
+        /* Hide default connector when dashed is applied */
+        .milestone-connector-dashed + .milestone-connector {
+            display: none;
+        }
+        .milestone-item:last-child .milestone-connector{
             display: none;
         }
         .milestone-text {
@@ -131,6 +147,11 @@
             color: #155724;
             background-color: #d4edda;
             border-color: #c3e6cb;
+        }
+        .alert-warning {
+            color: #8b3a0b;
+            background-color: #ffcc9d;
+            border-color: #e6d1c3;
         }
         .alert-danger {
             color: #721c24;
@@ -352,11 +373,14 @@
                 {% for step in workflow_steps %}
                     {% set is_active = step.id == current_step.id if current_step else False %}
                     {% set is_completed = step.id in completed_steps %}
+                    {% set is_hex = step.id in [6, 7, 8] %}
                     <div class="milestone-item {% if is_active %}active{% endif %} {% if is_completed %}completed{% endif %}">
                         <div data-step-id="{{ step.id }}" onclick="showStepInfo(parseInt(this.getAttribute('data-step-id')), event)" class="milestone-item-content" style="cursor: pointer; display: flex; align-items: center; width: 100%;">
-                            <div class="milestone-number">
+                            <div class="milestone-number {% if is_hex %}milestone-number-hex{% endif %}">
                                 {{ loop.index }}
+                                {% if step.id in [1, 2, 3, 4] %}
                                 <div class="milestone-connector"></div>
+                                {% endif %}
                             </div>
                             <div class="milestone-text">{{ step.name }}</div>
                         </div>

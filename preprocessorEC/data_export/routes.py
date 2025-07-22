@@ -109,9 +109,9 @@ def delete_task(task_id):
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
-            SET Status = 'Deleted', UpdateDT = GETDATE()
+            SET Status = 'Deleted', UpdateDT = GETDATE(), DeletedBy = ?
             WHERE TaskID = ?
-        """, (task_id,))
+        """, (current_user.id, task_id))
         
         conn.commit()
         
@@ -186,8 +186,8 @@ def preview_data():
             # consolidate by select the final rank = 1
             df = df[df['Final Rank'] == 1].copy()
             # sort df so data with issues (date conflicts, missing vendor parts) are at the top
-            df.sort_values(by=['Final L Date Check', 'Final H Date Check', 'Vendor Part Num', 'Expiration Date'], 
-                        ascending=[True, True, True, False], inplace=True)
+            df.sort_values(by=['Final L Date Check', 'Final H Date Check', 'Create Count', 'Vendor Part Num', 'Expiration Date', 'Contract Number (PrP)', 'CreateDT'], 
+                        ascending=[True, True, False, True, False, True, False], inplace=True)
         
             # Process the data
             batch_df = df[df['Export Group'] == 'Batch Upload'].copy()
@@ -316,7 +316,6 @@ def export_data():
         
         # Create temporary directory for files
         temp_dir = tempfile.mkdtemp()
-        print("tempdir is: ", temp_dir) # Debugging: print temp directory path
         
         # Get current date for filenames
         current_date = datetime.now().strftime('%Y%m%d')
@@ -330,40 +329,35 @@ def export_data():
         batch_df = df[df['Export Group'] == 'Batch Upload'].copy()
         single_df = df[df['Export Group'] == 'Single Contract'].copy()
         gpo_df = batch_df[batch_df['Source Type'].str.startswith('GPO', na=False)].copy()
-        single_contract_names = list(single_df['Contract Number (PrP)'].unique())
+        # make tuple of contract number and erp vendor id for single contracts
+        unique_contract_vendor_id = single_df[['Contract Number (PrP)', 'ERP Vendor ID (PrP)']].drop_duplicates()
+        single_contract_names = list(unique_contract_vendor_id.itertuples(index=False, name=None))
+
         batch_filepath = []
         single_filepath = []
         infor_direct_filepath = []
 
         if export_format == 'excel':
-            batch_filename = f'batch_upload_{user_id}_{current_date}.xlsx'
+            batch_filename = f'batch_upload_{user_id}_{current_date}.xlsx' if not batch_df.empty else f'batch_upload_[NO DATA]_{user_id}_{current_date}.xlsx'
             batch_filepath.append(os.path.join(temp_dir, batch_filename))
             success_batch, error_msg_batch = make_batch_upload_excel(batch_df,
                                                          batch_filepath[-1],
                                                          skip_gpo=skip_gpo)
             
-            infor_direct_filename = f'infor_direct_{user_id}_{current_date}.xlsx'
+            infor_direct_filename = f'infor_direct_{user_id}_{current_date}.xlsx' if not gpo_df.empty else f'infor_direct_[NO DATA]_{user_id}_{current_date}.xlsx'
             infor_direct_filepath.append(os.path.join(temp_dir, infor_direct_filename))
             success_infor_direct, error_msg_infor_direct = make_infor_direct_excel(gpo_df,
                                                                                  infor_direct_filepath[-1])
             
             success_singles = []
-            if single_df.empty:
-                single_filename = f'single_contract_{user_id}_{current_date}.xlsx'
-                single_filepath = os.path.join(temp_dir, single_filename)
-                success_single, error_msg_single = make_single_contract_excel(single_df,
-                                                                              single_filepath,
-                                                                              '')
+            for contract_name, erp_vendor_id in single_contract_names:
+                single_contract_df = single_df[single_df['Contract Number (PrP)'] == contract_name]
+                single_filename = f'single_contract_[{erp_vendor_id}]_[{contract_name}]_{user_id}_{current_date}.xlsx' if not single_contract_df.empty else f'single_contract_[NO DATA]_{user_id}_{current_date}.xlsx'
+                single_filepath.append(os.path.join(temp_dir, single_filename))
+                success_single, error_msg_single = make_single_contract_excel(single_contract_df,
+                                                                                single_filepath[-1],
+                                                                                contract_name)
                 success_singles.append(success_single)
-            else:
-                for contract_name in single_contract_names:
-                    single_contract_df = single_df[single_df['Contract Number (PrP)'] == contract_name]
-                    single_filename = f'single_contract_{contract_name}_{user_id}_{current_date}.xlsx'
-                    single_filepath.append(os.path.join(temp_dir, single_filename))
-                    success_single, error_msg_single = make_single_contract_excel(single_contract_df,
-                                                                                  single_filepath[-1],
-                                                                                  contract_name)
-                    success_singles.append(success_single)
             
             if not all(success_singles) or not success_batch or not success_infor_direct:
                 error_messages = []
@@ -381,39 +375,32 @@ def export_data():
                 }), 500
             
         elif export_format == 'csv':
-            batch_filename = f'batch_upload_{user_id}_{current_date}.csv'
+            batch_filename = f'batch_upload_{user_id}_{current_date}.csv' if not batch_df.empty else f'batch_upload_[NO DATA]_{user_id}_{current_date}.csv'
             batch_filepath.append(os.path.join(temp_dir, batch_filename))
             success_batch, error_msg_batch = make_batch_upload_csv(batch_df,
                                                          batch_filepath[-1],
                                                          skip_gpo=skip_gpo)
             
-            infor_direct_filename1 = f'infor_direct_data_{user_id}_{current_date}.csv'
+            infor_direct_filename1 = f'infor_direct_data_{user_id}_{current_date}.csv' if not gpo_df.empty else f'infor_direct_data_[NO DATA]_{user_id}_{current_date}.csv'
             infor_direct_filepath.append(os.path.join(temp_dir, infor_direct_filename1))
             success_infor_direct1, error_msg_infor_direct1 = make_infor_direct_csv1(gpo_df,
                                                                                  infor_direct_filepath[-1])
             
-            infor_direct_filename2 = f'infor_direct_GHX_GLD_{user_id}_{current_date}.csv'
+            infor_direct_filename2 = f'infor_direct_GHX_GLD_{user_id}_{current_date}.csv' if not gpo_df.empty else f'infor_direct_GHX_GLD_[NO DATA]_{user_id}_{current_date}.csv'
             infor_direct_filepath.append(os.path.join(temp_dir, infor_direct_filename2))
             success_infor_direct2, error_msg_infor_direct2 = make_infor_direct_csv2(gpo_df,
                                                                                      infor_direct_filepath[-1])
             
             success_singles = []
-            if single_df.empty:
-                single_filename = f'single_contract_{user_id}_{current_date}.csv'
-                single_filepath = os.path.join(temp_dir, single_filename)
-                success_single, error_msg_single = make_single_contract_csv(single_df,
-                                                                              single_filepath,
-                                                                              '')
+            
+            for contract_name, erp_vendor_id in single_contract_names:
+                single_contract_df = single_df[single_df['Contract Number (PrP)'] == contract_name]
+                single_filename = f'single_contract_[{erp_vendor_id}]_[{contract_name}]_{user_id}_{current_date}.csv' if not single_contract_df.empty else f'single_contract_[NO DATA]_{user_id}_{current_date}.csv'
+                single_filepath.append(os.path.join(temp_dir, single_filename))
+                success_single, error_msg_single = make_single_contract_csv(single_contract_df,
+                                                                                single_filepath[-1],
+                                                                                contract_name)
                 success_singles.append(success_single)
-            else:
-                for contract_name in single_contract_names:
-                    single_contract_df = single_df[single_df['Contract Number (PrP)'] == contract_name]
-                    single_filename = f'single_contract_{contract_name}_{user_id}_{current_date}.csv'
-                    single_filepath.append(os.path.join(temp_dir, single_filename))
-                    success_single, error_msg_single = make_single_contract_csv(single_contract_df,
-                                                                                  single_filepath[-1],
-                                                                                  contract_name)
-                    success_singles.append(success_single)
             
             if not all(success_singles) or not success_batch or not success_infor_direct1 or not success_infor_direct2:
                 error_messages = []
@@ -434,13 +421,12 @@ def export_data():
         
         # add generated files to file list
         generated_files = batch_filepath + single_filepath + infor_direct_filepath
-        print(generated_files)  # Debugging: print generated files list
         
-        # Get int current time for final zip file name
+        # Get int current time for final zip file name for same day export to be unique
         file_id = int(time.time())
 
         # Create ZIP file of all generated files
-        zip_filename = f"preprocessor_executable_changes_{user_id}_{current_date}.zip"
+        zip_filename = f"preprocessor_executable_changes_{user_id}_{current_date}_{file_id}.zip"
         zip_filepath = os.path.join(export_dir, zip_filename)
         
         with zipfile.ZipFile(zip_filepath, 'w') as zipf:
@@ -449,10 +435,13 @@ def export_data():
         
         # Mark data as exported in database
         if conn:
-            # Uncomment when the function is ready
-            # data_persistence_after_export(conn, user_id)
-            pass
-        
+            success, msg = data_persistence_after_export(conn, user_id = user_id, user_role = user_role, zip_filename = zip_filename)
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'message': f'Failed to mark data as exported: {msg}'
+                }), 500
+
         # Generate URL for the ZIP file
         zip_url = url_for('static', filename=f'exports/{zip_filename}')
         
@@ -462,7 +451,7 @@ def export_data():
             'zipFile': {
                 'name': zip_filename,
                 'url': zip_url,
-                'description': 'All export files (ZIP)'
+                'description': 'Click to download all file(s)'
             }
         })
     
@@ -481,4 +470,3 @@ def export_data():
         if temp_dir and os.path.exists(temp_dir):
             import shutil
             shutil.rmtree(temp_dir, ignore_errors=True)
-            print(temp_dir, " has been removed")  # Debugging: confirm temp dir removal

@@ -757,6 +757,13 @@
         font-weight: 500 !important;
     }
     
+    .expire-action-crossed {
+        text-decoration: line-through;
+        text-decoration-color: rgb(119, 6, 6);
+        text-decoration-thickness: 2px;
+        opacity: 0.8;
+    }
+
     /* Styling for field differences highlighting */
     .field-difference {
         background-color: #fff3cd !important;
@@ -841,16 +848,21 @@
         border-left-color: #6f42c1 !important;
     }
 
+    .tp-no-execution-card {
+        border-left-color: #dc3545 !important;
+    }
+
     .validation-error-card-zero,
     .validation-warning-card-zero,
-    .validation-check-card-zero {
+    .validation-check-card-zero,
+    .tp-no-execution-card-zero {
         border-left-color: #28a745 !important;
     }
 
     /* Initially hide validation flag cards */
     .validation-flag-cards {
         display: grid;
-        grid-template-columns: repeat(3, 1fr); /* Three cards in one row */
+        grid-template-columns: repeat(4, 1fr); /* Three cards in one row */
         gap: 20px; /* Space between cards */
         width: 100%;
         margin: 0 auto;
@@ -887,9 +899,9 @@
     }
 
     /* Adjust for smaller screens */
-    @media (max-width: 768px) {
+    @media (max-width: 992px) {
         .validation-flag-cards {
-            grid-template-columns: 1fr; /* One card per row on small screens */
+            grid-template-columns: repeat(2, 1fr);
         }
     }
 
@@ -1398,6 +1410,14 @@
                         </div>
                     </div>
                 </div>
+                <div class="change-stats-column">
+                    <div class="change-stat-card tp-no-execution-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">TP Errors - file rows with error, no execution</h5>
+                            <div class="stat-value" id="tp-no-execution-count">0</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <!-- Validation Flag Reference Guide -->
             <div class="mb-3">
@@ -1424,11 +1444,11 @@
                                 </tr>
                                 <tr>
                                     <td><span class="validation-flag-error">ERROR</span></td>
-                                    <td>Expire an item causes complete loss of item master item or run into packaging conflict for upsert item which the program cannot resolve</td>
+                                    <td>Expire an item causes complete loss of item master item; or retain an item run into UOM/QOE conflicts which need manual resolution</td>
                                 </tr>
                                 <tr>
                                     <td><span class="validation-flag-check">CHECK</span></td>
-                                    <td>Unexpected case, we will review and discuss resolution strategy</td>
+                                    <td>Unexpected case, we will review and discuss how to solve those cases</td>
                                 </tr>
                                 <tr>
                                     <td><span class="validation-flag-success">PASS</span></td>

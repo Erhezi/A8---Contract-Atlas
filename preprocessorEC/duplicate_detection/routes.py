@@ -16,7 +16,8 @@ from ..common.session import (
     get_comparison_results, store_comparison_results, clear_comparison_results,
     store_deduplication_results, get_deduped_results,
     store_temp_table_name, get_temp_table_name,
-    store_current_step, get_current_step_from_session # Added store_current_step
+    store_current_step, get_current_step_from_session, # Added store_current_step
+    get_precheck_mode
 )
 
 # Create the blueprint
@@ -376,10 +377,17 @@ def process_item_comparison_with_progress():
                       f"\"progress\": 0, \"total\": {total_items}, \"processed\": 0, " \
                       f"\"message\": \"Using basic comparison method (transformer model not loaded)\"}}\n\n"
 
+            # get duplicate_mode from session data
+            duplicate_mode = get_precheck_mode(user_id) # Use helper to get mode
+            if not duplicate_mode:
+                duplicate_mode = 'default'
+            
+            print(f"Using duplicate mode: {duplicate_mode}") #debug
+
             # Process items and calculate confidence scores
             scored_items = []
             for i, item in enumerate(all_items):
-                scored_item = calculate_confidence_score(item, model=model)
+                scored_item = calculate_confidence_score(item, model=model, duplicate_mode = duplicate_mode)
                 scored_items.append(scored_item)
 
                 # Send progress update every 5 items or at the end
@@ -390,7 +398,7 @@ def process_item_comparison_with_progress():
                           f"\"message\": \"Processing item comparisons...\"}}\n\n"
 
             # Group by confidence level using skip_scoring=True (since we already calculated scores)
-            result = process_item_comparisons(scored_items, skip_scoring=True)
+            result = process_item_comparisons(scored_items, skip_scoring=True, duplicate_mode = duplicate_mode)
 
             # debug test
             h = len(result.get('high', []))
@@ -485,65 +493,65 @@ def finalize_item_comparison():
             'message': f'Error finalizing results: {str(e)}'
         })
 
-@duplicate_bp.route('/process-item-comparison', methods=['POST'])
-@login_required
-def process_item_comparison():
-    """Process item-level comparison for included contracts"""
-    try:
-        user_id = current_user.id # Get user_id
-        # Check if we have contract data using helper
-        contract_list = get_contract_duplicates(user_id)
-        if contract_list is None:
-            return jsonify({
-                'success': False,
-                'message': 'No contract data available. Please complete Step 2.1 first.'
-            })
+# @duplicate_bp.route('/process-item-comparison', methods=['POST'])
+# @login_required
+# def process_item_comparison():
+#     """Process item-level comparison for included contracts"""
+#     try:
+#         user_id = current_user.id # Get user_id
+#         # Check if we have contract data using helper
+#         contract_list = get_contract_duplicates(user_id)
+#         if contract_list is None:
+#             return jsonify({
+#                 'success': False,
+#                 'message': 'No contract data available. Please complete Step 2.1 first.'
+#             })
 
-        # Get included contracts using helper
-        included_contracts = get_included_contracts(user_id)
+#         # Get included contracts using helper
+#         included_contracts = get_included_contracts(user_id)
 
-        if not included_contracts:
-            return jsonify({
-                'success': False,
-                'message': 'No contracts have been included. Please include at least one contract in Step 2.1.'
-            })
+#         if not included_contracts:
+#             return jsonify({
+#                 'success': False,
+#                 'message': 'No contracts have been included. Please include at least one contract in Step 2.1.'
+#             })
 
-        # Get all contract items
-        all_items = []
-        # contract_list already fetched above
+#         # Get all contract items
+#         all_items = []
+#         # contract_list already fetched above
 
-        for contract in contract_list:
-            if contract['contract_number'] in included_contracts:
-                all_items.extend(contract['items'])
+#         for contract in contract_list:
+#             if contract['contract_number'] in included_contracts:
+#                 all_items.extend(contract['items'])
 
-        if not all_items:
-            return jsonify({
-                'success': False,
-                'message': 'No items found in the included contracts.'
-            })
+#         if not all_items:
+#             return jsonify({
+#                 'success': False,
+#                 'message': 'No items found in the included contracts.'
+#             })
 
-        # Get transformer model
-        model = None
-        if current_app.config.get('TRANSFORMER_MODEL_LOADED', False):
-            model = current_app.config.get('TRANSFORMER_MODEL')
+#         # Get transformer model
+#         model = None
+#         if current_app.config.get('TRANSFORMER_MODEL_LOADED', False):
+#             model = current_app.config.get('TRANSFORMER_MODEL')
 
-        # Process comparison
-        comparison_results = process_item_comparisons(all_items, model=model)
+#         # Process comparison
+#         comparison_results = process_item_comparisons(all_items, model=model)
 
-        # Store in session using helper
-        store_comparison_results(user_id, comparison_results)
+#         # Store in session using helper
+#         store_comparison_results(user_id, comparison_results)
 
-        return jsonify({
-            'success': True,
-            'message': 'Item comparison completed successfully',
-            'summary': comparison_results['summary']
-        })
+#         return jsonify({
+#             'success': True,
+#             'message': 'Item comparison completed successfully',
+#             'summary': comparison_results['summary']
+#         })
 
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error processing item comparison: {str(e)}'
-        })
+#     except Exception as e:
+#         return jsonify({
+#             'success': False,
+#             'message': f'Error processing item comparison: {str(e)}'
+#         })
 
 @duplicate_bp.route('/get-item-comparison-summary', methods=['GET'])
 @login_required

@@ -20,7 +20,7 @@ from ..common.db import (get_db_connection, get_relevant_contract_line,
                          commit_contract_line_count, delete_existing_commit,
                          commit_wrike)
 import os
-import json
+import numpy as np
 import pandas as pd
 import networkx as nx
 import string
@@ -371,6 +371,35 @@ def finalize_changes():
         changes_to_show_df = pd.DataFrame(changes_to_show)
         reference_for_expire_rows_df = pd.DataFrame(reference_for_expire_rows)
 
+        # possible that we don't have any changes to furhter show or review
+        # in this case, return success and early exists
+        if changes_to_show_df.empty:
+
+            simulation_results['final_commit_res'] = []
+            simulation_results['final_all_changes'] = []
+            simulation_results['final_line_operations'] = []
+            simulation_results['final_errors'] = 0
+            simulation_results['final_checks'] = 0
+            simulation_results['final_tp_no_execution'] = 0
+            store_change_simulation_results(user_id, simulation_results)
+            session.modified = True
+            
+            return jsonify({
+                'success': True,
+                'message': "No changes to finalize, proceed to commit the task.",
+                "result": {
+                    "modified_graph_data": None,
+                    "r2_graph_data": None,
+                    "final_expire_item_validated": [],
+                    "final_commit_df": [],
+                    "final_errors": [],
+                    "final_warnings": [],
+                    "final_checks": [],
+                    "final_tp_no_execution": [],
+                    "line_operations": []
+                }
+            }), 200
+
 
         # final expire item validation
         final_expire_item_validated_df, more_changes_to_append_df, item_related_action_df = final_expire_item_validation(changes_to_show_df, 
@@ -387,6 +416,8 @@ def finalize_changes():
         final_errors = final_validation.get('final_validation_errors', [])
         final_warnings = final_validation.get('final_validation_warnings', [])
         final_checks = final_validation.get('final_validation_checks', [])
+        final_tp_no_execution = final_all_changes_df[(final_all_changes_df['Dataset'] == 'TP') & (final_all_changes_df['Final File Row Action'] == 'Pending')].copy()
+        final_tp_no_execution.replace({np.nan: None}, inplace=True)
 
          # retrieve the 'Do Not Expire' selections and plot
         df_network_r2, line_operations = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
@@ -403,6 +434,9 @@ def finalize_changes():
         simulation_results['final_commit_res'] = final_commit_res.to_dict(orient='records') if not final_commit_res.empty else []
         simulation_results['final_all_changes'] = final_all_changes_df.to_dict(orient='records') if not final_all_changes_df.empty else []
         simulation_results['final_line_operations'] = line_operations.to_dict(orient='records') if not line_operations.empty else []
+        simulation_results['final_errors'] = len(final_errors)
+        simulation_results['final_checks'] = len(final_checks)
+        simulation_results['final_tp_no_execution'] = len(final_tp_no_execution)
         store_change_simulation_results(user_id, simulation_results)
         session.modified = True
 
@@ -417,6 +451,7 @@ def finalize_changes():
                 'final_errors': final_errors.to_dict(orient='records') if not final_errors.empty else [],
                 'final_warnings': final_warnings.to_dict(orient='records') if not final_warnings.empty else [],
                 'final_checks': final_checks.to_dict(orient='records') if not final_checks.empty else [],
+                'final_tp_no_execution': final_tp_no_execution.to_dict(orient='records') if not final_tp_no_execution.empty else [],
                 'line_operations': line_operations.to_dict(orient='records') if not line_operations.empty else [],
             }
         })
@@ -487,19 +522,22 @@ def commit_changes():
         # check if we have any error lines (error + check) before commit
         # those lines will not get executed in subsequent steps
         with_error = 'No'
-        if len(simulation_results.get('final_errors', [])) > 0 or len(simulation_results.get('final_checks', [])) > 0:
+        if simulation_results.get('final_errors', 0) > 0 or simulation_results.get('final_checks', 0) > 0:
             with_error = 'Yes'
             current_app.logger.warning(f"User {user_id} has errors or checks before commit. Changes will not be applied.")
-            return jsonify({
-                'success': False,
-                'message': "There are errors or checks that need to be resolved before committing changes.",
-                'with_error': with_error
-            }), 400
+
+        auto_complete = False
+        print(simulation_results.get('final_commit_res', []))
+        if simulation_results.get('final_commit_res', []) == []:
+            auto_complete = True
+            current_app.logger.info(f"User {user_id} has no changes to commit, auto-completing the task.")
+
 
         # debug
         print(f"Committing changes for user {user_id} with task ID {task_id} and filename {uploaded_filename}")
         print(f"Precheck mode: {precheck_mode}, Dedup policy: {dedup_policy}, Custom direction: {custom_direction}, Custom field: {custom_field}, Simulation mode: {simulation_mode}")
         print(f"Wrike Task ID: {wrike_task_id}")
+        print(f"With error: {with_error}, Auto-complete: {auto_complete}")
 
         # Get database connection
         conn = get_db_connection()
@@ -525,36 +563,8 @@ def commit_changes():
                 custom_direction=custom_direction,
                 custom_field=custom_field,
                 simulation_mode=simulation_mode,
-                with_error = with_error)
-            
-            # Insert final_commit_res records
-            # it is possible this is empty and there is no changes to commit
-            final_commit_res = simulation_results.get('final_commit_res', [])
-            if final_commit_res == []:
-                res_commit_res = True
-                error_msg_commit_res = "No changes need to be made on CCX."
-            else:
-                res_commit_res, error_msg_commit_res = commit_commit_res(
-                    task_id,
-                    user_id,
-                    conn,
-                    final_commit_res = final_commit_res)
-            
-            # Insert final_all_changes records
-            final_all_changes = simulation_results.get('final_all_changes', [])
-            res_all_changes, error_msg_header = commit_all_changes(
-                task_id,
-                user_id,
-                conn,
-                final_all_changes = final_all_changes)
-            
-            # Insert final_line_operations records
-            final_line_operations = simulation_results.get('final_line_operations', [])
-            res_line_operations, error_msg_line_operations = commit_contract_line_count(
-                task_id,
-                user_id,
-                conn,
-                final_line_operations = final_line_operations)
+                with_error = with_error,
+                auto_complete = auto_complete)
             
             # Insert wrike task record
             res_wrike, error_msg_wrike = commit_wrike(
@@ -564,14 +574,57 @@ def commit_changes():
                 wrike_task_id=wrike_task_id)
             
             # Commit the transaction if all operations were successful
-            if not (res_header and res_commit_res and res_all_changes and res_line_operations and res_wrike):
-                current_app.logger.error(f"Error committing changes for user {user_id}: {error_msg_header}, {error_msg_commit_res}, {error_msg_line_operations}")
+            # wrike and header commit has to be sucessful to complete the process
+            if not res_wrike or not res_header:
+                current_app.logger.error(f"Error committing changes for user {user_id}: {error_msg_header}, {error_msg_wrike}")
                 conn.rollback()
                 return jsonify({
-                    'success': False,
-                    'message': f"Error committing changes: {error_msg_header}, {error_msg_commit_res}, {error_msg_line_operations}"
+                    'success': True,
+                    'message': f"Error committing changes: {error_msg_header}, {error_msg_wrike}"
                 }), 500
             
+            
+            # Insert final_commit_res records
+            # it is possible this is empty and there is no changes to commit
+            final_commit_res = simulation_results.get('final_commit_res', [])
+            if final_commit_res == []:
+                res_commit_res = True
+                error_msg_commit_res = "No changes need to be made on CCX."
+                # auto-complete the current task if no changes to be made (baked into the header commit)
+            else:
+                res_commit_res, error_msg_commit_res = commit_commit_res(
+                    task_id,
+                    user_id,
+                    conn,
+                    final_commit_res = final_commit_res)
+                
+                final_line_operations = simulation_results.get('final_line_operations', [])
+                if final_line_operations == []:
+                    res_line_operations = True
+                    error_msg_line_operations = "No line operations to commit."
+                else:
+                    res_line_operations, error_msg_line_operations = commit_contract_line_count(
+                        task_id,
+                        user_id,
+                        conn,
+                        final_line_operations = final_line_operations)
+                
+                # Insert final_all_changes records if the task has changed CCX data
+                final_all_changes = simulation_results.get('final_all_changes', [])
+                if final_all_changes == []:
+                    res_all_changes = True
+                    error_msg_all_changes = "No changes to commit."
+                else:
+                    res_all_changes, error_msg_all_changes = commit_all_changes(
+                        task_id,
+                        user_id,
+                        conn,
+                        final_all_changes = final_all_changes)
+                
+            
+            if not res_commit_res:
+                current_app.logger.info(f"No lines get commit for user {user_id}: {error_msg_commit_res}")
+
             current_app.logger.info(f"Changes committed successfully for user {user_id} with task ID {task_id}")
             conn.commit()
 

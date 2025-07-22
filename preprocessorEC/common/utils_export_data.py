@@ -76,9 +76,10 @@ def make_batch_upload_excel(batch_df, batch_filepath, skip_gpo):
         available_columns = [col for col in all_columns if col in batch_df.columns]
         batch_output = batch_df[available_columns].copy()
         
-        # Find rows with date conflicts or missing vendor parts
+        # Find rows with date conflicts, missing vendor parts, or duplicate creations
         date_conflict_rows = []
         missing_vendor_rows = []
+        double_create_rows = []
         
         for i, row in batch_df.iterrows():
             # Check for date conflicts
@@ -90,12 +91,16 @@ def make_batch_upload_excel(batch_df, batch_filepath, skip_gpo):
             if ((pd.isna(row.get('Vendor Part Num')) or row.get('Vendor Part Num') == '') and 
                 row.get('Actual Action') in ['Create', 'Expire then Create (Create)', 'Update (New)']):
                 missing_vendor_rows.append(row['Execute Order'])
+                
+            # Check for possible duplicates (Create Count > 1)
+            if 'Create Count' in row and pd.notna(row['Create Count']) and int(row['Create Count']) > 1:
+                double_create_rows.append(row['Execute Order'])
 
         # rename some columns before exporting
         batch_output = batch_output.rename(columns=final_renaming)
 
-        # if date_conflict_rows or missing_vendor_rows not empty, apply formatting
-        if date_conflict_rows or missing_vendor_rows:
+        # if date_conflict_rows or missing_vendor_rows or double_create_rows not empty, apply formatting
+        if date_conflict_rows or double_create_rows or missing_vendor_rows:
             with pd.ExcelWriter(batch_filepath, engine='xlsxwriter', datetime_format='m/d/yyyy') as writer:
                 batch_output.to_excel(writer, sheet_name='Batch Upload', index=False)
 
@@ -104,8 +109,10 @@ def make_batch_upload_excel(batch_df, batch_filepath, skip_gpo):
 
                 # Define formats
                 red_format = workbook.add_format({'bg_color': '#f8d7da'})
+                purple_format = workbook.add_format({'bg_color': '#e2d9f3'})
                 yellow_format = workbook.add_format({'bg_color': '#fff3cd'})
                 red_date_format = workbook.add_format({'bg_color': '#f8d7da', 'num_format': 'm/d/yyyy'})
+                purple_date_format = workbook.add_format({'bg_color': '#e2d9f3', 'num_format': 'm/d/yyyy'})
                 yellow_date_format = workbook.add_format({'bg_color': '#fff3cd', 'num_format': 'm/d/yyyy'})
 
                 # Map column indices
@@ -120,6 +127,9 @@ def make_batch_upload_excel(batch_df, batch_filepath, skip_gpo):
                     if excel_row in date_conflict_rows:
                         base_format = red_format
                         date_format = red_date_format
+                    elif excel_row in double_create_rows:
+                        base_format = purple_format
+                        date_format = purple_date_format
                     elif excel_row in missing_vendor_rows:
                         base_format = yellow_format
                         date_format = yellow_date_format
@@ -205,7 +215,7 @@ def make_batch_upload_csv(batch_df, batch_filepath_csv, skip_gpo):
             'Effective Date', 'Expiration Date', 
             'Actual Action', 
             'Execute Order',
-            'Final L Date Check', 'Final H Date Check'
+            'Final L Date Check', 'Final H Date Check', 'Create Count', 'ERP Vendor ID (CCX Sync)'
         ]
 
         batch_df = batch_df[all_columns].copy()
@@ -250,7 +260,7 @@ def make_infor_direct_excel(gpo_df, infor_direct_filepath):
                         'Effective Date', 'Expiration Date',
                         'Actual Action', 'ERP Vendor ID (CCX Sync)', 'Supplier (CCX Sync)',
                         'ERP Vendor ID (PrP)', 'Supplier (PrP)', 'Item', 'Link Item Flag',
-                        'TaskID', 'UserID', 'Final L Date Check', 'Final H Date Check']
+                        'TaskID', 'UserID', 'Final L Date Check', 'Final H Date Check', 'Create Count']
     ghx_exclud_gld_add_columns = ['Contract Number', 'Mfg Part Num', 'Supplier (CCX Sync)', 'UOM']
     
     try:
@@ -319,7 +329,7 @@ def make_infor_direct_csv1(gpo_df, infor_direct_filepath_csv1):
                         'Effective Date', 'Expiration Date',
                         'Actual Action', 'ERP Vendor ID (CCX Sync)', 'Supplier (CCX Sync)',
                         'ERP Vendor ID (PrP)', 'Supplier (PrP)', 'Item', 'Link Item Flag',
-                        'TaskID', 'UserID', 'Final L Date Check', 'Final H Date Check']
+                        'TaskID', 'UserID', 'Final L Date Check', 'Final H Date Check', 'Create Count']
     
     try:
         if gpo_df.empty:
@@ -407,6 +417,7 @@ def make_single_contract_excel(single_df, single_filepath, contract_number):
     ]
     columns_with_highlight = [
         'Actual Action',  # Added Actual Action for reference
+        'ERP vendor ID (PrP)', # Added ERP vendor ID for reference
     ]
     all_columns = columns_no_highlight + columns_with_highlight
     try:
@@ -418,7 +429,7 @@ def make_single_contract_excel(single_df, single_filepath, contract_number):
             return True, ""
         
         # Filter by contract number
-        contract_df = single_df[single_df['Contract Number (PrP)'] == contract_number].copy()
+        contract_df = single_df[single_df['Contract Number (PrP)'] == contract_number].copy().reset_index(drop=True)
         if contract_df.empty:
             error_msg = f"No records found for contract number: {contract_number}"
             print(error_msg)
@@ -435,32 +446,40 @@ def make_single_contract_excel(single_df, single_filepath, contract_number):
         available_columns = [col for col in all_columns if col in contract_df.columns]
         contract_output = contract_df[available_columns].copy()
 
-        # find rows with date conflicts or missing vendor parts
+        # find rows with date conflicts, missing vendor parts, or duplicate creations
         date_conflict_rows = []
         missing_vendor_rows = []
+        double_create_rows = []
         for i, row in contract_df.iterrows():
             # Check for date conflicts
             if (('Final L Date Check' in row and row['Final L Date Check'] != 'pass') or 
                 ('Final H Date Check' in row and row['Final H Date Check'] != 'pass')):
-                date_conflict_rows.append(row['Execute Order'])
+                date_conflict_rows.append(i+1)
             
             # Check for missing vendor parts with specific action
             if ((pd.isna(row.get('Vendor Part Num')) or row.get('Vendor Part Num') == '') and 
                 row.get('Actual Action') in ['Create', 'Expire then Create (Create)', 'Update (New)']):
-                missing_vendor_rows.append(row['Execute Order'])
+                missing_vendor_rows.append(i+1)
+                
+            # Check for possible duplicates (Create Count > 1)
+            if 'Create Count' in row and int(row['Create Count']) > 1:
+                double_create_rows.append(i+1)
         
+
         # if we have highlight to apply
-        if date_conflict_rows or missing_vendor_rows:
+        if date_conflict_rows or double_create_rows or missing_vendor_rows:
             with pd.ExcelWriter(single_filepath, engine='xlsxwriter', datetime_format='m/d/yyyy') as writer:
                 contract_output.to_excel(writer, sheet_name='Single Contract Upload', index=False)
 
                 workbook = writer.book
-                worksheet = writer.sheets[contract_number]
+                worksheet = writer.sheets['Single Contract Upload']
 
                 # Define formats
                 red_format = workbook.add_format({'bg_color': '#f8d7da'})
+                purple_format = workbook.add_format({'bg_color': '#e2d9f3'})
                 yellow_format = workbook.add_format({'bg_color': '#fff3cd'})
                 red_date_format = workbook.add_format({'bg_color': '#f8d7da', 'num_format': 'm/d/yyyy'})
+                purple_date_format = workbook.add_format({'bg_color': '#e2d9f3', 'num_format': 'm/d/yyyy'})
                 yellow_date_format = workbook.add_format({'bg_color': '#fff3cd', 'num_format': 'm/d/yyyy'})
 
                 # Map column indices
@@ -469,12 +488,15 @@ def make_single_contract_excel(single_df, single_filepath, contract_number):
 
                 # Apply formatting row-by-row
                 for row_idx, row in contract_output.iterrows():
-                    excel_row = row['Execute Order']  # Excel row (1-based header offset)
-                    row_number = excel_row  # already adjusted
+                    excel_row = row_idx + 1 # Excel row (1-based header offset)
+                    row_number = row_idx + 1  # already adjusted
 
                     if excel_row in date_conflict_rows:
                         base_format = red_format
                         date_format = red_date_format
+                    elif excel_row in double_create_rows:
+                        base_format = purple_format
+                        date_format = purple_date_format
                     elif excel_row in missing_vendor_rows:
                         base_format = yellow_format
                         date_format = yellow_date_format
@@ -542,7 +564,7 @@ def make_single_contract_csv(single_df, single_filepath_csv, contract_number):
             'Buyer Part Num', 'Description', 'Contract Price', 'UOM', 'QOE',
             'Effective Date', 'Expiration Date', 
             'Actual Action', 
-            'Final L Date Check', 'Final H Date Check'
+            'Final L Date Check', 'Final H Date Check', 'Create Count', 'ERP Vendor ID (PrP)'
         ]
 
         contract_columns = [col for col in columns_no_highlight if col in contract_df.columns]

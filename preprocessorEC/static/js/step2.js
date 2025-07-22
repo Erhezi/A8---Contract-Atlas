@@ -178,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingOverlaySpinner.style.display = 'none';
         });
 
+    
     // Function to load contract data - returns a Promise
     function loadContractData() {
         return fetch(getApiUrl('/duplicate-detection/process-duplicates'), {
@@ -885,6 +886,20 @@ document.addEventListener('DOMContentLoaded', function() {
         th.addEventListener('click', function() {
             const field = this.dataset.sort;
             
+            // IMPORTANT: Capture current checkbox states before sorting
+            const checkboxStates = {};
+            document.querySelectorAll('#items-tbody input.false-positive-checkbox').forEach(checkbox => {
+                const index = parseInt(checkbox.dataset.index);
+                checkboxStates[index] = checkbox.checked;
+            });
+            
+            // Update the current items with the current checkbox states
+            currentItems.forEach((item, index) => {
+                if (checkboxStates[index] !== undefined) {
+                    item.false_positive = checkboxStates[index];
+                }
+            });
+            
             // Toggle direction if same field, otherwise default to asc
             if (field === sortField) {
                 sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
@@ -1084,30 +1099,30 @@ document.addEventListener('DOMContentLoaded', function() {
             const uploadEaPrice = item.upload_ea_price !== null ? 
                 '$' + parseFloat(item.upload_ea_price).toFixed(2) : 'N/A';
             
-            row.innerHTML = `
-                <td>${item.mfg_part_num_ccx || 'N/A'}</td>
-                <td>${item.Mfg_Part_Num || 'N/A'}</td>
-                <td>${item.uom_ccx || 'N/A'}</td>
-                <td>${item.UOM || 'N/A'}</td>
-                <td>${item.qoe_ccx || 'N/A'}</td>
-                <td>${item.QOE || 'N/A'}</td>
-                <td>${ccxEaPrice}</td>
-                <td>${uploadEaPrice}</td>
-                <td>
-                    <div class="match-indicator ${item.same_mfg_part_num === 1 ? 'match' : 'no-match'}"></div>
-                </td>
-                <td class="score-cell ${scoreClass}">${Math.round(item.weighted_score * 100)}%</td>
-                <td>
-                    <input type="checkbox" class="false-positive-checkbox" 
-                        data-index="${index}" 
-                        ${item.false_positive ? 'checked' : ''}>
-                </td>
-                <td title="${item.description_ccx || 'N/A'}">${(item.description_ccx || 'N/A').substring(0, 50)}${(item.description_ccx && item.description_ccx.length > 50) ? '...' : ''}</td>
-                <td title="${item.Description || 'N/A'}">${(item.Description || 'N/A').substring(0, 50)}${(item.Description && item.Description.length > 50) ? '...' : ''}</td>
-                <td>${item.contract_number_ccx || 'N/A'}</td>
-                <td>${item.manufacturer_name_ccx || 'N/A'}</td>
-                <td>${item.File_Row || 'N/A'}</td>
-            `;
+           row.innerHTML = `
+            <td class="width-mfg" title="${item.mfg_part_num_ccx || 'N/A'}">${item.mfg_part_num_ccx || 'N/A'}</td>
+            <td class="width-mfg" title="${item.Mfg_Part_Num || 'N/A'}">${item.Mfg_Part_Num || 'N/A'}</td>
+            <td class="width-uom" title="${item.uom_ccx || 'N/A'}">${item.uom_ccx || 'N/A'}</td>
+            <td class="width-uom" title="${item.UOM || 'N/A'}">${item.UOM || 'N/A'}</td>
+            <td class="width-qoe" title="${item.qoe_ccx || 'N/A'}">${item.qoe_ccx || 'N/A'}</td>
+            <td class="width-qoe" title="${item.QOE || 'N/A'}">${item.QOE || 'N/A'}</td>
+            <td class="width-price" title="${ccxEaPrice}">${ccxEaPrice}</td>
+            <td class="width-price" title="${uploadEaPrice}">${uploadEaPrice}</td>
+            <td class="width-indicator">
+                <div class="match-indicator ${item.same_mfg_part_num === 1 ? 'match' : 'no-match'}"></div>
+            </td>
+            <td class="width-confidence score-cell ${scoreClass}">${Math.round(item.weighted_score * 100)}%</td>
+            <td class="width-indicator">
+                <input type="checkbox" class="false-positive-checkbox" 
+                    data-index="${index}" 
+                    ${item.false_positive ? 'checked' : ''}>
+            </td>
+            <td class="width-description" title="${item.description_ccx || 'N/A'}">${item.description_ccx || 'N/A'}</td>
+            <td class="width-description" title="${item.Description || 'N/A'}">${item.Description || 'N/A'}</td>
+            <td class="width-contract" title="${item.contract_number_ccx || 'N/A'}">${item.contract_number_ccx || 'N/A'}</td>
+            <td class="width-manufacturer" title="${item.manufacturer_name_ccx || 'N/A'}">${item.manufacturer_name_ccx || 'N/A'}</td>
+            <td class="width-filerow">${item.File_Row || 'N/A'}</td>
+        `;
             
             itemsTbody.appendChild(row);
         });

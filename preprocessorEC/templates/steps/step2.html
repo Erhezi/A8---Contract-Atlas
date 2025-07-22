@@ -550,20 +550,146 @@
 
     .items-table th, 
     .items-table td {
-        padding: 6px; /* Reduce padding from 8px to 6px for more compact rows */
+        padding: 4px; /* Reduce padding from 8px to 4px for more compact rows */
         text-align: left;
         border-bottom: 1px solid #ddd;
     }
     
     /* Set equal width for manufacturer part number columns */
-    .items-table th:nth-child(1),
-    .items-table td:nth-child(1),
-    .items-table th:nth-child(2),
-    .items-table td:nth-child(2) {
-        width: 5%;  /* Set a fixed width for both columns */
-        min-width: 80px; /* Ensure a minimum width */
+    .width-mfg {
+        width: 90px;
+        min-width: 90px;
+        max-width: 90px;
+        white-space: nowrap;
         overflow: hidden;
-        text-overflow: ellipsis; /* Show ellipsis for overflow text */
+        text-overflow: ellipsis;
+    }
+
+    .width-uom {
+        width: 50px;
+        min-width: 50px;
+        max-width: 50px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .width-qoe {
+        width: 50px;
+        min-width: 50px;
+        max-width: 50px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .width-price {
+        width: 70px;
+        min-width: 70px;
+        max-width: 70px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .width-indicator {
+        width: 50px;
+        min-width: 50px;
+        max-width: 50px;
+        text-align: center !important;
+    }
+
+    .false-positive-checkbox {
+        display: block;
+        margin: 0 auto;
+    }
+
+    .width-confidence {
+        width: 70px;
+        min-width: 70px;
+        max-width: 70px;
+        text-align: center !important;
+    }
+
+    .width-description {
+        width: 220px;
+        min-width: 220px;
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .width-contract {
+        width: 120px;
+        min-width: 120px;
+        max-width: 120px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .width-manufacturer {
+        width: 150px;
+        min-width: 150px;
+        max-width: 150px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .width-filerow {
+        width: 50px;
+        min-width: 50px;
+        max-width: 50px;
+        text-align: center;
+    }
+
+    /* Header text wrapping */
+    .items-table th {
+        white-space: normal !important; /* Override the nowrap from width classes */
+        word-wrap: break-word;
+        word-break: break-word;
+        vertical-align: bottom;
+        height: auto;
+        min-height: 40px;
+        line-height: 1.2;
+        padding: 8px 4px !important;
+        hyphens: auto;
+        vertical-align: middle !important; /* Ensure headers are vertically centered */
+    }
+
+    /* Keep data rows as single line with ellipsis */
+    .items-table td {
+        white-space: nowrap !important; /* Ensure no wrapping for data cells */
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Adjust the sort indicator position for wrapped headers */
+    .items-table .sort-indicator {
+        position: absolute;
+        right: 5px;
+        top: 8px; /* Position near top instead of middle */
+        transform: none; /* Remove vertical centering */
+    }
+
+    /* Add tooltip-like behavior for truncated text */
+    .items-table td {
+        position: relative;
+        vertical-align: middle !important;
+    }
+
+    .items-table th[data-sort] {
+        position: relative;
+        padding-right: 20px; /* Make room for sort indicator */
+    }
+
+    .items-table .sort-indicator {
+        position: absolute;
+        right: 5px;
+        top: 50%;
+        transform: translateY(-50%);
     }
     
     .items-table th {
@@ -642,6 +768,7 @@
         justify-content: center;
         align-items: center;
         height: 100%;
+        width: 100%;
     }
     
     .match-indicator.match::before {
@@ -896,22 +1023,22 @@
                     <table id="items-table" class="items-table">
                         <thead>
                             <tr>
-                                <th data-sort="mfg_part_num_ccx">Mfg Part Num (CCX)<span class="sort-indicator"></span></th>
-                                <th data-sort="Mfg_Part_Num">Mfg Part Num (Upload)<span class="sort-indicator"></span></th>
-                                <th data-sort="uom_ccx">UOM (CCX)<span class="sort-indicator"></span></th>
-                                <th data-sort="UOM">UOM (Upload)<span class="sort-indicator"></span></th>
-                                <th data-sort="qoe_ccx">QOE (CCX)<span class="sort-indicator"></span></th>
-                                <th data-sort="QOE">QOE (Upload)<span class="sort-indicator"></span></th>
-                                <th data-sort="ccx_ea_price">EA Price (CCX)<span class="sort-indicator"></span></th>
-                                <th data-sort="upload_ea_price">EA Price (Upload)<span class="sort-indicator"></span></th>
-                                <th data-sort="same_mfg_part_num">Exact MFN Match<span class="sort-indicator"></span></th>
-                                <th data-sort="weighted_score">Confidence<span class="sort-indicator"></span></th>
-                                <th>False Positive</th>
-                                <th data-sort="description_ccx">Description (CCX)<span class="sort-indicator"></span></th>
-                                <th data-sort="Description">Description (Upload)<span class="sort-indicator"></span></th>
-                                <th data-sort="contract_number_ccx">Contract Number (CCX)<span class="sort-indicator"></span></th>
-                                <th data-sort="manufacturer_name_ccx">Manufacturer (CCX)<span class="sort-indicator"></span></th>
-                                <th data-sort="File_Row">File Row (Upload)<span class="sort-indicator"></span></th>
+                                <th class="width-mfg" data-sort="mfg_part_num_ccx">Mfg Part Num (CCX)<span class="sort-indicator"></span></th>
+                                <th class="width-mfg" data-sort="Mfg_Part_Num">Mfg Part Num (Upload)<span class="sort-indicator"></span></th>
+                                <th class="width-uom" data-sort="uom_ccx">UOM (CCX)<span class="sort-indicator"></span></th>
+                                <th class="width-uom" data-sort="UOM">UOM (Upload)<span class="sort-indicator"></span></th>
+                                <th class="width-qoe" data-sort="qoe_ccx">QOE (CCX)<span class="sort-indicator"></span></th>
+                                <th class="width-qoe" data-sort="QOE">QOE (Upload)<span class="sort-indicator"></span></th>
+                                <th class="width-price" data-sort="ccx_ea_price">EA Price (CCX)<span class="sort-indicator"></span></th>
+                                <th class="width-price" data-sort="upload_ea_price">EA Price (Upload)<span class="sort-indicator"></span></th>
+                                <th class="width-indicator" data-sort="same_mfg_part_num">Exact MFN Match<span class="sort-indicator"></span></th>
+                                <th class="width-confidence" data-sort="weighted_score">Confidence<span class="sort-indicator"></span></th>
+                                <th class="width-indicator">False Positive</th>
+                                <th class="width-description" data-sort="description_ccx">Description (CCX)<span class="sort-indicator"></span></th>
+                                <th class="width-description" data-sort="Description">Description (Upload)<span class="sort-indicator"></span></th>
+                                <th class="width-contract" data-sort="contract_number_ccx">Contract Number (CCX)<span class="sort-indicator"></span></th>
+                                <th class="width-manufacturer" data-sort="manufacturer_name_ccx">Manufacturer (CCX)<span class="sort-indicator"></span></th>
+                                <th class="width-filerow" data-sort="File_Row">File Row (Upload)<span class="sort-indicator"></span></th>
                             </tr>
                         </thead>
                         <tbody id="items-tbody">

@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const exportFormatSelect = document.getElementById('export_format');
     const batchContractFilterSelect = document.getElementById('batch-contract-filter');
     const contractFilterSelect = document.getElementById('contract-filter');
-    const exportResults = document.getElementById('export-results');
+
     const fileLinksContainer = document.getElementById('file-links-container');
     const itemLinkPreview = document.getElementById('item-link-preview');
     const contractToClosePreview = document.getElementById('contract-to-close-preview');
@@ -111,6 +111,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         exportAllBtn.disabled = false;
                     } else if (exportAllBtn) {
                         exportAllBtn.disabled = true;
+                        // Show the appropriate step complete button if no data
+                        const completeStepContainer = document.getElementById('complete-step-container');
+                        if (completeStepContainer) {
+                            completeStepContainer.style.display = 'block';
+                        }
                     }
 
                     // Scroll to the preview section
@@ -129,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Export all data function
     if (exportAllBtn) {
-        exportAllBtn.addEventListener('click', function() {
+        exportAllBtn.addEventListener('click', function () {
             if (loadingSpinner) {
                 loadingSpinner.style.display = 'flex';
             }
@@ -150,41 +155,48 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                loadingSpinner.style.display = 'none';
+                .then(response => response.json())
+                .then(data => {
+                    loadingSpinner.style.display = 'none';
 
-                if (data.success) {
-                    // Show export results section
-                    exportResults.style.display = 'block';
+                    if (data.success) {
+                        // Clear previous file links
+                        fileLinksContainer.innerHTML = '';
 
-                    // Clear previous file links
-                    fileLinksContainer.innerHTML = '';
+                        // Add link to the ZIP file
+                        if (data.zipFile) {
+                            const zipLinkHtml = `
+                                <div class="file-link">
+                                    <a href="${data.zipFile.url}" download class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-file-archive"></i> ${data.zipFile.name}
+                                    </a>
+                                    <span class="ml-2 text-muted small-text">${data.zipFile.description}</span>
+                                </div>
+                            `;
+                            fileLinksContainer.innerHTML += zipLinkHtml;
+                        }
 
-                    // Add link to the ZIP file
-                    if (data.zipFile) {
-                        const zipLinkHtml = `
-                            <div class="file-link">
-                                <a href="${data.zipFile.url}" download class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-file-archive"></i> ${data.zipFile.name}
-                                </a>
-                                <span class="ml-2 text-muted">${data.zipFile.description || 'All export files'}</span>
-                            </div>
-                        `;
-                        fileLinksContainer.innerHTML += zipLinkHtml;
+                        // Disable the export button and update its text
+                        exportAllBtn.disabled = true;
+                        exportAllBtn.textContent = 'Changes Exported';
+                        exportAllBtn.classList.add('committed');
+                        exportAllBtn.style.cursor = 'not-allowed';
+
+                        // Show the appropriate step complete button
+                        const completeStepContainer = document.getElementById('complete-step-container');
+                        if (completeStepContainer) {
+                            completeStepContainer.style.display = 'block';
+                        }
+
+                    } else {
+                        alert('Export failed: ' + data.message);
                     }
-
-                    // Scroll to the results section
-                    exportResults.scrollIntoView({ behavior: 'smooth' });
-                } else {
-                    alert('Export failed: ' + data.message);
-                }
-            })
-            .catch(error => {
-                loadingSpinner.style.display = 'none';
-                console.error('Error:', error);
-                alert('An error occurred during export. Please try again.');
-            });
+                })
+                .catch(error => {
+                    loadingSpinner.style.display = 'none';
+                    console.error('Error:', error);
+                    alert('An error occurred during export. Please try again.');
+                });
         });
     }
 
@@ -194,12 +206,24 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!batchTable) return;
         
         const rows = batchTable.querySelectorAll('tbody tr');
+        const batchCount = document.getElementById('batch-count');
+        
+        // Store the total count if not already stored
+        if (!batchTable.dataset.totalCount) {
+            batchTable.dataset.totalCount = rows.length;
+            batchTable.dataset.totalCountText = batchCount ? batchCount.textContent : '';
+        }
         
         // If "all" is selected, show all rows
         if (contractNumber === 'all') {
             rows.forEach(row => {
                 row.style.display = '';
             });
+            
+            // Restore the original count
+            if (batchCount && batchTable.dataset.totalCountText) {
+                batchCount.textContent = batchTable.dataset.totalCountText;
+            }
             return;
         }
         
@@ -219,7 +243,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Update the count badge to show filtered count
         const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-        const batchCount = document.getElementById('batch-count');
         if (batchCount) {
             batchCount.textContent = `${visibleRows.length} records`;
         }
@@ -243,6 +266,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update count badge
         batchCount.textContent = `${batchData.length} records`;
+        
+        // Reset stored count when table is updated
+        if (batchTable) {
+            batchTable.dataset.totalCount = batchData.length;
+            batchTable.dataset.totalCountText = `${batchData.length} records`;
+        }
 
         if (batchData.length === 0) {
             // Show no data message
@@ -273,10 +302,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Check for missing vendor part with additional condition
                 const missingVendorPart = !record['Vendor Part Num'] && 
                     ['Create', 'Expire then Create (Create)', 'Update (New)'].includes(record['Actual Action']);
+                
+                // Check for possible duplicates (Create Count > 1)
+                const possibleDuplicate = record['Create Count'] && parseInt(record['Create Count']) > 1;
 
-                // Apply appropriate class (prioritize date conflict over missing vendor part)
+                // Apply appropriate class (prioritize date conflict over possible duplicate over missing vendor part)
                 if (hasDateConflict) {
                     row.classList.add('date-conflict');
+                } else if (possibleDuplicate) {
+                    row.classList.add('possible-duplicate');
                 } else if (missingVendorPart) {
                     row.classList.add('missing-vendor-part');
                 }
@@ -302,6 +336,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td title="${record.QOE || ''}">${record.QOE || ''}</td>
                     <td title="${formatDate(record['Effective Date'])}">${formatDate(record['Effective Date'])}</td>
                     <td title="${formatDate(record['Expiration Date'])}">${formatDate(record['Expiration Date'])}</td>
+                    <td class="non-export-col" title="${escapeHtml(record['Actual Action'] || '')}">${escapeHtml(record['Actual Action'] || '')}</td>
+                    <td class="non-export-col" title="${escapeHtml(record['ERP Vendor ID (CCX Sync)'] || '')}">${escapeHtml(record['ERP Vendor ID (CCX Sync)'] || '')}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -336,19 +372,31 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!singleTable) return;
         
         const rows = singleTable.querySelectorAll('tbody tr');
+        const singleCount = document.getElementById('single-count');
+        
+        // Store the total count if not already stored
+        if (!singleTable.dataset.totalCount) {
+            singleTable.dataset.totalCount = rows.length;
+            singleTable.dataset.totalCountText = singleCount ? singleCount.textContent : '';
+        }
         
         // If "all" is selected, show all rows
         if (contractNumber === 'all') {
             rows.forEach(row => {
                 row.style.display = '';
             });
+            
+            // Restore the original count
+            if (singleCount && singleTable.dataset.totalCountText) {
+                singleCount.textContent = singleTable.dataset.totalCountText;
+            }
             return;
         }
         
         // Otherwise, filter rows based on the selected contract
         rows.forEach(row => {
-            // First column contains the contract number
-            const contractCell = row.querySelector('td:first-child');
+            // Contract Number is now in the 10th column (second-to-last)
+            const contractCell = row.querySelector('td:nth-child(10)');
             if (contractCell) {
                 const rowContractNumber = contractCell.textContent || '';
                 if (rowContractNumber === contractNumber) {
@@ -361,7 +409,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Update the count badge to show filtered count
         const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-        const singleCount = document.getElementById('single-count');
         if (singleCount) {
             singleCount.textContent = `${visibleRows.length} records`;
         }
@@ -386,6 +433,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update count badge
         singleCount.textContent = `${singleData.length} records`;
+        
+        // Reset stored count when table is updated
+        if (singleTable) {
+            singleTable.dataset.totalCount = singleData.length;
+            singleTable.dataset.totalCountText = `${singleData.length} records`;
+        }
 
         if (singleData.length === 0) {
             // Show no data message
@@ -417,16 +470,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Check for missing vendor part with additional condition
                 const missingVendorPart = !record['Vendor Part Num'] && 
                     ['Create', 'Expire then Create (Create)', 'Update (New)'].includes(record['Actual Action']);
+                
+                // Check for possible duplicates (Create Count > 1)
+                const possibleDuplicate = record['Create Count'] && parseInt(record['Create Count']) > 1;
 
-                // Apply appropriate class
+                // Apply appropriate class (prioritize date conflict over possible duplicate over missing vendor part)
                 if (hasDateConflict) {
                     row.classList.add('date-conflict');
+                } else if (possibleDuplicate) {
+                    row.classList.add('possible-duplicate');
                 } else if (missingVendorPart) {
                     row.classList.add('missing-vendor-part');
                 }
 
                 row.innerHTML = `
-                    <td title="${escapeHtml(record['Contract Number (PrP)'] || '')}">${escapeHtml(record['Contract Number (PrP)'] || '')}</td>
                     <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
                     <td title="${escapeHtml(record['Vendor Part Num'] || '')}">${escapeHtml(record['Vendor Part Num'] || '')}</td>
                     <td title="${escapeHtml(record['Buyer Part Num'] || '')}">${escapeHtml(record['Buyer Part Num'] || '')}</td>
@@ -436,6 +493,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td title="${record.QOE || ''}">${record.QOE || ''}</td>
                     <td title="${formatDate(record['Effective Date'])}">${formatDate(record['Effective Date'])}</td>
                     <td title="${formatDate(record['Expiration Date'])}">${formatDate(record['Expiration Date'])}</td>
+                    <td class="non-export-col" title="${escapeHtml(record['Contract Number (PrP)'] || '')}">${escapeHtml(record['Contract Number (PrP)'] || '')}</td>
+                    <td class="non-export-col" title="${escapeHtml(record['ERP Vendor ID (PrP)'] || '')}">${escapeHtml(record['ERP Vendor ID (PrP)'] || '')}</td>
                 `;
                 tbody.appendChild(row);
             });

@@ -171,10 +171,12 @@ def create_temp_table(table_name, df, conn):
             column_names = ','.join(columns)
             insert_sql = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
             cursor.execute(insert_sql, row_values)
+            conn.commit()  # Commit each insert to avoid memory issues
         
         return True, table_name
     
     except Exception as e:
+        conn.rollback()  # Rollback in case of error
         print(f"Database error: {str(e)}")
         return False, str(e)
 
@@ -711,7 +713,8 @@ def commit_header(task_id,
                   custom_direction = None,
                   custom_field = None,
                   simulation_mode = None,
-                  with_error = 'No'):
+                  with_error = None,
+                  auto_complete = None):
     """
     Commit a new task header to the database
     
@@ -726,23 +729,24 @@ def commit_header(task_id,
     """
     try:
         cursor = conn.cursor()
-        
-        # Insert the new task header
         insert_sql = """
             INSERT INTO [DM_MONTYNT\\dli2].PreprocessorHeader
             (TaskID, UserID, TPFileName, PreCheckMode,
             DedupMode, CustomDirection, CustomFields,
-            SimulationMode, WithError,
+            SimulationMode, [Status], WithError,
             CreateDT, UpdateDT)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
         """
+        status = 'Pending' if auto_complete is False else 'Completed'
         cursor.execute(insert_sql, (task_id, user_id, filename, precheck_mode,
                                     dedup_policy, custom_direction, custom_field,
-                                    simulation_mode, with_error))
+                                    simulation_mode, status, with_error))
+        conn.commit()  # Commit the transaction
         
         return True, ""
         
     except Exception as e:
+        conn.rollback()  # Rollback in case of error
         error_msg = f"Error committing header: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
@@ -757,7 +761,7 @@ def commit_all_changes(task_id, user_id, conn, final_all_changes=None):
         if not final_all_changes or final_all_changes == []:
             error_msg = "No changes to commit"
             current_app.logger.error(error_msg)
-            return False, error_msg
+            return True, error_msg
         
         for record in final_all_changes:
             # Extract and convert data types to ensure compatibility
@@ -826,8 +830,10 @@ def commit_all_changes(task_id, user_id, conn, final_all_changes=None):
                                        group, item, row_validation_flag, row_action,
                                        file_row_validation_flag, file_row_action,
                                        mfg_part_num_original, uom_original))
+            conn.commit()  # Commit the transaction
         return True, ""
     except Exception as e:
+        conn.rollback()  # Rollback in case of error
         error_msg = f"Error committing all changes: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
@@ -842,7 +848,7 @@ def commit_commit_res(task_id, user_id, conn, final_commit_res=None):
         if not final_commit_res or final_commit_res == []:
             error_msg = "No commit line to commit"
             current_app.logger.error(error_msg)
-            return False, error_msg
+            return True, error_msg
         
         for record in final_commit_res:
             # Extract and convert data types to ensure compatibility
@@ -911,8 +917,12 @@ def commit_commit_res(task_id, user_id, conn, final_commit_res=None):
                                        group, item, row_validation_flag, row_action,
                                        file_row_validation_flag, file_row_action,
                                        mfg_part_num_original, uom_original))
+            conn.commit()  # Commit the transaction
+        
         return True, ""
+    
     except Exception as e:
+        conn.rollback()  # Rollback in case of error
         error_msg = f"Error committing commit line (action lines): {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
@@ -926,7 +936,7 @@ def commit_contract_line_count(task_id, user_id, conn, final_line_operations=Non
         if not final_line_operations or final_line_operations == []:
             error_msg = "No contract line count to commit"
             current_app.logger.error(error_msg)
-            return False, error_msg
+            return True, error_msg
         
         for record in final_line_operations:
             # Extract and convert data types to ensure compatibility
@@ -961,12 +971,15 @@ def commit_contract_line_count(task_id, user_id, conn, final_line_operations=Non
                                        update_existing, update_new, delta, 
                                        insert_count, update_count, delete_count, 
                                        total_line_count_after))
+            conn.commit()  # Commit the transaction
         
         return True, ""
     except Exception as e:
+        conn.rollback()  # Rollback in case of error
         error_msg = f"Error committing contract line count: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
+
 
 def commit_wrike(task_id, user_id, conn, wrike_task_id=None):
     """link the Wrike task # to task id and user id"""
@@ -980,13 +993,16 @@ def commit_wrike(task_id, user_id, conn, wrike_task_id=None):
             VALUES (?, ?, ?, GETDATE(), GETDATE())
         """
         cursor.execute(insert_sql, (task_id, user_id, wrike_task_id))
+        conn.commit()  # Commit the transaction
         
         return True, ""
         
     except Exception as e:
+        conn.rollback()  # Rollback in case of error
         error_msg = f"Error committing Wrike task: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
+
 
 def delete_existing_commit(user_id, task_id, conn):
     """
@@ -1015,10 +1031,12 @@ def delete_existing_commit(user_id, task_id, conn):
                 WHERE TaskID = ? AND UserID = ?
             """
             cursor.execute(delete_sql, (task_id, user_id))
+            conn.commit()  # Commit after each delete to ensure changes are saved
         
         return True, ""
         
     except Exception as e:
+        conn.rollback()  # Rollback in case of error
         error_msg = f"Error deleting existing commited result for {task_id}: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
@@ -1044,7 +1062,7 @@ def get_task_history(conn, user_id = None, user_role = None):
             query = """
                 SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
                        CustomDirection, CustomFields, SimulationMode,
-                       Status, CompletedBy,
+                       Status, CompletedBy, ExportedBy,
                        h.CreateDT, h.UpdateDT
                 FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
                 LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
@@ -1056,7 +1074,7 @@ def get_task_history(conn, user_id = None, user_role = None):
             query = """
                 SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
                        CustomDirection, CustomFields, SimulationMode,
-                       Status, CompletedBy,
+                       Status, CompletedBy, ExportedBy,
                        h.CreateDT, h.UpdateDT
                 FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
                 LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
@@ -1239,10 +1257,11 @@ def get_contract_to_close(conn, user_id = None, user_role = None):
         error_msg = f"Error getting contract to close: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg, None
-    
-def data_persistence_after_export(conn, user_id = None, user_role = None):
+
+
+def get_error_lines(conn, user_id = None, user_role = None):
     """
-    Get data persistence after export for the user
+    Get error lines for the user
     
     Args:
         conn: Database connection
@@ -1253,21 +1272,28 @@ def data_persistence_after_export(conn, user_id = None, user_role = None):
         Tuple of (success, error_message, results)
     """
     try:
-        # Ensure only 'mdm' or 'admin' roles can call this function
-        if user_role not in ['mdm', 'admin']:
-            error_msg = "Unauthorized access: Only 'mdm' or 'admin' roles can call this function."
-            current_app.logger.error(error_msg)
-            return False, error_msg, None
-        
         cursor = conn.cursor()
         
-        # Stored procedure call with @ExportedBy parameter
-        query = """
-            EXEC [DM_MONTYNT\dli2].[sp_ExportPreprocessorData] @ExportedBy = ?
-        """
+        # Build the query based on user role
+        if user_role == 'admin' or user_role == 'mdm':
+            query = """
+                SELECT *
+                FROM [DM_MONTYNT\\dli2].[vw_PreprocessorErrorLines]
+                where [File Row Action] = 'Pending'
+            """
+        else:
+            query = """
+                SELECT *
+                FROM [DM_MONTYNT\\dli2].[vw_PreprocessorErrorLines]
+                WHERE UserID = ?
+                and [File Row Action] = 'Pending'
+            """
         
         # Execute the query
-        cursor.execute(query, (user_id,))
+        if user_role == 'admin' or user_role == 'mdm':
+            cursor.execute(query)
+        else:
+            cursor.execute(query, (user_id,))
         
         # Process results
         rows = cursor.fetchall()
@@ -1280,6 +1306,48 @@ def data_persistence_after_export(conn, user_id = None, user_role = None):
         return True, "", results
         
     except Exception as e:
-        error_msg = f"Error getting data persistence after export: {str(e)}"
+        error_msg = f"Error getting error lines: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg, None
+
+
+def data_persistence_after_export(conn, user_id=None, user_role=None, zip_filename=None):
+    """
+    Get data persistence after export for the user
+    
+    Args:
+        conn: Database connection
+        user_role: Role of the user (optional)
+        user_id: ID of the user (optional)
+        zip_filename: Name of the exported ZIP file
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    try:
+        # Ensure only 'mdm' or 'admin' roles can call this function
+        if user_role not in ['mdm', 'admin']:
+            error_msg = "Unauthorized access: Only 'mdm' or 'admin' roles can call this function."
+            current_app.logger.error(error_msg)
+            return False, error_msg
+
+        cursor = conn.cursor()
+
+        # Stored procedure call with @ExportedBy parameter
+        query = """
+            EXEC [DM_MONTYNT\\dli2].[sp_ExportPreprocessorData] @ExportedBy = ?, @ZipFile = ?
+        """
+
+        # Execute the query
+        cursor.execute(query, (user_id, zip_filename))
+        conn.commit()  # Commit the transaction
+
+        # If no exception is raised, the execution was successful
+        return True, ""
+
+    except Exception as e:
+        # Capture and log the error message
+        conn.rollback()
+        error_msg = f"Error executing stored procedure: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg

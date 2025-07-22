@@ -222,6 +222,7 @@ def validate_file_route():
         # Since we can't store the dataframe directly in session, convert to dict
         clear_error_file_path(user_id) # Use helper to clear any previous error file path
         total_rows = len(valid_df)
+        missing_vendor_part_num = len(valid_df[valid_df['Vendor Part Num'].isnull() | (valid_df['Vendor Part Num'] == '')]) # Count missing Vendor Part Num
         store_validated_data(user_id, valid_df.to_dict('records')) # Use helper, store as records (list of dicts)
         session.modified = True  # Mark session as modified
         
@@ -231,7 +232,8 @@ def validate_file_route():
             'stats': {
                 'total_rows': total_rows,
                 'error_rows': 0,
-                'duplicate_rows': 0
+                'duplicate_rows': 0,
+                'missing_vendor_part_num': missing_vendor_part_num
             },
         })
         

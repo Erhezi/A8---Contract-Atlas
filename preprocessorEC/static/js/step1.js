@@ -269,10 +269,26 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             if (data.success) {
-                // Show success message
-                document.getElementById('validation-results').innerHTML = `
-                    <div class="alert alert-success">${data.message}</div>
-                `;
+                // check for missing vendor part numbers in distributor mode
+                const duplicateMode = document.getElementById('duplicate_mode').value;
+                const missingVendorPartNum = data.stats.missing_vendor_part_num || 0;
+
+                // Build the validation results content
+                let successContent = `<div class="alert alert-success">${data.message}</div>`;
+
+                 // Add warning about missing vendor part numbers if in distributor mode
+                if (duplicateMode === 'distributor' && missingVendorPartNum > 0) {
+                    successContent = `
+                        <div class="alert alert-warning">
+                            <strong>!!!</strong> ${missingVendorPartNum} ${missingVendorPartNum === 1 ? 'line' : 'lines'} 
+                            without Vendor Part Number detected. These items will not be synchronized to Infor.
+                        </div>
+                        ${successContent}
+                    `;
+                }
+
+                // Show success message with potential warning
+                document.getElementById('validation-results').innerHTML = successContent;
                 document.getElementById('error-display').style.display = 'none';
                 document.getElementById('success-display').style.display = 'block';
             } else {
@@ -294,7 +310,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Find which column is the Description column
                     headers.forEach((header, index) => {
-if (header.textContent.includes('Description') || header.textContent.includes('Contract Number')) {
+                        if (header.textContent.includes('Description') || header.textContent.includes('Contract Number')) {
                         header.style.maxWidth = '300px';
                         header.style.whiteSpace = 'nowrap';
                         header.style.overflow = 'hidden';

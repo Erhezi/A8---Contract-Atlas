@@ -440,12 +440,13 @@
                     </div>
                     <select class="form-control" name="duplicate_mode" id="duplicate_mode">
                         <option value="default" selected>Default (Reduced Mfg Part Num)</option>
+                        <option value="strict">Strict (Mfg Part Num)</option>
                         <option value="explicit">Explicit (Mfg Part Num + UOM)</option>
                         <option value="distributor">Distributor (ERP Vendor ID + Mfg Part Num + UOM + Contract Number)</option>
                     </select>
                 </div>
                 <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
-                    <small>Before checking, everything is converted into upper case with leading/trailing white-space(s) trimmed. Use explicit mode only after you have first reviewed all your potential duplicates and you are sure they should be identified by their explicit manufacturer part number and UOM. The distributor mode is intended for running pre-checker on distributor (e.g. Medline) contract(s) only.</small>
+                    <small>Before checking, everything is converted into upper case with leading/trailing white-space(s) trimmed. Use strict/explicit mode only after you have first reviewed all your potential duplicates and you are sure they should be identified by their explicit manufacturer part number and UOM. The distributor mode is intended for running pre-checker on distributor (e.g. Medline) contract(s) only.</small>
                 </div>
             </div>
         </form>

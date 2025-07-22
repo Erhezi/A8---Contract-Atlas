@@ -389,37 +389,41 @@ function getPrimaryActionClass(action) {
 }
 
 // Function to get CSS class for Actual Action
-function getActualActionClass(action) {
+function getActualActionClass(action, doNotExpire) {
     if (!action) return '';
     const actionLower = action.toLowerCase();
     
+    // Base styling
+    let className = '';
+    
     // More specific checks first
     if (actionLower === 'expire then create (create)') {
-        return 'actual-action-etc-create';
+        className = 'actual-action-etc-create';
+    } else if (actionLower === 'expire then create (expire)') {
+        className = 'actual-action-etc-expire';
+    } else if (actionLower.includes('etc') && actionLower.includes('create')) {
+        className = 'actual-action-etc-create';
+    } else if (actionLower.includes('etc') && actionLower.includes('expire')) {
+        className = 'actual-action-etc-expire';
+    } else if (actionLower.includes('no change')) {
+        className = 'actual-action-no-change';
+    } else if (actionLower.includes('update') && actionLower.includes('existing')) {
+        className = 'actual-action-update-existing';
+    } else if (actionLower.includes('update') && actionLower.includes('new')) {
+        className = 'actual-action-update-new';
+    } else if (actionLower.includes('expire')) {
+        className = 'actual-action-expire';
+    } else if (actionLower.includes('create')) {
+        className = 'actual-action-create';
     }
     
-    if (actionLower === 'expire then create (expire)') {
-        return 'actual-action-etc-expire';
+    // Add strike-through class if Do Not Expire is true and action contains 'expire'
+    if (doNotExpire === true && 
+        (actionLower.includes('expire') && !actionLower.includes('create'))) {
+        className += ' expire-action-crossed';
     }
     
-    // Handle pattern matching for various formats
-    if (actionLower.includes('etc') && actionLower.includes('create')) {
-        return 'actual-action-etc-create';
-    }
-    
-    if (actionLower.includes('etc') && actionLower.includes('expire')) {
-        return 'actual-action-etc-expire';
-    }
-    
-    // Generic cases - order matters here
-    if (actionLower.includes('no change')) return 'actual-action-no-change';
-    if (actionLower.includes('update') && actionLower.includes('existing')) return 'actual-action-update-existing';
-    if (actionLower.includes('update') && actionLower.includes('new')) return 'actual-action-update-new';
-    // These need to be last since they're more general
-    if (actionLower.includes('expire')) return 'actual-action-expire';
-    if (actionLower.includes('create')) return 'actual-action-create';
-    
-    return '';
+    return className;
 }
 
 // Function to find and mark paired update items
@@ -1297,8 +1301,21 @@ function finalizeChanges() {
             window.validationFlagData = {
                 error: data.result.final_errors || [],
                 warning: data.result.final_warnings || [],
-                check: data.result.final_checks || []
+                check: data.result.final_checks || [],
+                tp_no_execution: data.result.final_tp_no_execution || []
             };
+
+            // Update the TP No Execution count directly
+            const tpNoExecutionCount = (data.result.final_tp_no_execution || []).length;
+            document.getElementById('tp-no-execution-count').textContent = tpNoExecutionCount;
+            
+            // Update card style based on count
+            const tpNoExecutionCard = document.querySelector('.tp-no-execution-card');
+            if (tpNoExecutionCount === 0) {
+                tpNoExecutionCard.classList.add('tp-no-execution-card-zero');
+            } else {
+                tpNoExecutionCard.classList.remove('tp-no-execution-card-zero');
+            }
 
             // Display validation table with final commit data
             if (data.result.final_commit_df) {
@@ -1334,7 +1351,7 @@ function finalizeChanges() {
                         ? '<strong style="color: red;">Yes</strong>'
                         : 'No';                    
                     
-                        // Compute change direction based on delta with FontAwesome icons and colors
+                    // Compute change direction based on delta with FontAwesome icons and colors
                     const delta = parseInt(item['Delta'] || 0);
                     let changeDirectionIcon;
 
@@ -1423,17 +1440,11 @@ function finalizeChanges() {
                 }
             }
         } else {
-            // Show details about the failed checks
-            let message = 'Safety checks failed. Please review the following issues:\n';
-            if (data.issues && data.issues.length > 0) {
-                data.issues.forEach(issue => {
-                    message += `\n- ${issue}`;
-                });
-            } else {
-                message += '\n- ' + (data.message || 'Unknown error occurred');
-            }
+            // No graph data available (this is expected when changes_to_show_df is empty)
+            const networkGraphsDiv = document.getElementById('finalized-network-graphs');
             
-            alert(message);
+            // Either hide the container completely
+            networkGraphsDiv.style.display = 'none';
         }
     })
     .catch(error => {
@@ -1546,7 +1557,7 @@ function displayValidationTable(validationData) {
         // Get CSS classes for color coding
         const intendedActionClass = getIntendedActionClass(item['Intended Action']);
         const primaryActionClass = getPrimaryActionClass(item['Primary Action']);
-        const actualActionClass = getActualActionClass(item['Actual Action']);
+        const actualActionClass = getActualActionClass(item['Actual Action'], item['Do Not Expire'] === true);
         
         // Get the validation flag and split it for display
         const validationFlag = item['Validation Flag'] || '';
@@ -1762,12 +1773,13 @@ function updateValidationFlagCounts(validationData) {
     let errorCount = 0;
     let warningCount = 0;
     let checkCount = 0;
+    let tpNoExecutionCount = 0;
 
     // Group validation data by flag type
     const errorItems = [];
     const warningItems = [];
     const checkItems = [];
-
+    
     if (validationData && validationData.length > 0) {
         validationData.forEach(item => {
             const validationFlag = item['Validation Flag'] || '';
@@ -1784,54 +1796,70 @@ function updateValidationFlagCounts(validationData) {
         });
     }
 
+    // Get TP No Execution count from window.validationFlagData if available
+    if (window.validationFlagData && window.validationFlagData.tp_no_execution) {
+        tpNoExecutionCount = window.validationFlagData.tp_no_execution.length;
+    }
+
     // Update card counts
     document.getElementById('validation-error-count').textContent = errorCount;
     document.getElementById('validation-warning-count').textContent = warningCount;
     document.getElementById('validation-check-count').textContent = checkCount;
-
-    // Update card border colors based on counts using CSS classes
-    const errorCard = document.querySelector('.validation-error-card');
-    const warningCard = document.querySelector('.validation-warning-card');
-    const checkCard = document.querySelector('.validation-check-card');
-
-    // Apply color coding:
-    // - Count = 0: Green border (adds -zero class)
-    // - Count > 0: Category-specific color (removes -zero class)
-    //   - ERROR: Red border (default .validation-error-card)
-    //   - WARNING: Orange border (default .validation-warning-card)
-    //   - CHECK: Purple border (default .validation-check-card)
+    document.getElementById('tp-no-execution-count').textContent = tpNoExecutionCount;
     
-    if (errorCount === 0) {
-        errorCard.classList.add('validation-error-card-zero');
-    } else {
+    // Force card selection with full selector path to ensure we get the right elements
+    const errorCard = document.querySelector('.validation-flag-cards .change-stats-column .validation-error-card');
+    const warningCard = document.querySelector('.validation-flag-cards .change-stats-column .validation-warning-card');
+    const checkCard = document.querySelector('.validation-flag-cards .change-stats-column .validation-check-card');
+    const tpNoExecutionCard = document.querySelector('.validation-flag-cards .change-stats-column .tp-no-execution-card');
+    
+    // Make sure we found the elements before trying to modify them
+    if (errorCard) {
         errorCard.classList.remove('validation-error-card-zero');
+        if (errorCount === 0) {
+            errorCard.classList.add('validation-error-card-zero');
+        }
     }
     
-    if (warningCount === 0) {
-        warningCard.classList.add('validation-warning-card-zero');
-    } else {
+    if (warningCard) {
         warningCard.classList.remove('validation-warning-card-zero');
+        if (warningCount === 0) {
+            warningCard.classList.add('validation-warning-card-zero');
+        }
     }
     
-    if (checkCount === 0) {
-        checkCard.classList.add('validation-check-card-zero');
-    } else {
+    if (checkCard) {
         checkCard.classList.remove('validation-check-card-zero');
+        if (checkCount === 0) {
+            checkCard.classList.add('validation-check-card-zero');
+        }
+    }
+    
+    if (tpNoExecutionCard) {
+        tpNoExecutionCard.classList.remove('tp-no-execution-card-zero');
+        if (tpNoExecutionCount === 0) {
+            tpNoExecutionCard.classList.add('tp-no-execution-card-zero');
+        }
     }
 
     // Store the filtered data for modal display
     window.validationFlagData = {
         error: errorItems,
         warning: warningItems,
-        check: checkItems
+        check: checkItems,
+        tp_no_execution: window.validationFlagData?.tp_no_execution || []
     };
 
     // Show the cards container
-    document.querySelector('.validation-flag-cards').style.display = 'grid';
+    const cardsContainer = document.querySelector('.validation-flag-cards');
+    if (cardsContainer) {
+        cardsContainer.style.display = 'grid';
+    }
 
     // Attach click handlers to the cards
     attachValidationCardClickHandlers();
 }
+
 
 // Function to attach click handlers to validation flag cards
 function attachValidationCardClickHandlers() {
@@ -1852,12 +1880,18 @@ function attachValidationCardClickHandlers() {
         showValidationFlagModal('CHECK', window.validationFlagData.check);
         $('#validationFlagModal').modal('show');
     });
+
+    // TP NO EXECUTION card
+    document.querySelector('.tp-no-execution-card').addEventListener('click', function() {
+        showValidationFlagModal('TP No Execution', window.validationFlagData.tp_no_execution);
+        $('#validationFlagModal').modal('show');
+    });
 }
 
 // Function to show validation flag modal
 function showValidationFlagModal(flagType, data) {
     // Set modal title
-    document.getElementById('validationFlagModalLabel').textContent = `${flagType} Validation Items`;
+    document.getElementById('validationFlagModalLabel').textContent = `${flagType} Items`;
     
     const tableBody = document.getElementById('validationFlagTableBody');
     const noDataMessage = document.getElementById('noValidationDataMessage');
@@ -1881,22 +1915,25 @@ function showValidationFlagModal(flagType, data) {
             // Format contract price
             const contractPrice = item['Contract Price'] ? 
                 '$' + parseFloat(item['Contract Price']).toFixed(2) : '';
-            
-                       
+                        
             // Format validation flag for display
-            const validationFlag = item['Validation Flag'] || '';
+            const validationFlag = item['Validation Flag'] || (flagType === 'TP No Execution' ? 'PENDING' : '');
+            const validationFlagClass = flagType === 'TP No Execution' ? 
+                'validation-flag-warning' : getValidationFlagClass(validationFlag);
+            
+            // Get only the flag part without the message
             const flagParts = validationFlag.split(' - ');
             const flagMessage = flagParts.length > 1 ? flagParts.slice(1).join(' - ') : '';
             
             // Format actions
             const formattedPrimaryAction = formatActionText(item['Primary Action'] || '');
-            const formattedActualAction = formatActionText(item['Actual Action'] || '');
+            const actualActionClass = getActualActionClass(item['Actual Action'], item['Do Not Expire'] === true);
             
             row.innerHTML = `
-                <td><span class="${getValidationFlagClass(validationFlag)}">${flagParts[0]}</span></td>
-                <td>${flagMessage}</td>
+                <td><span class="${validationFlagClass}">${flagType === 'TP No Execution' ? 'PENDING' : flagParts[0]}</span></td>
+                <td>${flagType === 'TP No Execution' ? 'File row will not be executed due to errors' : flagMessage}</td>
                 <td><span class="${getPrimaryActionClass(item['Primary Action'])}">${formattedPrimaryAction}</span></td>
-                <td><span class="${getActualActionClass(item['Actual Action'])}">${formattedActualAction}</span></td>
+                <td><span class="${actualActionClass}">${item['Actual Action'] || 'N/A'}</span></td>
                 <td>${item['Item'] || ''}</td>
                 <td>${item['Contract Number'] || ''}</td>
                 <td>${item['ERP Vendor ID'] || ''}</td>

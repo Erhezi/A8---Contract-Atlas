@@ -174,22 +174,32 @@
         color: #6c757d;
     }
 
-    /* Ensure green buttons for export actions */
-    .btn-success {
+    #export-all-btn {
         background-color: #28a745 !important;
         border-color: #28a745 !important;
-        color: #fff !important;
+        font-weight: 600;
+        color: #ffffff !important;
     }
 
-    .btn-success:hover {
+    #export-all-btn:hover {
         background-color: #218838 !important;
         border-color: #1e7e34 !important;
+        color: #ffffff !important;
     }
 
-    .btn-success:disabled {
-        background-color: #c3e6cb !important;
-        border-color: #c3e6cb !important;
-        color: #fff !important;
+    #export-all-btn:focus {
+        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.5) !important;
+        color: #ffffff !important;
+    }
+    
+    /* Styling for when the button is committed/disabled */
+    #export-all-btn.committed {
+        opacity: 0.85;
+        box-shadow: none !important;
+        background-color: #5cb85c !important; 
+        border-color: #4cae4c !important;
+        color: #ffffff !important;
+        cursor: not-allowed !important;
     }
 
     .card-footer.d-flex.justify-content-end {
@@ -239,11 +249,6 @@
         display: inline-block;
     }
 
-    #single-table th:first-child,
-    #single-table td:first-child {
-        display: none;
-    }
-
     /* Row highlight styles */
     tr.date-conflict {
         background-color: #f8d7da !important; 
@@ -251,6 +256,10 @@
     
     tr.missing-vendor-part {
         background-color: #fff3cd !important;
+    }
+    
+    tr.possible-duplicate {
+        background-color: #e2d9f3 !important;
     }
     
     /* Override Bootstrap stripes for highlighted rows */
@@ -262,6 +271,11 @@
     .table-striped > tbody > tr.missing-vendor-part:nth-of-type(odd),
     .table-striped > tbody > tr.missing-vendor-part:nth-of-type(even) {
         background-color: #fff3cd !important;  /* Explicitly set color instead of inherit */
+    }
+    
+    .table-striped > tbody > tr.possible-duplicate:nth-of-type(odd),
+    .table-striped > tbody > tr.possible-duplicate:nth-of-type(even) {
+        background-color: #e2d9f3 !important;  /* Explicitly set color instead of inherit */
     }
     
     .highlight-key {
@@ -281,6 +295,11 @@
     .highlight-key.yellow {
         background-color: #fff3cd;
         border: 1px solid #ffc107;
+    }
+    
+    .highlight-key.purple {
+        background-color: #e2d9f3;
+        border: 1px solid #6f42c1;
     }
     
      .highlight-explanation {
@@ -314,6 +333,31 @@
     .table-striped tbody tr.manual-link:nth-of-type(odd),
     .table-striped tbody tr.manual-link:nth-of-type(even) {
         background-color: #fff3cd !important;
+    }
+
+    .non-export-col {
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    .file-links-container {
+        display: flex;
+        align-items: center;
+        gap: 10px; /* Add spacing between file links */
+    }
+
+    .file-links-container .file-link {
+        margin: 0; /* Remove unnecessary margins */
+    }
+
+    .card-footer.d-flex.justify-content-between {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .small-text {
+        font-size: 0.85rem;
     }
 
 </style>
@@ -398,12 +442,14 @@
                                 <th>Qty</th>
                                 <th>Effective Date</th>
                                 <th>Expiration Date</th>
+                                <th class="non-export-col">Actual Action</th>
+                                <th class="non-export-col">ERP Vendor ID</th>
                             </tr>
                         </thead>
                         <tbody>
                             <!-- Batch data rows will be inserted here dynamically -->
                             <tr class="no-data-row">
-                                <td colspan="16" class="no-data-message">Click "Preview Export Data" to load records</td>
+                                <td colspan="21" class="no-data-message">Click "Preview Export Data" to load records</td>
                             </tr>
                         </tbody>
                     </table>
@@ -414,6 +460,7 @@
             </div>
             <div class="highlight-explanation">
                 <div><span class="highlight-key red"></span> Red: Date conflict - The record's effective or expiration date failed validation after final date adjustment before export. Manually adjust before upload to CCX.</div>
+                <div><span class="highlight-key purple"></span> Purple: Possible duplicates - The same item may be created multiple times under different contract numbers (Create Count > 1) from different tasks. CCX will take the record, but we may need to resolve this in downstream system later</div>
                 <div><span class="highlight-key yellow"></span> Yellow: Empty vendor part number - Some distributor contract come with vendor part number blank, CCX will take the record, but it will not get sent to Infor.</div>
             </div>
             <div class="card-footer bg-light"></div>
@@ -444,7 +491,6 @@
                     <table class="table table-striped table-bordered preview-table" id="single-table">
                         <thead class="thead-light">
                             <tr>
-                                <th>Contract Number</th>
                                 <th>Mfg Part Num</th>
                                 <th>Vendor Part Num</th>
                                 <th>Buyer Part Num</th>
@@ -454,12 +500,14 @@
                                 <th>QOE</th>
                                 <th>Effective Date</th>
                                 <th>Expiration Date</th>
+                                <th class="non-export-col">Contract Number</th>
+                                <th class="non-export-col">ERP Vendor ID</th>
                             </tr>
                         </thead>
                         <tbody>
                             <!-- Single contract data rows will be inserted here dynamically -->
                             <tr class="no-data-row">
-                                <td colspan="10" class="no-data-message">Click "Preview Export Data" to load records</td>
+                                <td colspan="11" class="no-data-message">Click "Preview Export Data" to load records</td>
                             </tr>
                         </tbody>
                     </table>
@@ -470,6 +518,7 @@
             </div>
             <div class="highlight-explanation">
                 <div><span class="highlight-key red"></span> Red: Date conflict - The record's effective or expiration date failed validation after final date adjustment before export. Manually adjust before upload to CCX.</div>
+                <div><span class="highlight-key purple"></span> Purple: Possible duplicates - The same item may be created multiple times under different contract numbers (Create Count > 1) from different tasks. CCX will take the record, but we may need to resolve this in downstream system later.</div>
                 <div><span class="highlight-key yellow"></span> Yellow: Empty vendor part number - Some distributor contract come with vendor part number blank, CCX will take the record, but it will not get sent to Infor.</div>
             </div>
             <div class="card-footer bg-light"></div>
@@ -482,7 +531,7 @@
     <!-- Item Link Preview -->
     <div class="card mb-4" id="item-link-preview" style="display: none;">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Item to Link Preview</h5>
+            <h5 class="mb-0">Item to Link Preview (View Only)</h5>
             <span class="badge badge-light" id="item-link-count">0 records</span>
         </div>
         <div class="card-body p-0">
@@ -527,7 +576,7 @@
     <!-- Contract to Close Preview -->
     <div class="card mb-4" id="contract-to-close-preview" style="display: none;">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Contract to Close Preview</h5>
+            <h5 class="mb-0">Contract to Close Preview (View Only)</h5>
             <span class="badge badge-light" id="contract-to-close-count">0 records</span>
         </div>
         <div class="card-body p-0">
@@ -557,9 +606,12 @@
         <div class="card-footer bg-light"></div>
     </div>
 
-    <!-- Export Button Card - New container -->
+    <!-- Export Button Card - Updated container -->
     <div class="card mb-4">
-        <div class="card-footer bg-light d-flex justify-content-end">
+        <div class="card-footer bg-light d-flex justify-content-between align-items-center">
+            <div id="file-links-container" class="file-links-container">
+                <!-- File links will be dynamically added here -->
+            </div>
             {% if current_user.role in ['admin', 'mdm'] %}
             <button id="export-all-btn" class="btn btn-success" style="display: none;">
                 <i class="fas fa-file-export"></i> Export for Execution
@@ -568,20 +620,22 @@
         </div>
     </div>
 
-    <!-- Export Results Section (initially hidden) -->
-    <div id="export-results" class="export-results">
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">Export Completed</h5>
-            </div>
-            <div class="card-body">
-                <h5>Generated Files:</h5>
-                <div id="file-links-container">
-                    <!-- File links will be dynamically added here -->
-                </div>
-            </div>
-        </div>
+    <div id="complete-step-container" style="display: none; width: 100%; text-align: right;">
+        <form method="POST" action="{{ url_for('common.process_step', step_id=6) }}">
+            <input type="hidden" name="substep_completed" value="6.1">
+            <input type="hidden" name="step_completed" value="true">
+            {% if current_user.role in ['admin', 'mdm'] %}
+            <button type="submit" id="complete-step-btn" class="btn btn-success">
+                Complete Step 6
+            </button>
+            {% elif current_user.role == 'sourcing' %}
+            <button type="submit" id="complete-step-btn" class="btn btn-success">
+                Reviewed, Back to Home Page
+            </button>
+            {% endif %}
+        </form>
     </div>
+
 </div>
 
 <!-- Loading Spinner -->

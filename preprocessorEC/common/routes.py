@@ -308,11 +308,7 @@ def process_step(step_id):
 
         elif step_id == 6:
             # Step 6: Export Changes completion check
-            # Add checks relevant to step 6 (e.g., check if export file path exists)
-            export_format = request.form.get('export_format') # Check if form was submitted if needed
-            if not export_format: # Example check
-                 raise ValueError("No export format selected for Step 6 completion.")
-            import time; time.sleep(0.1) # Simulate check
+            # check if 
             success = True
             flash("Step 6 completed (Placeholder).", "success")
 
