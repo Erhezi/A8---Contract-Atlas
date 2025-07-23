@@ -239,16 +239,6 @@
         border-radius: 0.25rem 0 0 0.25rem;
     }
 
-    #batch-count {
-        margin-top: 10px;
-        display: inline-block;
-    }
-
-    #single-count {
-        margin-top: 10px;
-        display: inline-block;
-    }
-
     /* Row highlight styles */
     tr.date-conflict {
         background-color: #f8d7da !important; 
@@ -360,10 +350,64 @@
         font-size: 0.85rem;
     }
 
+    .page-info {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin: 0 8px;
+    }
+    
+    #batch-prev-page, #batch-next-page, 
+    #single-prev-page, #single-next-page {
+        padding: 0.25rem 0.5rem;
+        min-width: 38px;
+        font-size: 0.9rem;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    #batch-prev-page:disabled, #batch-next-page:disabled,
+    #single-prev-page:disabled, #single-next-page:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .mr-2 {
+        margin-right: 0.5rem !important;
+    }
+    
+    .ml-2 {
+        margin-left: 0.5rem !important;
+    }
+
+    .table-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .record-count {
+        border-radius: 4px;
+        background-color: #f8f9fa;
+        font-size: 1rem;
+        line-height: 1.5;
+        display: flex;
+        align-items: center;
+        margin-top: 20px !important;
+    }
+    
+    #batch-count, #single-count {
+        margin: 0;
+        padding: 0;
+    }
 </style>
 
 <!-- Export Changes Content -->
 <div class="step-content">
+    <input type="hidden" id="user-role" value="{{ current_user.role }}">
     <h4>Export Contract Changes to be made to CCX</h4>
     
     <div class="export-options">
@@ -416,7 +460,18 @@
                     </select>
                 </div>
             </div>
-            <span class="badge badge-light" id="batch-count">0 records</span>
+            <div class="table-header-row">
+                <span class="record-count" id="batch-count">0 records</span>
+                <div class="d-flex align-items-center">
+                    <button id="batch-prev-page" class="btn btn-sm btn-outline-secondary mr-2" disabled>
+                        &laquo;
+                    </button>
+                    <span class="page-info">Page <span id="batch-current-page">1</span> of <span id="batch-total-pages">1</span></span>
+                    <button id="batch-next-page" class="btn btn-sm btn-outline-secondary ml-2">
+                        &raquo;
+                    </button>
+                </div>
+            </div>
 
             <div class="card-body p-0">
                 <div class="preview-table-container">
@@ -484,7 +539,18 @@
                     </select>
                 </div>
             </div>
-            <span class="badge badge-light" id="single-count">0 records</span>
+            <div class="table-header-row">
+                <span class="record-count" id="single-count">0 records</span>
+                <div class="d-flex align-items-center">
+                    <button id="single-prev-page" class="btn btn-sm btn-outline-secondary mr-2" disabled>
+                        &laquo;
+                    </button>
+                    <span class="page-info">Page <span id="single-current-page">1</span> of <span id="single-total-pages">1</span></span>
+                    <button id="single-next-page" class="btn btn-sm btn-outline-secondary ml-2">
+                        &raquo;
+                    </button>
+                </div>
+            </div>
             
             <div class="card-body p-0">
                 <div class="preview-table-container">
@@ -563,7 +629,7 @@
                 </table>
             </div>
             <div id="item-link-no-data" class="no-data-message" style="display: none;">
-                No item link records available
+                No item need to be linked
             </div>
         </div>
         <div class="highlight-explanation">
@@ -600,7 +666,7 @@
                 </table>
             </div>
             <div id="contract-to-close-no-data" class="no-data-message" style="display: none;">
-                No contracts to close available
+                No contract to be closed
             </div>
         </div>
         <div class="card-footer bg-light"></div>
@@ -624,6 +690,11 @@
         <form method="POST" action="{{ url_for('common.process_step', step_id=6) }}">
             <input type="hidden" name="substep_completed" value="6.1">
             <input type="hidden" name="step_completed" value="true">
+            <!-- For sourcing users, add a special parameter to redirect to home -->
+            {% if current_user.role == 'sourcing' %}
+            <input type="hidden" name="redirect_to_home" value="true">
+            {% endif %}
+            
             {% if current_user.role in ['admin', 'mdm'] %}
             <button type="submit" id="complete-step-btn" class="btn btn-success">
                 Complete Step 6

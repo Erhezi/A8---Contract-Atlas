@@ -1063,5 +1063,10 @@
     </div>
 </div>
 
-
+<script>
+    const processStepUrls = {
+        step2: "{{ url_for('common.process_step', step_id=2) }}",
+        step4: "{{ url_for('common.process_step', step_id=4) }}"
+    };
+</script>
 <script src="{{ url_for('static', filename='js/step2.js') }}"></script>

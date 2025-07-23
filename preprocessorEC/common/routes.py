@@ -161,6 +161,34 @@ def step_view(step_id):
 @login_required
 def process_step(step_id):
     user_id = current_user.id
+    skip2 = False
+    skip3 = False
+
+    skip_steps = request.form.get('skip_steps')
+    if skip_steps:
+        # Parse the steps to skip (format "2,3")
+        steps_to_skip = [int(s) for s in skip_steps.split(',') if s.isdigit()]
+        
+        # Mark steps as completed in session
+        completed_steps = get_completed_steps(user_id)
+        for step in steps_to_skip:
+            if step == 2: 
+                skip2 = True
+            if step == 3:
+                skip3 = True
+            if step not in completed_steps:
+                completed_steps.append(step)
+        
+        # Store updated completed steps
+        store_completed_steps(user_id, completed_steps)
+        
+        # Update current step to the target step
+        store_current_step(user_id, step_id)
+        
+        # Log the skip action
+        current_app.logger.info(f"Skipping steps {skip_steps} to step {step_id} for user {user_id}")
+        flash(f"Skipped steps {skip_steps} and moved to step {step_id}", "info")
+    
     # Validate if user can process this step (should be the current step)
     current_step_id = get_current_step_from_session(user_id)
     if step_id != current_step_id:
@@ -252,18 +280,24 @@ def process_step(step_id):
             if not validated_data:
                 raise ValueError("No validated data available. Please complete Step 1 first.")
             
-            # Check if matching results exist in session
-            infor_cl_matches = get_infor_cl_matches(user_id) # Use helper
-            if not infor_cl_matches:
-                 raise ValueError("Infor Contract Line matching not completed. Please run the matching process first.")
+            if skip2 and skip3:
+                # If we skipped steps 2 and 3, we need to ensure we have the necessary data
+                # This is a special case where we assume the user has already handled these steps
+                pass
             
-            infor_im_matches = get_infor_im_matches(user_id) # Use helper
-            if not infor_im_matches:
-                 raise ValueError("Infor Item Master matching not completed. Please run the matching process first.")
-            
-            uom_qoe_validation = get_uom_qoe_validation(user_id)
-            if not uom_qoe_validation:  
-                 raise ValueError("UOM and QOE validation not completed. Please run the validation process first.")
+            else:
+                # Check if matching results exist in session
+                infor_cl_matches = get_infor_cl_matches(user_id) # Use helper
+                if not infor_cl_matches:
+                    raise ValueError("Infor Contract Line matching not completed. Please run the matching process first.")
+                
+                infor_im_matches = get_infor_im_matches(user_id) # Use helper
+                if not infor_im_matches:
+                    raise ValueError("Infor Item Master matching not completed. Please run the matching process first.")
+                
+                uom_qoe_validation = get_uom_qoe_validation(user_id)
+                if not uom_qoe_validation:  
+                    raise ValueError("UOM and QOE validation not completed. Please run the validation process first.")
             
             success = True
             flash("Step 4 (Item Master Matching) completed successfully.", "success")

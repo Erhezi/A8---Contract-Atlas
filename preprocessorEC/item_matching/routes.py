@@ -1,5 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, current_app, Response
-from flask import stream_with_context
+from flask import Blueprint, request, redirect, url_for, flash, jsonify, session, current_app
 from flask_login import login_required, current_user
 # Import specific session helpers
 from ..common.session import (get_temp_table_name, 
@@ -23,7 +22,7 @@ from ..common.utils import (three_way_contract_line_matching,
                             make_json_serializable)
 # from ..common.model_loader import get_sentence_transformer_model
 # import threading
-# import pandas as pd
+import pandas as pd
 # from random import randint
 
 
@@ -82,10 +81,16 @@ def match_infor_cl():
         comparison_results = get_comparison_results(user_id)
         # get the excluded contracts from session
         excluded_contracts = get_excluded_contracts(user_id)
-        # if stacked_data is [], meaning after review we end up having no duplicates in step2, this is fine, we will simply proceed
-        # run three way matching
-        print("calling three way matching ...")
-        merged_df = three_way_contract_line_matching(comparison_results, contract_list, excluded_contracts)
+        # if stacked_data is [], meaning after review we end up having no duplicates in step2
+        # this is expected, but this way we will have no comparison results and we will simply merged_df as empty
+        if not comparison_results:
+            current_app.logger.info(f"No comparison results, we skipped step2 and 3 for user {user_id}.")
+            merged_df = pd.DataFrame()  # Create an empty DataFrame
+        else:
+            # run three way matching
+            print("calling three way matching ...")
+            merged_df = three_way_contract_line_matching(comparison_results, contract_list, excluded_contracts)
+        
         result = three_way_item_master_matching_compute_similarity(merged_df)
         
         # Store the result in session for later use

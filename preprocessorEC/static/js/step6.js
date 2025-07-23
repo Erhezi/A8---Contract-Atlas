@@ -11,6 +11,73 @@ document.addEventListener('DOMContentLoaded', function() {
     const fileLinksContainer = document.getElementById('file-links-container');
     const itemLinkPreview = document.getElementById('item-link-preview');
     const contractToClosePreview = document.getElementById('contract-to-close-preview');
+    
+    // Pagination constants
+    const ROWS_PER_PAGE = 1000;
+    
+    // Pagination state variables
+    const paginationState = {
+        batch: { currentPage: 1, totalPages: 1, allData: [], filteredData: [] },
+        single: { currentPage: 1, totalPages: 1, allData: [], filteredData: [] },
+        itemLink: { allData: [], filteredData: [] }, // Removed pagination properties
+        contractToClose: { allData: [], filteredData: [] } // Removed pagination properties
+    };
+    
+    // Pagination controls
+    const paginationControls = {
+        batch: {
+            prevButton: document.getElementById('batch-prev-page'),
+            nextButton: document.getElementById('batch-next-page'),
+            currentPageEl: document.getElementById('batch-current-page'),
+            totalPagesEl: document.getElementById('batch-total-pages')
+        },
+        single: {
+            prevButton: document.getElementById('single-prev-page'),
+            nextButton: document.getElementById('single-next-page'),
+            currentPageEl: document.getElementById('single-current-page'),
+            totalPagesEl: document.getElementById('single-total-pages')
+        }
+        // Removed itemLink and contractToClose pagination controls
+    };
+    
+    // Setup pagination event listeners
+    if (paginationControls.batch.prevButton) {
+        paginationControls.batch.prevButton.addEventListener('click', () => {
+            if (paginationState.batch.currentPage > 1) {
+                paginationState.batch.currentPage--;
+                renderBatchTablePage();
+            }
+        });
+    }
+    
+    if (paginationControls.batch.nextButton) {
+        paginationControls.batch.nextButton.addEventListener('click', () => {
+            if (paginationState.batch.currentPage < paginationState.batch.totalPages) {
+                paginationState.batch.currentPage++;
+                renderBatchTablePage();
+            }
+        });
+    }
+    
+    if (paginationControls.single.prevButton) {
+        paginationControls.single.prevButton.addEventListener('click', () => {
+            if (paginationState.single.currentPage > 1) {
+                paginationState.single.currentPage--;
+                renderSingleTablePage();
+            }
+        });
+    }
+    
+    if (paginationControls.single.nextButton) {
+        paginationControls.single.nextButton.addEventListener('click', () => {
+            if (paginationState.single.currentPage < paginationState.single.totalPages) {
+                paginationState.single.currentPage++;
+                renderSingleTablePage();
+            }
+        });
+    }
+    
+    // Removed pagination event listeners for itemLink and contractToClose tables
 
     // If batch contract filter exists, add event listener
     if (batchContractFilterSelect) {
@@ -20,14 +87,847 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    console.log('batchContractFilterSelect:', batchContractFilterSelect);
-
     // If contract filter exists, add event listener
     if (contractFilterSelect) {
         contractFilterSelect.addEventListener('change', function() {
             const selectedContract = this.value;
             filterTableByContract(selectedContract);
         });
+    }
+
+    const userRole = document.getElementById('user-role')?.value || '';
+    const isSourcingUser = userRole === 'sourcing';
+    
+    // Cache DOM elements
+    const completeStepContainer = document.getElementById('complete-step-container');
+    
+
+    // Preview data function
+    if (previewBtn) {
+        previewBtn.addEventListener('click', function() {
+            console.log('Preview button clicked');
+
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'flex';
+            }
+
+            // Prepare data for the request
+            const requestData = {
+                skip_gpo: skipGpoCheckbox.checked,
+                export_format: exportFormatSelect.value
+            };
+
+            // Fetch data preview
+            fetch(getApiUrl('/data-export/preview-data'), {
+                method: 'POST',
+                body: JSON.stringify(requestData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                loadingSpinner.style.display = 'none';
+
+                if (data.success) {
+
+                    // Show the preview section
+                    const dataPreview = document.getElementById('data-preview');
+                    if (dataPreview) {
+                        dataPreview.style.display = 'block';
+                    }
+
+                    // Show the horizontal line
+                    const horizontalLine = document.getElementById('horizontal-line');
+                    if (horizontalLine) {
+                        horizontalLine.style.display = 'block';
+                    }
+
+                    // show the item and contract to close previews
+                    if (itemLinkPreview) {
+                        itemLinkPreview.style.display = 'block';
+                    }
+
+                    if (contractToClosePreview) {
+                        contractToClosePreview.style.display = 'block';
+                    }
+
+                    // Show the export button
+                    if (exportAllBtn) {
+                        exportAllBtn.style.display = 'block';
+                    }
+
+                    // Reset pagination state for batch and single tables
+                    paginationState.batch.currentPage = 1;
+                    paginationState.single.currentPage = 1;
+
+                    // Store all data in pagination state
+                    paginationState.batch.allData = data.batch_data || [];
+                    paginationState.batch.filteredData = [...paginationState.batch.allData];
+                    
+                    paginationState.single.allData = data.single_data || [];
+                    paginationState.single.filteredData = [...paginationState.single.allData];
+                    
+                    paginationState.itemLink.allData = data.item_link_data || [];
+                    paginationState.itemLink.filteredData = [...paginationState.itemLink.allData];
+                    
+                    paginationState.contractToClose.allData = data.contract_to_close_data || [];
+                    paginationState.contractToClose.filteredData = [...paginationState.contractToClose.allData];
+
+                    // Update tables
+                    updateBatchTable(paginationState.batch.allData);
+                    updateSingleTable(paginationState.single.allData);
+                    updateItemLinkTable(paginationState.itemLink.allData);
+                    updateContractToCloseTable(paginationState.contractToClose.allData);
+
+                    // Enable export button if there's data
+                    if (exportAllBtn && (
+                        paginationState.batch.allData.length > 0 || 
+                        paginationState.single.allData.length > 0 ||
+                        paginationState.itemLink.allData.length > 0 ||
+                        paginationState.contractToClose.allData.length > 0
+                    )) {
+                        exportAllBtn.disabled = false;
+                    } else if (exportAllBtn) {
+                        exportAllBtn.disabled = true;
+                        // Show the appropriate step complete button if no data
+                        const completeStepContainer = document.getElementById('complete-step-container');
+                        if (completeStepContainer) {
+                            completeStepContainer.style.display = 'block';
+                        }
+                    }
+
+                    // Always show the complete step button for sourcing users after preview
+                    if (isSourcingUser && completeStepContainer) {
+                        completeStepContainer.style.display = 'block';
+                    }
+
+                    // Scroll to the preview section
+                    dataPreview.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    alert('Error loading preview data: ' + data.message);
+                }
+            })
+            .catch(error => {
+                loadingSpinner.style.display = 'none';
+                console.error('Error:', error);
+                alert('An error occurred while loading preview data. Please try again.');
+            });
+        });
+    }
+
+    if (isSourcingUser && completeStepContainer) {
+        // Check if data is already loaded
+        const dataPreview = document.getElementById('data-preview');
+        if (dataPreview && window.getComputedStyle(dataPreview).display !== 'none') {
+            completeStepContainer.style.display = 'block';
+        }
+    }
+
+    // function to do filter batch table by contract number
+    function filterBatchTableByContract(contractNumber) {
+        const batchTable = document.getElementById('batch-table');
+        if (!batchTable) return;
+        
+        // Reset to page 1 when filtering
+        paginationState.batch.currentPage = 1;
+        
+        // If "all" is selected, show all rows
+        if (contractNumber === 'all') {
+            paginationState.batch.filteredData = [...paginationState.batch.allData];
+        } else {
+            // Filter the data based on contract number
+            paginationState.batch.filteredData = paginationState.batch.allData.filter(record => 
+                record['Contract Number'] === contractNumber
+            );
+        }
+        
+        // Update pagination and render
+        updateBatchPagination();
+        renderBatchTablePage();
+    }
+
+    // Update pagination info for batch table
+    function updateBatchPagination() {
+        const totalItems = paginationState.batch.filteredData.length;
+        paginationState.batch.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
+        
+        // Update pagination controls
+        if (paginationControls.batch.totalPagesEl) {
+            paginationControls.batch.totalPagesEl.textContent = paginationState.batch.totalPages;
+        }
+        if (paginationControls.batch.currentPageEl) {
+            paginationControls.batch.currentPageEl.textContent = paginationState.batch.currentPage;
+        }
+        
+        // Update button states
+        if (paginationControls.batch.prevButton) {
+            paginationControls.batch.prevButton.disabled = paginationState.batch.currentPage <= 1;
+        }
+        if (paginationControls.batch.nextButton) {
+            paginationControls.batch.nextButton.disabled = 
+                paginationState.batch.currentPage >= paginationState.batch.totalPages;
+        }
+        
+        // Update count badge
+        const batchCount = document.getElementById('batch-count');
+        if (batchCount) {
+            batchCount.textContent = `${totalItems} records`;
+        }
+    }
+    
+    // Render current page of batch table
+    function renderBatchTablePage() {
+        const batchTable = document.getElementById('batch-table');
+        const batchNoData = document.getElementById('batch-no-data');
+        
+        if (!batchTable) return;
+        
+        const tbody = batchTable.querySelector('tbody');
+        
+        // Clear existing rows
+        tbody.innerHTML = '';
+        
+        // Calculate start and end indices for current page
+        const startIdx = (paginationState.batch.currentPage - 1) * ROWS_PER_PAGE;
+        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.batch.filteredData.length);
+        
+        // Get current page data
+        const currentPageData = paginationState.batch.filteredData.slice(startIdx, endIdx);
+        
+        // Update pagination controls
+        updateBatchPagination();
+        
+        if (currentPageData.length === 0) {
+            // Show no data message
+            if (batchNoData) batchNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="21" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message and populate table
+            if (batchNoData) batchNoData.style.display = 'none';
+            
+            currentPageData.forEach(record => {
+                const row = document.createElement('tr');
+
+                // Check for date conflicts
+                const hasDateConflict = 
+                    (record['Final Date L Check'] && record['Final Date L Check'] !== 'pass') || 
+                    (record['Final Date H Check'] && record['Final Date H Check'] !== 'pass');
+
+                // Check for missing vendor part with additional condition
+                const missingVendorPart = !record['Vendor Part Num'] && 
+                    ['Create', 'Expire then Create (Create)', 'Update (New)'].includes(record['Actual Action']);
+                
+                // Check for possible duplicates (Create Count > 1)
+                const possibleDuplicate = record['Create Count'] && parseInt(record['Create Count']) > 1;
+
+                // Apply appropriate class (prioritize date conflict over possible duplicate over missing vendor part)
+                if (hasDateConflict) {
+                    row.classList.add('date-conflict');
+                } else if (possibleDuplicate) {
+                    row.classList.add('possible-duplicate');
+                } else if (missingVendorPart) {
+                    row.classList.add('missing-vendor-part');
+                }
+
+                // Add the row HTML
+                row.innerHTML = `
+                    <td title="${escapeHtml(record.Organization || '')}">${escapeHtml(record.Organization || '')}</td>
+                    <td title="${escapeHtml(record.Vendor || '')}">${escapeHtml(record.Vendor || '')}</td>
+                    <td title="${escapeHtml(record.Manufacturer || '')}">${escapeHtml(record.Manufacturer || '')}</td>
+                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
+                    <td title="${escapeHtml(record['Contract Description'] || '')}">${escapeHtml(record['Contract Description'] || '')}</td>
+                    <td title="${escapeHtml(record['Tier Level'] || '')}">${escapeHtml(record['Tier Level'] || '')}</td>
+                    <td title="${escapeHtml(record['Tier Description'] || '')}">${escapeHtml(record['Tier Description'] || '')}</td>
+                    <td title="${escapeHtml(record['Source Type'] || '')}">${escapeHtml(record['Source Type'] || '')}</td>
+                    <td title="${formatDate(record['Start Date'])}">${formatDate(record['Start Date'])}</td>
+                    <td title="${formatDate(record['End Date'])}">${formatDate(record['End Date'])}</td>
+                    <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Vendor Part Num'] || '')}">${escapeHtml(record['Vendor Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Buyer Part Num'] || '')}">${escapeHtml(record['Buyer Part Num'] || '')}</td>
+                    <td class="description-col" title="${escapeHtml(record.Description || '')}">${escapeHtml(record.Description || '')}</td>
+                    <td title="${record['Contract Price'] || ''}">${record['Contract Price'] || ''}</td>
+                    <td title="${escapeHtml(record.UOM || '')}">${escapeHtml(record.UOM || '')}</td>
+                    <td title="${record.QOE || ''}">${record.QOE || ''}</td>
+                    <td title="${formatDate(record['Effective Date'])}">${formatDate(record['Effective Date'])}</td>
+                    <td title="${formatDate(record['Expiration Date'])}">${formatDate(record['Expiration Date'])}</td>
+                    <td class="non-export-col" title="${escapeHtml(record['Actual Action'] || '')}">${escapeHtml(record['Actual Action'] || '')}</td>
+                    <td class="non-export-col" title="${escapeHtml(record['ERP Vendor ID (CCX Sync)'] || '')}">${escapeHtml(record['ERP Vendor ID (CCX Sync)'] || '')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    }
+
+    // Function to update batch table with data
+    function updateBatchTable(batchData) {
+        const batchTable = document.getElementById('batch-table');
+        const batchNoData = document.getElementById('batch-no-data');
+
+        if (!batchTable) {
+            console.error('Batch table elements not found');
+            return;
+        }
+        
+        // Store the data
+        paginationState.batch.allData = batchData;
+        paginationState.batch.filteredData = [...batchData];
+        paginationState.batch.currentPage = 1;
+        
+        if (batchData.length === 0) {
+            // Show no data message
+            if (batchNoData) batchNoData.style.display = 'block';
+
+            // Disable and clear batch contract filter
+            if (batchContractFilterSelect) {
+                batchContractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+                batchContractFilterSelect.disabled = true;
+            }
+
+            const explanationDiv = document.querySelector('.card-body .highlight-explanation');
+            if (explanationDiv) {
+                explanationDiv.style.display = 'none';
+            }
+        } else {
+            // Populate batch contract filter dropdown
+            if (batchContractFilterSelect) {
+                // Get unique contract numbers
+                const uniqueContracts = [...new Set(batchData.map(record => record['Contract Number']))];
+
+                // Clear previous options except "All Contracts"
+                batchContractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+
+                // Add each contract as an option
+                uniqueContracts.forEach(contract => {
+                    if (contract) { // Skip empty values
+                        const option = document.createElement('option');
+                        option.value = contract;
+                        option.textContent = contract;
+                        batchContractFilterSelect.appendChild(option);
+                    }
+                });
+
+                // Enable the dropdown
+                batchContractFilterSelect.disabled = false;
+            }
+        }
+        
+        // Update pagination and render first page
+        updateBatchPagination();
+        renderBatchTablePage();
+    }
+
+    // function to do filter single table by contract number
+    function filterTableByContract(contractNumber) {
+        const singleTable = document.getElementById('single-table');
+        if (!singleTable) return;
+        
+        // Reset to page 1 when filtering
+        paginationState.single.currentPage = 1;
+        
+        // If "all" is selected, show all rows
+        if (contractNumber === 'all') {
+            paginationState.single.filteredData = [...paginationState.single.allData];
+        } else {
+            // Filter the data based on contract number
+            paginationState.single.filteredData = paginationState.single.allData.filter(record => 
+                record['Contract Number (PrP)'] === contractNumber
+            );
+        }
+        
+        // Update pagination and render
+        updateSinglePagination();
+        renderSingleTablePage();
+    }
+
+    // Update pagination info for single table
+    function updateSinglePagination() {
+        const totalItems = paginationState.single.filteredData.length;
+        paginationState.single.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
+        
+        // Update pagination controls
+        if (paginationControls.single.totalPagesEl) {
+            paginationControls.single.totalPagesEl.textContent = paginationState.single.totalPages;
+        }
+        if (paginationControls.single.currentPageEl) {
+            paginationControls.single.currentPageEl.textContent = paginationState.single.currentPage;
+        }
+        
+        // Update button states
+        if (paginationControls.single.prevButton) {
+            paginationControls.single.prevButton.disabled = paginationState.single.currentPage <= 1;
+        }
+        if (paginationControls.single.nextButton) {
+            paginationControls.single.nextButton.disabled = 
+                paginationState.single.currentPage >= paginationState.single.totalPages;
+        }
+        
+        // Update count badge
+        const singleCount = document.getElementById('single-count');
+        if (singleCount) {
+            singleCount.textContent = `${totalItems} records`;
+        }
+    }
+    
+    // Render current page of single table
+    function renderSingleTablePage() {
+        const singleTable = document.getElementById('single-table');
+        const singleNoData = document.getElementById('single-no-data');
+        
+        if (!singleTable) return;
+        
+        const tbody = singleTable.querySelector('tbody');
+        
+        // Clear existing rows
+        tbody.innerHTML = '';
+        
+        // Calculate start and end indices for current page
+        const startIdx = (paginationState.single.currentPage - 1) * ROWS_PER_PAGE;
+        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.single.filteredData.length);
+        
+        // Get current page data
+        const currentPageData = paginationState.single.filteredData.slice(startIdx, endIdx);
+        
+        // Update pagination controls
+        updateSinglePagination();
+        
+        if (currentPageData.length === 0) {
+            // Show no data message
+            if (singleNoData) singleNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="11" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message and populate table
+            if (singleNoData) singleNoData.style.display = 'none';
+            
+            currentPageData.forEach(record => {
+                const row = document.createElement('tr');
+
+                // Check for date conflicts
+                const hasDateConflict = 
+                    (record['Final Date L Check'] && record['Final Date L Check'] !== 'pass') || 
+                    (record['Final Date H Check'] && record['Final Date H Check'] !== 'pass');
+
+                // Check for missing vendor part with additional condition
+                const missingVendorPart = !record['Vendor Part Num'] && 
+                    ['Create', 'Expire then Create (Create)', 'Update (New)'].includes(record['Actual Action']);
+                
+                // Check for possible duplicates (Create Count > 1)
+                const possibleDuplicate = record['Create Count'] && parseInt(record['Create Count']) > 1;
+
+                // Apply appropriate class (prioritize date conflict over possible duplicate over missing vendor part)
+                if (hasDateConflict) {
+                    row.classList.add('date-conflict');
+                } else if (possibleDuplicate) {
+                    row.classList.add('possible-duplicate');
+                } else if (missingVendorPart) {
+                    row.classList.add('missing-vendor-part');
+                }
+
+                row.innerHTML = `
+                    <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Vendor Part Num'] || '')}">${escapeHtml(record['Vendor Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Buyer Part Num'] || '')}">${escapeHtml(record['Buyer Part Num'] || '')}</td>
+                    <td class="description-col" title="${escapeHtml(record.Description || '')}">${escapeHtml(record.Description || '')}</td>
+                    <td title="${record['Contract Price'] || ''}">${record['Contract Price'] || ''}</td>
+                    <td title="${escapeHtml(record.UOM || '')}">${escapeHtml(record.UOM || '')}</td>
+                    <td title="${record.QOE || ''}">${record.QOE || ''}</td>
+                    <td title="${formatDate(record['Effective Date'])}">${formatDate(record['Effective Date'])}</td>
+                    <td title="${formatDate(record['Expiration Date'])}">${formatDate(record['Expiration Date'])}</td>
+                    <td class="non-export-col" title="${escapeHtml(record['Contract Number (PrP)'] || '')}">${escapeHtml(record['Contract Number (PrP)'] || '')}</td>
+                    <td class="non-export-col" title="${escapeHtml(record['ERP Vendor ID (PrP)'] || '')}">${escapeHtml(record['ERP Vendor ID (PrP)'] || '')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    }
+
+    // Function to update single table with data
+    function updateSingleTable(singleData) {
+        const singleTable = document.getElementById('single-table');
+        const singleNoData = document.getElementById('single-no-data');
+        const contractFilterSelect = document.getElementById('contract-filter');
+
+        if (!singleTable) {
+            console.error('Single table elements not found');
+            return;
+        }
+        
+        // Store the data
+        paginationState.single.allData = singleData;
+        paginationState.single.filteredData = [...singleData];
+        paginationState.single.currentPage = 1;
+        
+        if (singleData.length === 0) {
+            // Show no data message
+            if (singleNoData) singleNoData.style.display = 'block';
+
+            // Disable and clear contract filter
+            if (contractFilterSelect) {
+                contractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+                contractFilterSelect.disabled = true;
+            }
+
+            const explanationDiv = document.querySelector('.card-body .highlight-explanation');
+            if (explanationDiv) {
+                explanationDiv.style.display = 'none';
+            }
+        } else {
+            // Populate contract filter dropdown
+            if (contractFilterSelect) {
+                // Get unique contract numbers
+                const uniqueContracts = [...new Set(singleData.map(record => record['Contract Number (PrP)']))];
+
+                // Clear previous options except "All Contracts"
+                contractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+
+                // Add each contract as an option
+                uniqueContracts.forEach(contract => {
+                    if (contract) { // Skip empty values
+                        const option = document.createElement('option');
+                        option.value = contract;
+                        option.textContent = contract;
+                        contractFilterSelect.appendChild(option);
+                    }
+                });
+
+                // Enable the dropdown
+                contractFilterSelect.disabled = false;
+            }
+        }
+        
+        // Update pagination and render first page
+        updateSinglePagination();
+        renderSingleTablePage();
+    }
+
+    // Update pagination info for item link table
+    function updateItemLinkPagination() {
+        const totalItems = paginationState.itemLink.filteredData.length;
+        paginationState.itemLink.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
+        
+        // Update pagination controls
+        if (paginationControls.itemLink.totalPagesEl) {
+            paginationControls.itemLink.totalPagesEl.textContent = paginationState.itemLink.totalPages;
+        }
+        if (paginationControls.itemLink.currentPageEl) {
+            paginationControls.itemLink.currentPageEl.textContent = paginationState.itemLink.currentPage;
+        }
+        
+        // Update button states
+        if (paginationControls.itemLink.prevButton) {
+            paginationControls.itemLink.prevButton.disabled = paginationState.itemLink.currentPage <= 1;
+        }
+        if (paginationControls.itemLink.nextButton) {
+            paginationControls.itemLink.nextButton.disabled = 
+                paginationState.itemLink.currentPage >= paginationState.itemLink.totalPages;
+        }
+        
+        // Update count badge
+        const itemLinkCount = document.getElementById('item-link-count');
+        if (itemLinkCount) {
+            itemLinkCount.textContent = `${totalItems} records (${paginationState.itemLink.currentPage} of ${paginationState.itemLink.totalPages} pages)`;
+        }
+    }
+    
+    // Render current page of item link table
+    function renderItemLinkTablePage() {
+        const itemLinkTable = document.getElementById('item-link-table');
+        const itemLinkNoData = document.getElementById('item-link-no-data');
+        
+        if (!itemLinkTable) return;
+        
+        const tbody = itemLinkTable.querySelector('tbody');
+        
+        // Clear existing rows
+        tbody.innerHTML = '';
+        
+        // Calculate start and end indices for current page
+        const startIdx = (paginationState.itemLink.currentPage - 1) * ROWS_PER_PAGE;
+        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.itemLink.filteredData.length);
+        
+        // Get current page data
+        const currentPageData = paginationState.itemLink.filteredData.slice(startIdx, endIdx);
+        
+        // Update pagination controls
+        updateItemLinkPagination();
+        
+        if (currentPageData.length === 0) {
+            // Show no data message
+            if (itemLinkNoData) itemLinkNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="14" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message and populate table
+            if (itemLinkNoData) itemLinkNoData.style.display = 'none';
+            
+            currentPageData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // Check for conditions that require red highlighting
+                const hasError = 
+                    (record['Inconsistent Mfg Part Num'] === 'Inconsistent') || 
+                    (record['Invalid Buy UOM'] === 'Invalid') || 
+                    (record['Invalid Item'] === 'Invalid');
+                
+                // Check for condition that requires yellow highlighting
+                const isManualLink = record['Item Master Auto Link'] === 'Manual';
+                
+                // Apply appropriate class (prioritize red over yellow)
+                if (hasError) {
+                    row.classList.add('item-error'); // Red highlighting
+                } else if (isManualLink) {
+                    row.classList.add('manual-link'); // Yellow highlighting
+                }
+                
+                // Add the row HTML
+                row.innerHTML = `
+                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
+                    <td title="${escapeHtml(record['Vendor'] || '')}">${escapeHtml(record['Vendor'] || '')}</td>
+                    <td title="${escapeHtml(record['VendorItem'] || '')}">${escapeHtml(record['VendorItem'] || '')}</td>
+                    <td title="${escapeHtml(record['UOM'] || '')}">${escapeHtml(record['UOM'] || '')}</td>
+                    <td title="${record['QOE'] || ''}">${record['QOE'] || ''}</td>
+                    <td class="description-col" title="${escapeHtml(record['Description'] || '')}">${escapeHtml(record['Description'] || '')}</td>
+                    <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Item'] || '')}">${escapeHtml(record['Item'] || '')}</td>
+                    <td title="${escapeHtml(record['Item Master Auto Link'] || '')}">${escapeHtml(record['Item Master Auto Link'] || '')}</td>
+                    <td title="${escapeHtml(record['Infor Mfg Part Num'] || '')}">${escapeHtml(record['Infor Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}">${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Invalid Buy UOM'] || '')}">${escapeHtml(record['Invalid Buy UOM'] || '')}</td>
+                    <td title="${escapeHtml(record['Invalid Item'] || '')}">${escapeHtml(record['Invalid Item'] || '')}</td>
+                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    }
+
+    // Function to update item link table
+    function updateItemLinkTable(itemLinkData) {
+        const itemLinkTable = document.getElementById('item-link-table');
+        const itemLinkNoData = document.getElementById('item-link-no-data');
+        
+        if (!itemLinkTable) {
+            console.error('Item link table elements not found');
+            return;
+        }
+        
+        // Store the data
+        paginationState.itemLink.allData = itemLinkData;
+        paginationState.itemLink.filteredData = [...itemLinkData];
+        
+        // Get table body
+        const tbody = itemLinkTable.querySelector('tbody');
+        
+        // Clear existing rows
+        tbody.innerHTML = '';
+        
+        // Update count badge - simplified to just show total records
+        const itemLinkCount = document.getElementById('item-link-count');
+        if (itemLinkCount) {
+            itemLinkCount.textContent = `${itemLinkData.length} records`;
+        }
+        
+        if (itemLinkData.length === 0) {
+            // Show no data message
+            if (itemLinkNoData) itemLinkNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="14" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message and populate table with all data
+            if (itemLinkNoData) itemLinkNoData.style.display = 'none';
+            
+            itemLinkData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // Check for conditions that require red highlighting
+                const hasError = 
+                    (record['Inconsistent Mfg Part Num'] === 'Inconsistent') || 
+                    (record['Invalid Buy UOM'] === 'Invalid') || 
+                    (record['Invalid Item'] === 'Invalid');
+                
+                // Check for condition that requires yellow highlighting
+                const isManualLink = record['Item Master Auto Link'] === 'Manual';
+                
+                // Apply appropriate class (prioritize red over yellow)
+                if (hasError) {
+                    row.classList.add('item-error'); // Red highlighting
+                } else if (isManualLink) {
+                    row.classList.add('manual-link'); // Yellow highlighting
+                }
+                
+                // Add the row HTML
+                row.innerHTML = `
+                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
+                    <td title="${escapeHtml(record['Vendor'] || '')}">${escapeHtml(record['Vendor'] || '')}</td>
+                    <td title="${escapeHtml(record['VendorItem'] || '')}">${escapeHtml(record['VendorItem'] || '')}</td>
+                    <td title="${escapeHtml(record['UOM'] || '')}">${escapeHtml(record['UOM'] || '')}</td>
+                    <td title="${record['QOE'] || ''}">${record['QOE'] || ''}</td>
+                    <td class="description-col" title="${escapeHtml(record['Description'] || '')}">${escapeHtml(record['Description'] || '')}</td>
+                    <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Item'] || '')}">${escapeHtml(record['Item'] || '')}</td>
+                    <td title="${escapeHtml(record['Item Master Auto Link'] || '')}">${escapeHtml(record['Item Master Auto Link'] || '')}</td>
+                    <td title="${escapeHtml(record['Infor Mfg Part Num'] || '')}">${escapeHtml(record['Infor Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}">${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}</td>
+                    <td title="${escapeHtml(record['Invalid Buy UOM'] || '')}">${escapeHtml(record['Invalid Buy UOM'] || '')}</td>
+                    <td title="${escapeHtml(record['Invalid Item'] || '')}">${escapeHtml(record['Invalid Item'] || '')}</td>
+                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    }
+
+    // Update pagination info for contract to close table
+    function updateContractToClosePagination() {
+        const totalItems = paginationState.contractToClose.filteredData.length;
+        paginationState.contractToClose.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
+        
+        // Update pagination controls
+        if (paginationControls.contractToClose.totalPagesEl) {
+            paginationControls.contractToClose.totalPagesEl.textContent = paginationState.contractToClose.totalPages;
+        }
+        if (paginationControls.contractToClose.currentPageEl) {
+            paginationControls.contractToClose.currentPageEl.textContent = paginationState.contractToClose.currentPage;
+        }
+        
+        // Update button states
+        if (paginationControls.contractToClose.prevButton) {
+            paginationControls.contractToClose.prevButton.disabled = paginationState.contractToClose.currentPage <= 1;
+        }
+        if (paginationControls.contractToClose.nextButton) {
+            paginationControls.contractToClose.nextButton.disabled = 
+                paginationState.contractToClose.currentPage >= paginationState.contractToClose.totalPages;
+        }
+        
+        // Update count badge
+        const contractToCloseCount = document.getElementById('contract-to-close-count');
+        if (contractToCloseCount) {
+            contractToCloseCount.textContent = `${totalItems} records`;
+        }
+    }
+    
+    // Render current page of contract to close table
+    function renderContractToCloseTablePage() {
+        const contractToCloseTable = document.getElementById('contract-to-close-table');
+        const contractToCloseNoData = document.getElementById('contract-to-close-no-data');
+        
+        if (!contractToCloseTable) return;
+        
+        const tbody = contractToCloseTable.querySelector('tbody');
+        
+        // Clear existing rows
+        tbody.innerHTML = '';
+        
+        // Calculate start and end indices for current page
+        const startIdx = (paginationState.contractToClose.currentPage - 1) * ROWS_PER_PAGE;
+        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.contractToClose.filteredData.length);
+        
+        // Get current page data
+        const currentPageData = paginationState.contractToClose.filteredData.slice(startIdx, endIdx);
+        
+        // Update pagination controls
+        updateContractToClosePagination();
+        
+        if (currentPageData.length === 0) {
+            // Show no data message
+            if (contractToCloseNoData) contractToCloseNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="6" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message and populate table
+            if (contractToCloseNoData) contractToCloseNoData.style.display = 'none';
+            
+            currentPageData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // Add the row HTML
+                row.innerHTML = `
+                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
+                    <td title="${record['Total Lines (Original)'] || '0'}">${record['Total Lines (Original)'] || '0'}</td>
+                    <td title="${record['Total Lines (Change Applied)'] || '0'}">${record['Total Lines (Change Applied)'] || '0'}</td>
+                    <td title="${record['Total Lines Expired'] || '0'}">${record['Total Lines Expired'] || '0'}</td>
+                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
+                    <td title="${escapeHtml(record['UserID'] || '')}">${escapeHtml(record['UserID'] || '')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    }
+
+    // Function to update contract to close table
+    function updateContractToCloseTable(contractToCloseData) {
+        const contractToCloseTable = document.getElementById('contract-to-close-table');
+        const contractToCloseNoData = document.getElementById('contract-to-close-no-data');
+
+        if (!contractToCloseTable) {
+            console.error('Contract to close table elements not found');
+            return;
+        }
+        
+        // Store the data
+        paginationState.contractToClose.allData = contractToCloseData;
+        paginationState.contractToClose.filteredData = [...contractToCloseData];
+        
+        // Get table body
+        const tbody = contractToCloseTable.querySelector('tbody');
+        
+        // Clear existing rows
+        tbody.innerHTML = '';
+        
+        // Update count badge - simplified to just show total records
+        const contractToCloseCount = document.getElementById('contract-to-close-count');
+        if (contractToCloseCount) {
+            contractToCloseCount.textContent = `${contractToCloseData.length} records`;
+        }
+        
+        if (contractToCloseData.length === 0) {
+            // Show no data message
+            if (contractToCloseNoData) contractToCloseNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="6" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message and populate table with all data
+            if (contractToCloseNoData) contractToCloseNoData.style.display = 'none';
+            
+            contractToCloseData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // Add the row HTML
+                row.innerHTML = `
+                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
+                    <td title="${record['Total Lines (Original)'] || '0'}">${record['Total Lines (Original)'] || '0'}</td>
+                    <td title="${record['Total Lines (Change Applied)'] || '0'}">${record['Total Lines (Change Applied)'] || '0'}</td>
+                    <td title="${record['Total Lines Expired'] || '0'}">${record['Total Lines Expired'] || '0'}</td>
+                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
+                    <td title="${escapeHtml(record['UserID'] || '')}">${escapeHtml(record['UserID'] || '')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
     }
 
     // Preview data function
@@ -89,24 +989,35 @@ document.addEventListener('DOMContentLoaded', function() {
                         exportAllBtn.style.display = 'block';
                     }
 
-                    // Update batch table
-                    updateBatchTable(data.batch_data || []);
+                    // Reset pagination state for batch and single tables
+                    paginationState.batch.currentPage = 1;
+                    paginationState.single.currentPage = 1;
 
-                    // Update single contract table
-                    updateSingleTable(data.single_data || []);
+                    // Store all data in pagination state
+                    paginationState.batch.allData = data.batch_data || [];
+                    paginationState.batch.filteredData = [...paginationState.batch.allData];
                     
-                    // Update item link table (new)
-                    updateItemLinkTable(data.item_link_data || []);
+                    paginationState.single.allData = data.single_data || [];
+                    paginationState.single.filteredData = [...paginationState.single.allData];
                     
-                    // Update contract to close table (new)
-                    updateContractToCloseTable(data.contract_to_close_data || []);
+                    paginationState.itemLink.allData = data.item_link_data || [];
+                    paginationState.itemLink.filteredData = [...paginationState.itemLink.allData];
+                    
+                    paginationState.contractToClose.allData = data.contract_to_close_data || [];
+                    paginationState.contractToClose.filteredData = [...paginationState.contractToClose.allData];
+
+                    // Update tables
+                    updateBatchTable(paginationState.batch.allData);
+                    updateSingleTable(paginationState.single.allData);
+                    updateItemLinkTable(paginationState.itemLink.allData);
+                    updateContractToCloseTable(paginationState.contractToClose.allData);
 
                     // Enable export button if there's data
                     if (exportAllBtn && (
-                        (data.batch_data && data.batch_data.length > 0) || 
-                        (data.single_data && data.single_data.length > 0) ||
-                        (data.item_link_data && data.item_link_data.length > 0) ||
-                        (data.contract_to_close_data && data.contract_to_close_data.length > 0)
+                        paginationState.batch.allData.length > 0 || 
+                        paginationState.single.allData.length > 0 ||
+                        paginationState.itemLink.allData.length > 0 ||
+                        paginationState.contractToClose.allData.length > 0
                     )) {
                         exportAllBtn.disabled = false;
                     } else if (exportAllBtn) {
@@ -132,166 +1043,93 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Export all data function
-    if (exportAllBtn) {
-        exportAllBtn.addEventListener('click', function () {
-            if (loadingSpinner) {
-                loadingSpinner.style.display = 'flex';
-            }
-
-            // Prepare data for the request
-            const requestData = {
-                skip_gpo: skipGpoCheckbox.checked,
-                export_format: exportFormatSelect.value,
-                export_type: 'all' // Export all types at once
-            };
-
-            // Send export request
-            fetch(getApiUrl('/data-export/export-data'), {
-                method: 'POST',
-                body: JSON.stringify(requestData),
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    loadingSpinner.style.display = 'none';
-
-                    if (data.success) {
-                        // Clear previous file links
-                        fileLinksContainer.innerHTML = '';
-
-                        // Add link to the ZIP file
-                        if (data.zipFile) {
-                            const zipLinkHtml = `
-                                <div class="file-link">
-                                    <a href="${data.zipFile.url}" download class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-file-archive"></i> ${data.zipFile.name}
-                                    </a>
-                                    <span class="ml-2 text-muted small-text">${data.zipFile.description}</span>
-                                </div>
-                            `;
-                            fileLinksContainer.innerHTML += zipLinkHtml;
-                        }
-
-                        // Disable the export button and update its text
-                        exportAllBtn.disabled = true;
-                        exportAllBtn.textContent = 'Changes Exported';
-                        exportAllBtn.classList.add('committed');
-                        exportAllBtn.style.cursor = 'not-allowed';
-
-                        // Show the appropriate step complete button
-                        const completeStepContainer = document.getElementById('complete-step-container');
-                        if (completeStepContainer) {
-                            completeStepContainer.style.display = 'block';
-                        }
-
-                    } else {
-                        alert('Export failed: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    loadingSpinner.style.display = 'none';
-                    console.error('Error:', error);
-                    alert('An error occurred during export. Please try again.');
-                });
-        });
-    }
-
     // function to do filter batch table by contract number
     function filterBatchTableByContract(contractNumber) {
         const batchTable = document.getElementById('batch-table');
         if (!batchTable) return;
         
-        const rows = batchTable.querySelectorAll('tbody tr');
-        const batchCount = document.getElementById('batch-count');
-        
-        // Store the total count if not already stored
-        if (!batchTable.dataset.totalCount) {
-            batchTable.dataset.totalCount = rows.length;
-            batchTable.dataset.totalCountText = batchCount ? batchCount.textContent : '';
-        }
+        // Reset to page 1 when filtering
+        paginationState.batch.currentPage = 1;
         
         // If "all" is selected, show all rows
         if (contractNumber === 'all') {
-            rows.forEach(row => {
-                row.style.display = '';
-            });
-            
-            // Restore the original count
-            if (batchCount && batchTable.dataset.totalCountText) {
-                batchCount.textContent = batchTable.dataset.totalCountText;
-            }
-            return;
+            paginationState.batch.filteredData = [...paginationState.batch.allData];
+        } else {
+            // Filter the data based on contract number
+            paginationState.batch.filteredData = paginationState.batch.allData.filter(record => 
+                record['Contract Number'] === contractNumber
+            );
         }
         
-        // Otherwise, filter rows based on the selected contract
-        rows.forEach(row => {
-            // Contract number is in the fourth column
-            const contractCell = row.querySelector('td:nth-child(4)');
-            if (contractCell) {
-                const rowContractNumber = contractCell.textContent || '';
-                if (rowContractNumber === contractNumber) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            }
-        });
-        
-        // Update the count badge to show filtered count
-        const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-        if (batchCount) {
-            batchCount.textContent = `${visibleRows.length} records`;
-        }
+        // Update pagination and render
+        updateBatchPagination();
+        renderBatchTablePage();
     }
 
-    // Function to update batch table with data
-    function updateBatchTable(batchData) {
-        const batchTable = document.getElementById('batch-table');
-        const batchCount = document.getElementById('batch-count');
-        const batchNoData = document.getElementById('batch-no-data');
-
-        if (!batchTable || !batchCount) {
-            console.error('Batch table elements not found');
-            return;
+    // Update pagination info for batch table
+    function updateBatchPagination() {
+        const totalItems = paginationState.batch.filteredData.length;
+        paginationState.batch.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
+        
+        // Update pagination controls
+        if (paginationControls.batch.totalPagesEl) {
+            paginationControls.batch.totalPagesEl.textContent = paginationState.batch.totalPages;
         }
-
+        if (paginationControls.batch.currentPageEl) {
+            paginationControls.batch.currentPageEl.textContent = paginationState.batch.currentPage;
+        }
+        
+        // Update button states
+        if (paginationControls.batch.prevButton) {
+            paginationControls.batch.prevButton.disabled = paginationState.batch.currentPage <= 1;
+        }
+        if (paginationControls.batch.nextButton) {
+            paginationControls.batch.nextButton.disabled = 
+                paginationState.batch.currentPage >= paginationState.batch.totalPages;
+        }
+        
+        // Update count badge
+        const batchCount = document.getElementById('batch-count');
+        if (batchCount) {
+            batchCount.textContent = `${totalItems} records`;
+        }
+    }
+    
+    // Render current page of batch table
+    function renderBatchTablePage() {
+        const batchTable = document.getElementById('batch-table');
+        const batchNoData = document.getElementById('batch-no-data');
+        
+        if (!batchTable) return;
+        
         const tbody = batchTable.querySelector('tbody');
-
+        
         // Clear existing rows
         tbody.innerHTML = '';
-
-        // Update count badge
-        batchCount.textContent = `${batchData.length} records`;
         
-        // Reset stored count when table is updated
-        if (batchTable) {
-            batchTable.dataset.totalCount = batchData.length;
-            batchTable.dataset.totalCountText = `${batchData.length} records`;
-        }
-
-        if (batchData.length === 0) {
+        // Calculate start and end indices for current page
+        const startIdx = (paginationState.batch.currentPage - 1) * ROWS_PER_PAGE;
+        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.batch.filteredData.length);
+        
+        // Get current page data
+        const currentPageData = paginationState.batch.filteredData.slice(startIdx, endIdx);
+        
+        // Update pagination controls
+        updateBatchPagination();
+        
+        if (currentPageData.length === 0) {
             // Show no data message
             if (batchNoData) batchNoData.style.display = 'block';
-
-            // Disable and clear batch contract filter
-            if (batchContractFilterSelect) {
-                batchContractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
-                batchContractFilterSelect.disabled = true;
-            }
-
-            const explanationDiv = document.querySelector('.card-body .highlight-explanation');
-            if (explanationDiv) {
-                explanationDiv.style.display = 'none';
-            }
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="21" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
         } else {
             // Hide no data message and populate table
             if (batchNoData) batchNoData.style.display = 'none';
-
-            batchData.forEach(record => {
+            
+            currentPageData.forEach(record => {
                 const row = document.createElement('tr');
 
                 // Check for date conflicts
@@ -341,7 +1179,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 tbody.appendChild(row);
             });
+        }
+    }
 
+    // Function to update batch table with data
+    function updateBatchTable(batchData) {
+        const batchTable = document.getElementById('batch-table');
+        const batchNoData = document.getElementById('batch-no-data');
+
+        if (!batchTable) {
+            console.error('Batch table elements not found');
+            return;
+        }
+        
+        // Store the data
+        paginationState.batch.allData = batchData;
+        paginationState.batch.filteredData = [...batchData];
+        paginationState.batch.currentPage = 1;
+        
+        if (batchData.length === 0) {
+            // Show no data message
+            if (batchNoData) batchNoData.style.display = 'block';
+
+            // Disable and clear batch contract filter
+            if (batchContractFilterSelect) {
+                batchContractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+                batchContractFilterSelect.disabled = true;
+            }
+
+            const explanationDiv = document.querySelector('.card-body .highlight-explanation');
+            if (explanationDiv) {
+                explanationDiv.style.display = 'none';
+            }
+        } else {
             // Populate batch contract filter dropdown
             if (batchContractFilterSelect) {
                 // Get unique contract numbers
@@ -364,105 +1234,102 @@ document.addEventListener('DOMContentLoaded', function() {
                 batchContractFilterSelect.disabled = false;
             }
         }
+        
+        // Update pagination and render first page
+        updateBatchPagination();
+        renderBatchTablePage();
     }
 
-    // filter by contract number for better user experience
+    // function to do filter single table by contract number
     function filterTableByContract(contractNumber) {
         const singleTable = document.getElementById('single-table');
         if (!singleTable) return;
         
-        const rows = singleTable.querySelectorAll('tbody tr');
-        const singleCount = document.getElementById('single-count');
-        
-        // Store the total count if not already stored
-        if (!singleTable.dataset.totalCount) {
-            singleTable.dataset.totalCount = rows.length;
-            singleTable.dataset.totalCountText = singleCount ? singleCount.textContent : '';
-        }
+        // Reset to page 1 when filtering
+        paginationState.single.currentPage = 1;
         
         // If "all" is selected, show all rows
         if (contractNumber === 'all') {
-            rows.forEach(row => {
-                row.style.display = '';
-            });
-            
-            // Restore the original count
-            if (singleCount && singleTable.dataset.totalCountText) {
-                singleCount.textContent = singleTable.dataset.totalCountText;
-            }
-            return;
+            paginationState.single.filteredData = [...paginationState.single.allData];
+        } else {
+            // Filter the data based on contract number
+            paginationState.single.filteredData = paginationState.single.allData.filter(record => 
+                record['Contract Number (PrP)'] === contractNumber
+            );
         }
         
-        // Otherwise, filter rows based on the selected contract
-        rows.forEach(row => {
-            // Contract Number is now in the 10th column (second-to-last)
-            const contractCell = row.querySelector('td:nth-child(10)');
-            if (contractCell) {
-                const rowContractNumber = contractCell.textContent || '';
-                if (rowContractNumber === contractNumber) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            }
-        });
-        
-        // Update the count badge to show filtered count
-        const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-        if (singleCount) {
-            singleCount.textContent = `${visibleRows.length} records`;
-        }
+        // Update pagination and render
+        updateSinglePagination();
+        renderSingleTablePage();
     }
 
-    // Function to update single contract table with data
-    function updateSingleTable(singleData) {
-        const singleTable = document.getElementById('single-table');
-        const singleCount = document.getElementById('single-count');
-        const singleNoData = document.getElementById('single-no-data');
-        const contractFilterSelect = document.getElementById('contract-filter');
-
-        if (!singleTable || !singleCount) {
-            console.error('Single table elements not found');
-            return;
+    // Update pagination info for single table
+    function updateSinglePagination() {
+        const totalItems = paginationState.single.filteredData.length;
+        paginationState.single.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
+        
+        // Update pagination controls
+        if (paginationControls.single.totalPagesEl) {
+            paginationControls.single.totalPagesEl.textContent = paginationState.single.totalPages;
         }
-
+        if (paginationControls.single.currentPageEl) {
+            paginationControls.single.currentPageEl.textContent = paginationState.single.currentPage;
+        }
+        
+        // Update button states
+        if (paginationControls.single.prevButton) {
+            paginationControls.single.prevButton.disabled = paginationState.single.currentPage <= 1;
+        }
+        if (paginationControls.single.nextButton) {
+            paginationControls.single.nextButton.disabled = 
+                paginationState.single.currentPage >= paginationState.single.totalPages;
+        }
+        
+        // Update count badge
+        const singleCount = document.getElementById('single-count');
+        if (singleCount) {
+            singleCount.textContent = `${totalItems} records`;
+        }
+    }
+    
+    // Render current page of single table
+    function renderSingleTablePage() {
+        const singleTable = document.getElementById('single-table');
+        const singleNoData = document.getElementById('single-no-data');
+        
+        if (!singleTable) return;
+        
         const tbody = singleTable.querySelector('tbody');
-
+        
         // Clear existing rows
         tbody.innerHTML = '';
-
-        // Update count badge
-        singleCount.textContent = `${singleData.length} records`;
         
-        // Reset stored count when table is updated
-        if (singleTable) {
-            singleTable.dataset.totalCount = singleData.length;
-            singleTable.dataset.totalCountText = `${singleData.length} records`;
-        }
-
-        if (singleData.length === 0) {
+        // Calculate start and end indices for current page
+        const startIdx = (paginationState.single.currentPage - 1) * ROWS_PER_PAGE;
+        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.single.filteredData.length);
+        
+        // Get current page data
+        const currentPageData = paginationState.single.filteredData.slice(startIdx, endIdx);
+        
+        // Update pagination controls
+        updateSinglePagination();
+        
+        if (currentPageData.length === 0) {
             // Show no data message
             if (singleNoData) singleNoData.style.display = 'block';
-
-            // Disable and clear contract filter
-            if (contractFilterSelect) {
-                contractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
-                contractFilterSelect.disabled = true;
-            }
-
-            const explanationDiv = document.querySelector('.card-body .highlight-explanation');
-            if (explanationDiv) {
-                explanationDiv.style.display = 'none';
-            }
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="11" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
         } else {
-            // Hide no data message
+            // Hide no data message and populate table
             if (singleNoData) singleNoData.style.display = 'none';
-
-            // Populate table with data
-            singleData.forEach(record => {
+            
+            currentPageData.forEach(record => {
                 const row = document.createElement('tr');
 
-                // Check for date conflicts (if present in single contract data)
+                // Check for date conflicts
                 const hasDateConflict = 
                     (record['Final Date L Check'] && record['Final Date L Check'] !== 'pass') || 
                     (record['Final Date H Check'] && record['Final Date H Check'] !== 'pass');
@@ -498,7 +1365,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 tbody.appendChild(row);
             });
+        }
+    }
 
+    // Function to update single table with data
+    function updateSingleTable(singleData) {
+        const singleTable = document.getElementById('single-table');
+        const singleNoData = document.getElementById('single-no-data');
+        const contractFilterSelect = document.getElementById('contract-filter');
+
+        if (!singleTable) {
+            console.error('Single table elements not found');
+            return;
+        }
+        
+        // Store the data
+        paginationState.single.allData = singleData;
+        paginationState.single.filteredData = [...singleData];
+        paginationState.single.currentPage = 1;
+        
+        if (singleData.length === 0) {
+            // Show no data message
+            if (singleNoData) singleNoData.style.display = 'block';
+
+            // Disable and clear contract filter
+            if (contractFilterSelect) {
+                contractFilterSelect.innerHTML = '<option value="all">All Contracts</option>';
+                contractFilterSelect.disabled = true;
+            }
+
+            const explanationDiv = document.querySelector('.card-body .highlight-explanation');
+            if (explanationDiv) {
+                explanationDiv.style.display = 'none';
+            }
+        } else {
             // Populate contract filter dropdown
             if (contractFilterSelect) {
                 // Get unique contract numbers
@@ -521,41 +1421,76 @@ document.addEventListener('DOMContentLoaded', function() {
                 contractFilterSelect.disabled = false;
             }
         }
+        
+        // Update pagination and render first page
+        updateSinglePagination();
+        renderSingleTablePage();
     }
 
-    // Function to update item link table
-    function updateItemLinkTable(itemLinkData) {
-        const itemLinkTable = document.getElementById('item-link-table');
-        const itemLinkCount = document.getElementById('item-link-count');
-        const itemLinkNoData = document.getElementById('item-link-no-data');
-
-        if (!itemLinkTable || !itemLinkCount) {
-            console.error('Item link table elements not found');
-            return;
+    // Update pagination info for item link table
+    function updateItemLinkPagination() {
+        const totalItems = paginationState.itemLink.filteredData.length;
+        paginationState.itemLink.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
+        
+        // Update pagination controls
+        if (paginationControls.itemLink.totalPagesEl) {
+            paginationControls.itemLink.totalPagesEl.textContent = paginationState.itemLink.totalPages;
         }
-
+        if (paginationControls.itemLink.currentPageEl) {
+            paginationControls.itemLink.currentPageEl.textContent = paginationState.itemLink.currentPage;
+        }
+        
+        // Update button states
+        if (paginationControls.itemLink.prevButton) {
+            paginationControls.itemLink.prevButton.disabled = paginationState.itemLink.currentPage <= 1;
+        }
+        if (paginationControls.itemLink.nextButton) {
+            paginationControls.itemLink.nextButton.disabled = 
+                paginationState.itemLink.currentPage >= paginationState.itemLink.totalPages;
+        }
+        
+        // Update count badge
+        const itemLinkCount = document.getElementById('item-link-count');
+        if (itemLinkCount) {
+            itemLinkCount.textContent = `${totalItems} records (${paginationState.itemLink.currentPage} of ${paginationState.itemLink.totalPages} pages)`;
+        }
+    }
+    
+    // Render current page of item link table
+    function renderItemLinkTablePage() {
+        const itemLinkTable = document.getElementById('item-link-table');
+        const itemLinkNoData = document.getElementById('item-link-no-data');
+        
+        if (!itemLinkTable) return;
+        
         const tbody = itemLinkTable.querySelector('tbody');
-
+        
         // Clear existing rows
         tbody.innerHTML = '';
-
-        // Update count badge
-        itemLinkCount.textContent = `${itemLinkData.length} records`;
-
-        if (itemLinkData.length === 0) {
+        
+        // Calculate start and end indices for current page
+        const startIdx = (paginationState.itemLink.currentPage - 1) * ROWS_PER_PAGE;
+        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.itemLink.filteredData.length);
+        
+        // Get current page data
+        const currentPageData = paginationState.itemLink.filteredData.slice(startIdx, endIdx);
+        
+        // Update pagination controls
+        updateItemLinkPagination();
+        
+        if (currentPageData.length === 0) {
             // Show no data message
             if (itemLinkNoData) itemLinkNoData.style.display = 'block';
             
             const noDataRow = document.createElement('tr');
             noDataRow.className = 'no-data-row';
-            noDataRow.innerHTML = '<td colspan="14" class="no-data-message">No item link records available</td>';
+            noDataRow.innerHTML = '<td colspan="14" class="no-data-message">No records to display</td>';
             tbody.appendChild(noDataRow);
         } else {
-            // Hide no data message
+            // Hide no data message and populate table
             if (itemLinkNoData) itemLinkNoData.style.display = 'none';
-
-            // Populate table with data
-            itemLinkData.forEach(record => {
+            
+            currentPageData.forEach(record => {
                 const row = document.createElement('tr');
                 
                 // Check for conditions that require red highlighting
@@ -596,38 +1531,124 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Update pagination info for contract to close table
+    function updateContractToClosePagination() {
+        const totalItems = paginationState.contractToClose.filteredData.length;
+        paginationState.contractToClose.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
+        
+        // Update pagination controls
+        if (paginationControls.contractToClose.totalPagesEl) {
+            paginationControls.contractToClose.totalPagesEl.textContent = paginationState.contractToClose.totalPages;
+        }
+        if (paginationControls.contractToClose.currentPageEl) {
+            paginationControls.contractToClose.currentPageEl.textContent = paginationState.contractToClose.currentPage;
+        }
+        
+        // Update button states
+        if (paginationControls.contractToClose.prevButton) {
+            paginationControls.contractToClose.prevButton.disabled = paginationState.contractToClose.currentPage <= 1;
+        }
+        if (paginationControls.contractToClose.nextButton) {
+            paginationControls.contractToClose.nextButton.disabled = 
+                paginationState.contractToClose.currentPage >= paginationState.contractToClose.totalPages;
+        }
+        
+        // Update count badge
+        const contractToCloseCount = document.getElementById('contract-to-close-count');
+        if (contractToCloseCount) {
+            contractToCloseCount.textContent = `${totalItems} records`;
+        }
+    }
+    
+    // Render current page of contract to close table
+    function renderContractToCloseTablePage() {
+        const contractToCloseTable = document.getElementById('contract-to-close-table');
+        const contractToCloseNoData = document.getElementById('contract-to-close-no-data');
+        
+        if (!contractToCloseTable) return;
+        
+        const tbody = contractToCloseTable.querySelector('tbody');
+        
+        // Clear existing rows
+        tbody.innerHTML = '';
+        
+        // Calculate start and end indices for current page
+        const startIdx = (paginationState.contractToClose.currentPage - 1) * ROWS_PER_PAGE;
+        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.contractToClose.filteredData.length);
+        
+        // Get current page data
+        const currentPageData = paginationState.contractToClose.filteredData.slice(startIdx, endIdx);
+        
+        // Update pagination controls
+        updateContractToClosePagination();
+        
+        if (currentPageData.length === 0) {
+            // Show no data message
+            if (contractToCloseNoData) contractToCloseNoData.style.display = 'block';
+            
+            const noDataRow = document.createElement('tr');
+            noDataRow.className = 'no-data-row';
+            noDataRow.innerHTML = '<td colspan="6" class="no-data-message">No records to display</td>';
+            tbody.appendChild(noDataRow);
+        } else {
+            // Hide no data message and populate table
+            if (contractToCloseNoData) contractToCloseNoData.style.display = 'none';
+            
+            currentPageData.forEach(record => {
+                const row = document.createElement('tr');
+                
+                // Add the row HTML
+                row.innerHTML = `
+                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
+                    <td title="${record['Total Lines (Original)'] || '0'}">${record['Total Lines (Original)'] || '0'}</td>
+                    <td title="${record['Total Lines (Change Applied)'] || '0'}">${record['Total Lines (Change Applied)'] || '0'}</td>
+                    <td title="${record['Total Lines Expired'] || '0'}">${record['Total Lines Expired'] || '0'}</td>
+                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
+                    <td title="${escapeHtml(record['UserID'] || '')}">${escapeHtml(record['UserID'] || '')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    }
+
     // Function to update contract to close table
     function updateContractToCloseTable(contractToCloseData) {
         const contractToCloseTable = document.getElementById('contract-to-close-table');
-        const contractToCloseCount = document.getElementById('contract-to-close-count');
         const contractToCloseNoData = document.getElementById('contract-to-close-no-data');
 
-        if (!contractToCloseTable || !contractToCloseCount) {
+        if (!contractToCloseTable) {
             console.error('Contract to close table elements not found');
             return;
         }
-
+        
+        // Store the data
+        paginationState.contractToClose.allData = contractToCloseData;
+        paginationState.contractToClose.filteredData = [...contractToCloseData];
+        
+        // Get table body
         const tbody = contractToCloseTable.querySelector('tbody');
-
+        
         // Clear existing rows
         tbody.innerHTML = '';
-
-        // Update count badge
-        contractToCloseCount.textContent = `${contractToCloseData.length} records`;
-
+        
+        // Update count badge - simplified to just show total records
+        const contractToCloseCount = document.getElementById('contract-to-close-count');
+        if (contractToCloseCount) {
+            contractToCloseCount.textContent = `${contractToCloseData.length} records`;
+        }
+        
         if (contractToCloseData.length === 0) {
             // Show no data message
             if (contractToCloseNoData) contractToCloseNoData.style.display = 'block';
             
             const noDataRow = document.createElement('tr');
             noDataRow.className = 'no-data-row';
-            noDataRow.innerHTML = '<td colspan="6" class="no-data-message">No contracts to close available</td>';
+            noDataRow.innerHTML = '<td colspan="6" class="no-data-message">No records to display</td>';
             tbody.appendChild(noDataRow);
         } else {
-            // Hide no data message
+            // Hide no data message and populate table with all data
             if (contractToCloseNoData) contractToCloseNoData.style.display = 'none';
-
-            // Populate table with data
+            
             contractToCloseData.forEach(record => {
                 const row = document.createElement('tr');
                 

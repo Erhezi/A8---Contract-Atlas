@@ -13,7 +13,8 @@ from ..common.utils import (compute_changes_to_show,
                             change_simulation_stage4,
                             final_expire_item_validation,
                             final_commit,
-                            final_errors_before_commit
+                            final_errors_before_commit,
+                            make_final_validation_error_report
                             )
 from ..common.db import (get_db_connection, get_relevant_contract_line, 
                          commit_header, commit_all_changes, commit_commit_res,
@@ -58,9 +59,9 @@ def show_changes():
         
         # Get stacked data from step3 (deduplication results)
         # this can be empty if there is no duplicates found, and the stacked data in this case need to be handled gracefully
-        stacked_data = get_deduped_results(user_id).get('stacked_data', [])
+        deduped_results = get_deduped_results(user_id) or {}
+        stacked_data = deduped_results.get('stacked_data', [])
         if not stacked_data or stacked_data == []:
-            flash("No duplicates found in duplication dection step, procecedding with validated data only.", "info")
             for item in validated_data:
                 row = {
                     'Buyer Part Num': item.get('Buyer Part Num', ''),
@@ -88,14 +89,16 @@ def show_changes():
         
         # get uom_qoe_validation restults from step4 (uom_qoe_validation)
         # this can be empty if there nothing to be validated (no item master matching found for items)
-        merged_data = get_infor_cl_matches(user_id).get("merged_df", [])
+        infor_cl_matches = get_infor_cl_matches(user_id) or {}
+        merged_data = infor_cl_matches.get("merged_df", [])
         if not merged_data or merged_data == []:
-            flash("No Item Master Item seems to attach to these screened items using infor contract.", "info")
+            pass
 
          # analyzed_df from step4 for all file rows with matched item numbers
-        analyzed_data = get_uom_qoe_validation(user_id).get('analyzed_df', [])
+        uom_qoe_validation = get_uom_qoe_validation(user_id) or {}
+        analyzed_data = uom_qoe_validation.get('analyzed_df', [])
         if not analyzed_data or analyzed_data == []:
-            flash("No Item Master Item seems to attach to these screened items", "info")
+            pass
         
         # Convert data to DataFrames
         validated_df = pd.DataFrame(validated_data)
@@ -105,7 +108,6 @@ def show_changes():
         merged_df = pd.DataFrame(merged_data)
         # items from step4 match to item master
         analyzed_df = pd.DataFrame(analyzed_data)
-
         
         # multiple stages to process the change simulation
         origianl_network_df = change_simulation_stage1(validated_df, stacked_df)
@@ -113,9 +115,11 @@ def show_changes():
         ccx_merge, tp_merge = apply_change(data_change_show_df, validated_df, stacked_df)
 
         contract_numbers = list(set(data_change_show_df['Contract Number'].dropna().astype(str)))
+        
         conn = get_db_connection()
+        
         if not conn:
-             current_app.logger.error(f"Failed to get DB connection for user {user_id} during Infor CL matching.")
+             current_app.logger.error(f"Failed to get DB connection for user {user_id} when calling show_changes().")
              # Consider a more specific error message for the user if appropriate
              return jsonify({'success': False, 'message': 'Database connection error.'}), 500
         
@@ -129,18 +133,22 @@ def show_changes():
                 'message': error_msg
             }), 500
 
-
+        # Convert contract_line_count to DataFrame and rename if count_line_count is not empty
         contract_line_count_df = pd.DataFrame(contract_line_count)
-        contract_line_count_df = contract_line_count_df.rename(columns={
-            'contract_number': 'Contract Number',
-            'total_line_count': 'Total Contract Line Count'
-        })
+        if not contract_line_count_df.empty:
+            contract_line_count_df = contract_line_count_df.rename(columns={
+                'contract_number': 'Contract Number',
+                'total_line_count': 'Total Contract Line Count'
+            })
+        else:
+            contract_line_count_df = pd.DataFrame(columns=['Contract Number', 'Total Contract Line Count'])
+
         
         modified_network_df, ccx_line_count_cal, tp_line_count_cal, line_count_before_after = change_simulation_stage3(ccx_merge, 
                                                                                                                        tp_merge, 
                                                                                                                        data_change_show_df,
                                                                                                                        contract_line_count_df)
-        
+
         # Collect contracts and group them by type
         contract_a_set = set()
         contract_b_set = set()
@@ -191,16 +199,17 @@ def show_changes():
         original_graph_json = generate_network_graph(origianl_network_df, fixed_pos=master_pos, show_IUD=False)
         modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=master_pos, show_IUD=True)
         
-        changes_to_show_df, reference_for_expire_rows = compute_changes_to_show(data_change_show_df, merged_df, analyzed_df)
+        changes_to_show_df, reference_for_expire_rows, all_changes_with_im_df = compute_changes_to_show(data_change_show_df, merged_df, analyzed_df)
 
         # retrun the dataframes to the frontend for display for each change stats card
         ccx_create, ccx_update, ccx_expire, tp_create, tp_mute, tp_merged = compute_dataset_changes_df(data_change_show_df)
         
         data_change_show_df.loc[:, 'Do Not Expire'] = False
+        all_changes_with_im_df.loc[:, 'Do Not Expire'] = False
         # Store simulation results in the session if needed
         simulation_results = {
             'update_action_mode': update_action_mode,
-            'all_changes': data_change_show_df.to_dict(orient='records'),
+            'all_changes': all_changes_with_im_df.to_dict(orient='records'),
             'modified_network_df': modified_network_df.to_dict(orient='records'),
             'fixed_pos': master_pos_serializable,
             'changes_to_show': changes_to_show_df.to_dict(orient='records'),
@@ -371,19 +380,30 @@ def finalize_changes():
         changes_to_show_df = pd.DataFrame(changes_to_show)
         reference_for_expire_rows_df = pd.DataFrame(reference_for_expire_rows)
 
-        # possible that we don't have any changes to furhter show or review
-        # in this case, return success and early exists
-        if changes_to_show_df.empty:
+        if contract_line_count_df.empty:
+            contract_line_count_df = pd.DataFrame(columns=['Contract Number', 'Total Contract Line Count'])
 
-            simulation_results['final_commit_res'] = []
-            simulation_results['final_all_changes'] = []
-            simulation_results['final_line_operations'] = []
+        # possible that we don't have any changes to furhter show and review (everything remain the same)
+        # in this case, return success and early exists
+        if changes_to_show_df.empty or all_changes_df.empty:
+
+            print("lol") #debug
+            final_commit_res, final_changes_to_show_df, final_all_changes_df = final_commit(all_changes_df,
+                                                                                            changes_to_show_df,
+                                                                                            pd.DataFrame(),
+                                                                                            pd.DataFrame())
+            print("lol~~") #debug
+            df_network_r2, line_operations = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
+            
+            simulation_results['final_commit_res'] = final_commit_res.to_dict(orient='records') if not final_commit_res.empty else []
+            simulation_results['final_all_changes'] = final_all_changes_df.to_dict(orient='records') if not final_all_changes_df.empty else []
+            simulation_results['final_line_operations'] = line_operations.to_dict(orient='records') if not line_operations.empty else []
             simulation_results['final_errors'] = 0
             simulation_results['final_checks'] = 0
             simulation_results['final_tp_no_execution'] = 0
             store_change_simulation_results(user_id, simulation_results)
             session.modified = True
-            
+
             return jsonify({
                 'success': True,
                 'message': "No changes to finalize, proceed to commit the task.",
@@ -400,46 +420,88 @@ def finalize_changes():
                 }
             }), 200
 
+        # possible there is no further review needed (no expiration triggered from insertion)
+        # in this case, we skip the final expire item validation
+        if changes_to_show_df[changes_to_show_df['Do Not Expire'] == True].empty:
 
-        # final expire item validation
-        final_expire_item_validated_df, more_changes_to_append_df, item_related_action_df = final_expire_item_validation(changes_to_show_df, 
-                                                                                                 reference_for_expire_rows_df, 
-                                                                                                 update_action_mode=simulation_results.get('update_action_mode', 'new'))
+            final_commit_res, final_changes_to_show_df, final_all_changes_df = final_commit(all_changes_df,
+                                                                                            changes_to_show_df,
+                                                                                            pd.DataFrame(),
+                                                                                            pd.DataFrame())
+
+            df_network_r2, line_operations = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
+            
+            simulation_results['final_commit_res'] = final_commit_res.to_dict(orient='records') if not final_commit_res.empty else []
+            simulation_results['final_all_changes'] = final_all_changes_df.to_dict(orient='records') if not final_all_changes_df.empty else []
+            simulation_results['final_line_operations'] = line_operations.to_dict(orient='records') if not line_operations.empty else []
+            simulation_results['final_errors'] = 0
+            simulation_results['final_checks'] = 0
+            simulation_results['final_tp_no_execution'] = 0
+            store_change_simulation_results(user_id, simulation_results)
+            session.modified = True
+
+            return jsonify({
+                'success': True,
+                'message': "No expiration items to validate, proceeding to commit.",
+                'result': {
+                    'modified_graph_data': None,
+                    'r2_graph_data': None,
+                    'final_expire_item_validated': [],
+                    'final_commit_df': final_commit_res.to_dict(orient='records') if not final_commit_res.empty else [],
+                    'final_errors': [],
+                    'final_warnings': [],
+                    'final_checks': [],
+                    'final_tp_no_execution': [],
+                    'line_operations': line_operations.to_dict(orient='records') if not line_operations.empty else [],
+                }
+            }), 200
+
+        if not changes_to_show_df[changes_to_show_df['Do Not Expire'] == True].empty:
+            # final expire item validation
+            final_expire_item_validated_df, more_changes_to_append_df, item_related_action_df = final_expire_item_validation(changes_to_show_df, 
+                                                                                                    reference_for_expire_rows_df, 
+                                                                                                    update_action_mode=simulation_results.get('update_action_mode', 'new'))
 
 
-        final_commit_res, final_changes_to_show_df, final_all_changes_df = final_commit(all_changes_df,
-                                                                                        changes_to_show_df,
-                                                                                        more_changes_to_append_df,
-                                                                                        final_expire_item_validated_df)
-        
-        final_validation = final_errors_before_commit(final_expire_item_validated_df)
-        final_errors = final_validation.get('final_validation_errors', [])
-        final_warnings = final_validation.get('final_validation_warnings', [])
-        final_checks = final_validation.get('final_validation_checks', [])
-        final_tp_no_execution = final_all_changes_df[(final_all_changes_df['Dataset'] == 'TP') & (final_all_changes_df['Final File Row Action'] == 'Pending')].copy()
-        final_tp_no_execution.replace({np.nan: None}, inplace=True)
+            final_commit_res, final_changes_to_show_df, final_all_changes_df = final_commit(all_changes_df,
+                                                                                            changes_to_show_df,
+                                                                                            more_changes_to_append_df,
+                                                                                            final_expire_item_validated_df)
+            
+            final_validation = final_errors_before_commit(final_expire_item_validated_df)
+            final_errors = final_validation.get('final_validation_errors', [])
+            final_warnings = final_validation.get('final_validation_warnings', [])
+            final_checks = final_validation.get('final_validation_checks', [])
+            final_tp_no_execution = final_all_changes_df[(final_all_changes_df['Dataset'] == 'TP') & (final_all_changes_df['Final File Row Action'] == 'Pending')].copy()
+            final_tp_no_execution.replace({np.nan: None}, inplace=True)
 
-         # retrieve the 'Do Not Expire' selections and plot
-        df_network_r2, line_operations = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
-        
-        # Get fixed positions and generate graph JSONs
-        modified_network_df = pd.DataFrame(simulation_results.get('modified_network_df', []))
-        fixed_pos = simulation_results.get('fixed_pos', {})
-        
-        # Generate JSON data for both graphs
-        modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=fixed_pos, show_IUD=True)
-        r2_graph_json = generate_network_graph(df_network_r2, fixed_pos=fixed_pos, show_IUD=True)
+            # retrieve the 'Do Not Expire' selections and plot
+            df_network_r2, line_operations = change_simulation_stage4(final_all_changes_df, contract_line_count_df)
+            
+            # Get fixed positions and generate graph JSONs
+            modified_network_df = pd.DataFrame(simulation_results.get('modified_network_df', []))
+            fixed_pos = simulation_results.get('fixed_pos', {})
+            
+            # Generate JSON data for both graphs
+            modified_graph_json = generate_network_graph(modified_network_df, fixed_pos=fixed_pos, show_IUD=True)
+            r2_graph_json = generate_network_graph(df_network_r2, fixed_pos=fixed_pos, show_IUD=True)
 
-        # store simulation results in session
-        simulation_results['final_commit_res'] = final_commit_res.to_dict(orient='records') if not final_commit_res.empty else []
-        simulation_results['final_all_changes'] = final_all_changes_df.to_dict(orient='records') if not final_all_changes_df.empty else []
-        simulation_results['final_line_operations'] = line_operations.to_dict(orient='records') if not line_operations.empty else []
-        simulation_results['final_errors'] = len(final_errors)
-        simulation_results['final_checks'] = len(final_checks)
-        simulation_results['final_tp_no_execution'] = len(final_tp_no_execution)
-        store_change_simulation_results(user_id, simulation_results)
-        session.modified = True
+            # store simulation results in session
+            simulation_results['final_commit_res'] = final_commit_res.to_dict(orient='records') if not final_commit_res.empty else []
+            simulation_results['final_all_changes'] = final_all_changes_df.to_dict(orient='records') if not final_all_changes_df.empty else []
+            simulation_results['final_line_operations'] = line_operations.to_dict(orient='records') if not line_operations.empty else []
+            simulation_results['final_errors'] = len(final_errors)
+            simulation_results['final_checks'] = len(final_checks)
+            simulation_results['final_tp_no_execution'] = len(final_tp_no_execution)
+            store_change_simulation_results(user_id, simulation_results)
+            session.modified = True
 
+            # compose the error report
+            if len(final_errors) > 0 or len(final_checks) > 0 or len(final_warnings) > 0 or len(final_tp_no_execution) > 0:
+                final_error_report_df = make_final_validation_error_report(final_errors, final_checks, final_warnings, final_tp_no_execution)
+                simulation_results['final_error_report'] = final_error_report_df.to_dict(orient='records') if not final_error_report_df.empty else []
+                session.modified = True
+                
         return jsonify({
             'success': True,
             'message': "Changes finalized successfully.",
@@ -453,6 +515,7 @@ def finalize_changes():
                 'final_checks': final_checks.to_dict(orient='records') if not final_checks.empty else [],
                 'final_tp_no_execution': final_tp_no_execution.to_dict(orient='records') if not final_tp_no_execution.empty else [],
                 'line_operations': line_operations.to_dict(orient='records') if not line_operations.empty else [],
+                'final_error_report': simulation_results.get('final_error_report', [])
             }
         })
 
@@ -491,7 +554,7 @@ def commit_changes():
                 'success': False,
                 'message': "No finalized changes found. Please finalize changes first."
             }), 404
-            
+        
         # Get the original filename from session (uploaded in step 1)
         uploaded_filename = get_file_info(user_id).get('saved_name', '')
 
@@ -499,7 +562,9 @@ def commit_changes():
         precheck_mode = get_precheck_mode(user_id)
 
         # get dedup policy
-        dedup_mode = get_deduped_results(user_id).get('policy', {})
+        # this can be empty if we skip step 3 (deduplication)
+        dedup_mode = get_deduped_results(user_id) if get_deduped_results(user_id) else {}
+        dedup_policy = dedup_mode.get('policy', {})
         if not dedup_mode or dedup_mode == {}:
             dedup_policy = ''
             custom_direction = ''
@@ -527,7 +592,6 @@ def commit_changes():
             current_app.logger.warning(f"User {user_id} has errors or checks before commit. Changes will not be applied.")
 
         auto_complete = False
-        print(simulation_results.get('final_commit_res', []))
         if simulation_results.get('final_commit_res', []) == []:
             auto_complete = True
             current_app.logger.info(f"User {user_id} has no changes to commit, auto-completing the task.")

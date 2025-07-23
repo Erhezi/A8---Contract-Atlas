@@ -1350,7 +1350,7 @@ def item_catched_in_infor_im_match(items):
         return []
     # Filter for items with 'ItemNumber' not empty and false positive = False
     filtered_df = df[df['item_number_infor'] != ''].copy()
-    if 'false positive' in df.columns:
+    if 'false_positive' in df.columns:
         filtered_df = df[(df['item_number_infor'] != '') & (df['false_positive'] == False)]
     
     if filtered_df.empty:
@@ -1731,132 +1731,157 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     df_m = keep_df.merge(drop_df,
                          on = ['File Row'],
                          suffixes = ('_keep', '_drop'),
-                         how = 'left')
+                         how = 'inner') # this need to be garanteed as paired
     
-    df_m['Intended Action'] = df_m['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
-    
+    if not df_m.empty: 
+        df_m['Intended Action'] = df_m['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
 
-    # for df_m matched lines that marked as intention as 'Upsert'
-    primary_action = []
-    actual_action = []
-    quick_check = []
-    final_data = []
-    update_rows = set()
-    expire_rows = set()
-    for i, row in df_m.iterrows():
-        a_action, q_check = actual_action_on_update_row(row, update_action_mode = update_action_mode) #we can choose different action mode here
-        if row['Intended Action'] == 'Upsert':
-            if row['Dataset_keep'] == 'TP':
-                if row['Contract Number_keep'] == row['Contract Number_drop']:
-                    # contract line already exists on CCX, for this row our primary action is to update the existing contract
-                    primary_action.append('Update')
-                    actual_action.append(a_action)
-                    quick_check.append(q_check)
-                    update_rows.add(row['File Row']) # if tp row is qualified for update, then we cannot create it later when it has more matches
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = a_action, quick_check = q_check, primary_action = 'Update'))
-                    if a_action == 'Expire then Create (Create)':
-                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire then Create (Expire)', quick_check = q_check, primary_action = 'Update'))
-                    if a_action == 'Update (New)':
-                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Update (Existing)', quick_check = q_check, primary_action = 'Update'))
-                    if a_action == 'No Change':
+        # for df_m matched lines that marked as intention as 'Upsert'
+        primary_action = []
+        actual_action = []
+        quick_check = []
+        final_data = []
+        update_rows = set()
+        expire_rows = set()
+        for i, row in df_m.iterrows():
+            a_action, q_check = actual_action_on_update_row(row, update_action_mode = update_action_mode) #we can choose different action mode here
+            if row['Intended Action'] == 'Upsert':
+                if row['Dataset_keep'] == 'TP':
+                    if row['Contract Number_keep'] == row['Contract Number_drop']:
+                        # contract line already exists on CCX, for this row our primary action is to update the existing contract
+                        primary_action.append('Update')
+                        actual_action.append(a_action)
+                        quick_check.append(q_check)
+                        update_rows.add(row['File Row']) # if tp row is qualified for update, then we cannot create it later when it has more matches
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = a_action, quick_check = q_check, primary_action = 'Update'))
+                        if a_action == 'Expire then Create (Create)':
+                            final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire then Create (Expire)', quick_check = q_check, primary_action = 'Update'))
+                        if a_action == 'Update (New)':
+                            final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Update (Existing)', quick_check = q_check, primary_action = 'Update'))
+                        if a_action == 'No Change':
+                            final_data.append(final_data_helper(row, group = 'drop', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
+                    else:
+                        # for ccx side, we expire the row
+                        primary_action.append('Expire CCX')
+                        actual_action.append('Expire')
+                        quick_check.append(q_check)
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
+                        # for tp side, we create new row (this can conflict with update row above)
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Create', quick_check = q_check, primary_action = 'Create TP'))
+                elif row['Dataset_keep'] == 'CCX':
+                    if row['Dataset_drop'] == 'TP':
+                        # if the drop contract is from TP, then basically we choose to not use the TP version but the CCX version
+                        primary_action.append('Mute TP')
+                        actual_action.append('Mute')
+                        quick_check.append(q_check)
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Mute', quick_check = q_check, primary_action = 'Mute TP'))
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
+                    else: 
+                        primary_action.append('Expire CCX')
+                        actual_action.append('Expire')
+                        quick_check.append(q_check)
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
+            
+            # when intended action is 'Expire', we simply expire the contract from TP and keep other thing untouched
+            elif row['Intended Action'] == 'Expire':
+                if row['Dataset_keep'] == 'TP': # drop will always be made on CCX side, we only care if it is paired to our TP, if no, skip
+                    if row['Dataset_drop'] == 'CCX' and (row['Contract Number_keep'] == row['Contract Number_drop']):
+                        primary_action.append('Expire CCX')
+                        actual_action.append('Expire')
+                        quick_check.append(q_check)
+                        expire_rows.add(row['File Row']) # if tp row is qualified for expire, then we cannot mute it later when it has more matches
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Merged', quick_check = q_check, primary_action = 'Merged')) 
+                    elif row['Dataset_drop'] == 'CCX' and (row['Contract Number_keep'] != row['Contract Number_drop']):
+                        primary_action.append('Mute TP')
+                        actual_action.append('Mute')
+                        quick_check.append(q_check)
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Mute', quick_check = q_check, primary_action = 'Mute TP'))
                         final_data.append(final_data_helper(row, group = 'drop', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
-                else:
-                    # for ccx side, we expire the row
-                    primary_action.append('Expire CCX')
-                    actual_action.append('Expire')
-                    quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
-                    # for tp side, we create new row (this can conflict with update row above)
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Create', quick_check = q_check, primary_action = 'Create TP'))
-            elif row['Dataset_keep'] == 'CCX':
-                if row['Dataset_drop'] == 'TP':
-                    # if the drop contract is from TP, then basically we choose to not use the TP version but the CCX version
-                    primary_action.append('Mute TP')
-                    actual_action.append('Mute')
-                    quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Mute', quick_check = q_check, primary_action = 'Mute TP'))
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
-                else: 
-                    primary_action.append('Expire CCX')
-                    actual_action.append('Expire')
-                    quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
+                elif row['Dataset_keep'] == 'CCX': # drop will always be made on CCX side, we only care if it is paired to our TP, if no, skip
+                    if row['Dataset_drop'] == 'TP' and (row['Contract Number_keep'] == row['Contract Number_drop']):
+                        primary_action.append('Expire CCX')
+                        actual_action.append('Expire')
+                        quick_check.append(q_check)
+                        expire_rows.add(row['File Row']) # if tp row is qualified for expire, then we cannot mute it later when it has more matches
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Merged', quick_check = q_check, primary_action = 'Merged'))
+                    elif row['Dataset_drop'] == 'TP' and (row['Contract Number_keep'] != row['Contract Number_drop']):
+                        primary_action.append('Mute TP')
+                        actual_action.append('Mute')
+                        quick_check.append(q_check)
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Mute', quick_check = q_check, primary_action = 'Mute TP'))
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
+                    else:
+                        # it will be nothing, because if keep and drop are both CCX, we don't care.
+                        primary_action.append('No Change')
+                        actual_action.append('No Change')
+                        quick_check.append('xx')
+                        final_data.append(final_data_helper(row, group = 'keep', actual_action = 'No Change', quick_check = 'xx', primary_action = 'No Change'))
+                        final_data.append(final_data_helper(row, group = 'drop', actual_action = 'No Change', quick_check = 'xx', primary_action = 'No Change'))
         
-        # when intended action is 'Expire', we simply expire the contract from TP and keep other thing untouched
-        elif row['Intended Action'] == 'Expire':
-            if row['Dataset_keep'] == 'TP': # drop will always be made on CCX side, we only care if it is paired to our TP, if no, skip
-                if row['Dataset_drop'] == 'CCX' and (row['Contract Number_keep'] == row['Contract Number_drop']):
-                    primary_action.append('Expire CCX')
-                    actual_action.append('Expire')
-                    quick_check.append(q_check)
-                    expire_rows.add(row['File Row']) # if tp row is qualified for expire, then we cannot mute it later when it has more matches
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Merged', quick_check = q_check, primary_action = 'Merged')) 
-                elif row['Dataset_drop'] == 'CCX' and (row['Contract Number_keep'] != row['Contract Number_drop']):
-                    primary_action.append('Mute TP')
-                    actual_action.append('Mute')
-                    quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Mute', quick_check = q_check, primary_action = 'Mute TP'))
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
-            elif row['Dataset_keep'] == 'CCX': # drop will always be made on CCX side, we only care if it is paired to our TP, if no, skip
-                if row['Dataset_drop'] == 'TP' and (row['Contract Number_keep'] == row['Contract Number_drop']):
-                    primary_action.append('Expire CCX')
-                    actual_action.append('Expire')
-                    quick_check.append(q_check)
-                    expire_rows.add(row['File Row']) # if tp row is qualified for expire, then we cannot mute it later when it has more matches
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'Expire', quick_check = q_check, primary_action = 'Expire CCX'))
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Merged', quick_check = q_check, primary_action = 'Merged'))
-                elif row['Dataset_drop'] == 'TP' and (row['Contract Number_keep'] != row['Contract Number_drop']):
-                    primary_action.append('Mute TP')
-                    actual_action.append('Mute')
-                    quick_check.append(q_check)
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'Mute', quick_check = q_check, primary_action = 'Mute TP'))
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'No Change', quick_check = q_check, primary_action = 'No Change'))
-                else:
-                    # it will be nothing, because if keep and drop are both CCX, we don't care.
-                    primary_action.append('No Change')
-                    actual_action.append('No Change')
-                    quick_check.append('xx')
-                    final_data.append(final_data_helper(row, group = 'keep', actual_action = 'No Change', quick_check = 'xx', primary_action = 'No Change'))
-                    final_data.append(final_data_helper(row, group = 'drop', actual_action = 'No Change', quick_check = 'xx', primary_action = 'No Change'))
-    
-    df_m['Primary Action'] = primary_action
-    df_m['Actual Action'] = actual_action
-    df_m['Quick Check'] = quick_check
-    df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index=False) #debug
+        df_m['Primary Action'] = primary_action
+        df_m['Actual Action'] = actual_action
+        df_m['Quick Check'] = quick_check
+        df_m.to_excel(os.path.join(current_app.root_path, 'temp_files', 'df_m.xlsx'), index=False) #debug
 
-    data_change_df1 = pd.DataFrame(final_data)
+        data_change_df1 = pd.DataFrame(final_data)
 
-    data_change_df1.loc[:, 'Intended Action'] = data_change_df1['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
-    # if update_row has value then we need to solve potential conflict
-    if len(update_rows) > 0:
-        create_tp_to_remove = data_change_df1[(data_change_df1['Actual Action'] == 'Create') 
-                                              & (data_change_df1['File Row'].isin(update_rows))].index
-        data_change_df1.drop(index=create_tp_to_remove, inplace=True)
-    if len(expire_rows) > 0:
-        mute_tp_to_remove = data_change_df1[(data_change_df1['Actual Action'] == 'Mute') 
-                                              & (data_change_df1['File Row'].isin(expire_rows))].index
-        data_change_df1.drop(index=mute_tp_to_remove, inplace=True)
-    
-    data_change_df1.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number', 'Actual Action'], keep='first', inplace=True)
+        data_change_df1.loc[:, 'Intended Action'] = data_change_df1['File Row'].apply(lambda x: 'Upsert' if x in upsert_file_row else 'Expire')
+        # if update_row has value then we need to solve potential conflict
+        if len(update_rows) > 0:
+            create_tp_to_remove = data_change_df1[(data_change_df1['Actual Action'] == 'Create') 
+                                                & (data_change_df1['File Row'].isin(update_rows))].index
+            data_change_df1.drop(index=create_tp_to_remove, inplace=True)
+        if len(expire_rows) > 0:
+            mute_tp_to_remove = data_change_df1[(data_change_df1['Actual Action'] == 'Mute') 
+                                                & (data_change_df1['File Row'].isin(expire_rows))].index
+            data_change_df1.drop(index=mute_tp_to_remove, inplace=True)
+        
+        data_change_df1.drop_duplicates(subset=['File Row', 'Dataset', 'Contract Number', 'Actual Action'], keep='first', inplace=True)
 
-    # merge the net new item from TP to data_change_df
-    all_file_row = set(validated_df['File Row'])
-    keep_file_row = set(keep_df['File Row'])
-    net_new_file_row = (all_file_row.difference(keep_file_row)).intersection(upsert_file_row)
-    net_new_df = validated_df[validated_df['File Row'].isin(net_new_file_row)].copy()
-    net_new_df['Dataset'] = 'TP'
-    net_new_df['Actual Action'] = net_new_df['Intended Action'].apply(lambda x: 'Create' if x == 'Upsert' else 'Mute')
-    net_new_df['Quick Check'] = net_new_df['Intended Action'].apply(lambda x: 'x' if x == 'Upsert' else 'xx')  # No quick check for new items
-    net_new_df['Primary Action'] = net_new_df['Intended Action'].apply(lambda x: 'Create' if x == 'Upsert' else 'Mute TP')  # New items are created
-    net_new_df['Group'] = 'Keep'  # New items are considered as 'Keep'
-    net_new_df['Mfg Part Num (Original)'] = net_new_df['Mfg Part Num']
-    net_new_df['UOM (Original)'] = net_new_df['UOM']
-    data_change_df2 = net_new_df[list(data_change_df1.columns)].copy()
+        # merge the net new item from TP to data_change_df
+        all_file_row = set(validated_df['File Row'])
+        keep_file_row = set(keep_df['File Row'])
+        net_new_file_row = (all_file_row.difference(keep_file_row)).intersection(upsert_file_row)
+        net_new_df = validated_df[validated_df['File Row'].isin(net_new_file_row)].copy()
+        net_new_df['Dataset'] = 'TP'
+        net_new_df['Actual Action'] = net_new_df['Intended Action'].apply(lambda x: 'Create' if x == 'Upsert' else 'Mute')
+        net_new_df['Quick Check'] = net_new_df['Intended Action'].apply(lambda x: 'x' if x == 'Upsert' else 'xx')  # No quick check for new items
+        net_new_df['Primary Action'] = net_new_df['Intended Action'].apply(lambda x: 'Create' if x == 'Upsert' else 'Mute TP')  # New items are created
+        net_new_df['Group'] = 'Keep'  # New items are considered as 'Keep'
+        net_new_df['Mfg Part Num (Original)'] = net_new_df['Mfg Part Num']
+        net_new_df['UOM (Original)'] = net_new_df['UOM']
+        data_change_df2 = net_new_df[list(data_change_df1.columns)].copy()
 
-    # combine the two dataframes
-    data_change_show_df = pd.concat([data_change_df1, data_change_df2], ignore_index=True)
+        # combine the two dataframes
+        data_change_show_df = pd.concat([data_change_df1, data_change_df2], ignore_index=True)
+
+    else:
+        # we are looking at changes that are purely from TP
+        # mostly we are adding pure new items to TP
+        # there maybe cases the TP file try to delete items from non-existing CCX contract line, potentially that could also be an edge case
+        all_file_row = set(validated_df['File Row'])
+        # keep_file_row = set(keep_df['File Row'])
+        net_new_file_row = (all_file_row).intersection(upsert_file_row)
+        net_new_df = validated_df[validated_df['File Row'].isin(net_new_file_row)].copy()
+        net_new_df['Dataset'] = 'TP'
+        net_new_df['Actual Action'] = net_new_df['Intended Action'].apply(lambda x: 'Create' if x == 'Upsert' else 'Mute')
+        net_new_df['Quick Check'] = net_new_df['Intended Action'].apply(lambda x: 'x' if x == 'Upsert' else 'xx')  # No quick check for new items
+        net_new_df['Primary Action'] = net_new_df['Intended Action'].apply(lambda x: 'Create' if x == 'Upsert' else 'Mute TP')  # New items are created
+        net_new_df['Group'] = 'Keep'  # New items are considered as 'Keep'
+        net_new_df['Mfg Part Num (Original)'] = net_new_df['Mfg Part Num']
+        net_new_df['UOM (Original)'] = net_new_df['UOM']
+        
+
+        cols_to_take = ['File Row', 'Dataset', 'Contract Number', 'Mfg Part Num',
+                        'Vendor Part Num', 'Buyer Part Num', 'Description',
+                        'Contract Price', 'UOM', 'QOE',
+                        'Effective Date', 'Expiration Date', 'ERP Vendor ID',
+                        'Actual Action', 'Intended Action', 'Quick Check', 'Primary Action',
+                        'Group', 'Mfg Part Num (Original)', 'UOM (Original)']
+        data_change_show_df = net_new_df[cols_to_take].copy()
 
     # adjust the Effective and Expiration Date for certain operations
     today = pd.to_datetime('today').strftime('%Y-%m-%d')
@@ -1874,9 +1899,6 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
     # make sure dates are in correct string form
     data_change_show_df['Effective Date (before action)'] = data_change_show_df['Effective Date (before action)'].fillna('').astype(str)
     data_change_show_df['Expiration Date (before action)'] = data_change_show_df['Expiration Date (before action)'].fillna('').astype(str)
-
-    # data_change_df = data_change_show_df.copy()
-    # data_change_df.drop(columns = ['Dataset', 'Quick Check', 'Primary Action', 'Group'], inplace = True)
     
     data_change_show_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'data_change_show_df.xlsx'), index=False) #debug
 
@@ -1963,6 +1985,7 @@ def compute_line_count_changes(data_change_show_df, contract_line_count_df, roun
         line_count_cal = line_count_cal.reset_index()
     else:
         # for other round use Actual Action2
+        # the input data is final_all_changes_df
         line_count_cal = data_change_show_df.groupby(['Contract Number', 'Actual Action2']).agg({'File Row': 'count'}).unstack(fill_value=0)
         line_count_cal.columns = line_count_cal.columns.droplevel(0)  # Flatten the MultiIndex columns
         line_count_cal = line_count_cal.reset_index()
@@ -2007,11 +2030,11 @@ def compute_line_count_changes(data_change_show_df, contract_line_count_df, roun
         line_count_cal['Insert_Count'] = detailed_changes.apply(lambda x: x['Insert'])
         line_count_cal['Update_Count'] = detailed_changes.apply(lambda x: x['Update'])
         line_count_cal['Delete_Count'] = detailed_changes.apply(lambda x: x['Delete'])
-    
+
     # merge line count to current contract line count pulled
     contract_line_count_df['Contract Number'] = contract_line_count_df['Contract Number'].astype(str).str.strip().str.upper()
     line_operations = contract_line_count_df.merge(line_count_cal, on='Contract Number', how='outer')
-    line_operations['Total Contract Line Count'] = line_operations['Total Contract Line Count'].fillna(0).astype(int)
+    line_operations['Total Contract Line Count'] = line_operations['Total Contract Line Count'].fillna(0).infer_objects(copy=False).astype(int)
     line_operations['Total Contract Line Count (Change Applied)'] = line_operations['Total Contract Line Count'] + line_operations['Delta']
     
     return line_operations
@@ -2118,6 +2141,7 @@ def change_simulation_stage3(ccx_merge, tp_merge, data_change_show_df, contract_
 
     return df_cross_new, ccx_line_count_cal, tp_line_count_cal, line_count_before_after
 
+
 def compute_changes_to_show(data_change_show_df, merged_df, analyzed_df):
     """
     Compute changes to show in the UI based on the data change DataFrame and analyzed DataFrame.
@@ -2133,17 +2157,23 @@ def compute_changes_to_show(data_change_show_df, merged_df, analyzed_df):
     
     base_df = data_change_show_df.copy()
 
-    im_df = merged_df[(merged_df['False Positive'] == False) & (merged_df['item_number_infor'] != '')].copy()
-    im_df = im_df[['File_Row', 'item_number_infor', 'contract_number_infor']].copy()
-    im_df.rename(columns = {'File_Row': 'File Row',
-                            'item_number_infor': 'Item',
-                            'contract_number_infor': 'Contract Number'}, inplace = True)
-    im_df = im_df.drop_duplicates(subset = ['File Row', 'Contract Number'], keep = 'first').copy()
+    if not merged_df.empty:
+        im_df = merged_df[(merged_df['False Positive'] == False) & (merged_df['item_number_infor'] != '')].copy()
+        im_df = im_df[['File_Row', 'item_number_infor', 'contract_number_infor']].copy()
+        im_df.rename(columns = {'File_Row': 'File Row',
+                                'item_number_infor': 'Item',
+                                'contract_number_infor': 'Contract Number'}, inplace = True)
+        im_df = im_df.drop_duplicates(subset = ['File Row', 'Contract Number'], keep = 'first').copy()
+    else:
+        im_df = pd.DataFrame(columns=['File Row', 'Item', 'Contract Number'])
 
-    im_fr_df = analyzed_df[analyzed_df['False Positive'] == False].copy()
-    # only take the first one if we see multiple (this usually should not happen)
-    im_fr_df = im_fr_df[['File Row', 'Item']].drop_duplicates(subset = ['File Row'], keep = 'first').copy()
-    im_fr_mapping = dict(zip(im_fr_df['File Row'], im_fr_df['Item']))
+    if not analyzed_df.empty:
+        im_fr_df = analyzed_df[analyzed_df['False Positive'] == False].copy()
+        # only take the first one if we see multiple (this usually should not happen)
+        im_fr_df = im_fr_df[['File Row', 'Item']].drop_duplicates(subset = ['File Row'], keep = 'first').copy()
+        im_fr_mapping = dict(zip(im_fr_df['File Row'], im_fr_df['Item']))
+    else:
+        im_fr_mapping = {0: ''}  # default mapping if no analyzed_df is provided
 
     if im_df.empty:
         base_im_df = base_df.copy()
@@ -2157,6 +2187,7 @@ def compute_changes_to_show(data_change_show_df, merged_df, analyzed_df):
         base_im_df['Item_fr'] = base_im_df['File Row'].map(im_fr_mapping)
         base_im_df['Item_fr'] = base_im_df['Item_fr'].apply(lambda x: '('+x+')' if not pd.isnull(x) else '')
         base_im_df['Item'] = base_im_df['Item'].fillna(base_im_df['Item_fr'])
+
 
     # take the portion of not no change to display
     changes_simulation_result_df = base_im_df[base_im_df['Actual Action'].isin(['Create', 
@@ -2191,8 +2222,8 @@ def compute_changes_to_show(data_change_show_df, merged_df, analyzed_df):
 
     changes_simulation_result_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'changes_simulation_result_df.xlsx'), index=False)
     reference_for_expire_rows.to_excel(os.path.join(current_app.root_path, 'temp_files', 'reference_for_expire_rows.xlsx'), index=False)
-    
-    return changes_simulation_result_df, reference_for_expire_rows
+
+    return changes_simulation_result_df, reference_for_expire_rows, base_im_df
 
 
 def actual_action_on_update_row2(row_original, 
@@ -2631,11 +2662,14 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
             'Description': row['Description_expck'],
             'UOM': row['UOM_expck'],
             'QOE': row['QOE_expck'],
+            'Contract Price': row['Contract Price_expck'],
+            'Effective Date (before action)': row['Effective Date (before action)_expck'],
+            'Expiration Date (before action)': row['Expiration Date (before action)_expck'],
             'ERP Vendor ID': row['ERP Vendor ID_expck'],
             'Do Not Expire': do_not_expire,
             'Quick Check': quick_check,
-            'Item Number': item_number,
-            'Reference Item Number': ref_item_number,
+            'Item': item_number,
+            'Item_fr': ref_item_number,
             'Intended Action': intended_action,
             'Validation Flag': validation_flag,
             'Final Row Action': row_action
@@ -2698,14 +2732,19 @@ def final_commit(all_changes_df,
                  changes_to_show_df,
                  more_changes_to_append_df,
                  final_validation_df):
-    """ Finalize the changes to be committed to the database."""
-    # return if no changes
-    if all_changes_df.empty:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    
-    
-    # remove the do not expire == True items from all_changes_df and changes_to_show_df
-    # make sure we only have value as True or False
+    """ Finalize the changes to be committed to the database.
+    Args:
+        all_changes_df: DataFrame with all changes to be applied.
+        changes_to_show_df: DataFrame with changes to be shown to the user.
+        more_changes_to_append_df: DataFrame with additional changes to be appended.
+        final_validation_df: DataFrame with final validation results.
+    Returns:
+        final_commit_df: DataFrame will get committed to the database.
+        final_changes_to_show_df: DataFrame with changes to be shown to the user after final validation.
+        final_all_changes_df: DataFrame with all changes after final validation.
+        """
+     # remove the do not expire == True items from all_changes_df and changes_to_show_df
+     # make sure we only have value as True or False
     if 'Do Not Expire' in all_changes_df.columns:
         all_changes_df['Do Not Expire'] = all_changes_df['Do Not Expire'].astype('boolean')
     if 'Do Not Expire' in changes_to_show_df.columns:
@@ -2713,94 +2752,127 @@ def final_commit(all_changes_df,
     if 'Do Not Expire' in more_changes_to_append_df.columns:
         more_changes_to_append_df['Do Not Expire'] = more_changes_to_append_df['Do Not Expire'].astype('boolean')
 
-
-    # merge the all_changes_df to final_validation_df to get more information
-    x_all_changes_df = pd.concat([all_changes_df, more_changes_to_append_df], ignore_index=True)
-    x_changes_to_show_df = pd.concat([changes_to_show_df, more_changes_to_append_df], ignore_index=True)
-
-
-    # fill na for the column Mfg Part Num (Original) and UOM (Origianl)
-    if 'Mfg Part Num (Original)' not in x_all_changes_df.columns:
-        x_all_changes_df['Mfg Part Num (Original)'] = x_all_changes_df['Mfg Part Num']
-    else:
-        x_all_changes_df['Mfg Part Num (Original)'] = x_all_changes_df['Mfg Part Num (Original)'].fillna(x_all_changes_df['Mfg Part Num'])
-    if 'UOM (Original)' not in x_all_changes_df.columns:
-        x_all_changes_df['UOM (Original)'] = x_all_changes_df['UOM']
-    else:
-        x_all_changes_df['UOM (Original)'] = x_all_changes_df['UOM (Original)'].fillna(x_all_changes_df['UOM'])
+    # return if all_changes_df is empty (this usually should not happen)
+    if all_changes_df.empty and changes_to_show_df.empty:
+        print("All changes DataFrame is empty, nothing to commit.") # debug
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     
-    if 'Mfg Part Num (Original)' not in x_changes_to_show_df.columns:
-        x_changes_to_show_df['Mfg Part Num (Original)'] = x_changes_to_show_df['Mfg Part Num']
+    # return if no changes to show
+    if changes_to_show_df.empty:
+        print("No changes detected") # debug
+        final_commit_df = pd.DataFrame()
+        final_changes_to_show_df = pd.DataFrame()
+        final_all_changes_df = all_changes_df.copy()
+        final_all_changes_df.loc[:, 'Validation Flag'] = 'SAFE - no further validation needed'
+        final_all_changes_df.loc[:, 'Final Row Action'] = 'Execute'
+        final_all_changes_df.loc[:, 'Final File Row Action'] = 'Execute'
+        final_all_changes_df.loc[:, 'Final Row Validation Flag'] = 'SAFE - no further validation needed'
+        return final_commit_df, final_changes_to_show_df, final_all_changes_df
+        
+    # return if we don't need further validation (because there is no expire CCX operations triggered)
+    if final_validation_df.empty:
+        # in this case more_changes_to_append_df will surely be empty
+        print("No need for further validation")
+        final_commit_df = changes_to_show_df.copy()
+        final_changes_to_show_df = changes_to_show_df.copy()
+        final_all_changes_df = all_changes_df.copy()
+        for col in ['Validation Flag', 'Final Row Action', 'Final File Row Action', 'Final Row Validation Flag']:
+            for df in [final_commit_df, final_changes_to_show_df, final_all_changes_df]:
+                if col in ('Validation Flag', 'Final Row Validation Flag'):
+                    df[col] = 'SAFE - no further validation needed)'
+                elif col in ('Final Row Action', 'Final File Row Action'):
+                    df[col] = 'Execute'
+        return final_commit_df, final_changes_to_show_df, final_all_changes_df
+
+
     else:
-        x_changes_to_show_df['Mfg Part Num (Original)'] = x_changes_to_show_df['Mfg Part Num (Original)'].fillna(x_changes_to_show_df['Mfg Part Num'])
-    if 'UOM (Original)' not in x_changes_to_show_df.columns:
-        x_changes_to_show_df['UOM (Original)'] = x_changes_to_show_df['UOM']
-    else:
-        x_changes_to_show_df['UOM (Original)'] = x_changes_to_show_df['UOM (Original)'].fillna(x_changes_to_show_df['UOM'])
+        # merge the all_changes_df to final_validation_df to get more information
+        x_all_changes_df = pd.concat([all_changes_df, more_changes_to_append_df], ignore_index=True)
+        x_changes_to_show_df = pd.concat([changes_to_show_df, more_changes_to_append_df], ignore_index=True)
 
 
-    join_key = ['File Row', 'Dataset', 'Contract Number', 'ERP Vendor ID', 'Mfg Part Num', 'QOE']
-    xx_all_changes_df = x_all_changes_df.merge(final_validation_df[join_key + ['Validation Flag', 'Final Row Action']],
-                                               on = join_key,
-                                                how = 'left')
-    xx_changes_to_show_df = x_changes_to_show_df.merge(final_validation_df[join_key + ['Validation Flag', 'Final Row Action']],
-                                                      on = join_key,
-                                                        how = 'left')
-    
-    # remove the 'Do Not Expire' == True items if they don't have error
-    final_all_changes_df = xx_all_changes_df[(xx_all_changes_df['Do Not Expire'] == False) |
-                                        ((xx_all_changes_df['Do Not Expire'] == True) &
-                                         (xx_all_changes_df['Final Row Action'] == 'Pending'))].copy()
-    
-    final_changes_to_show_df = xx_changes_to_show_df[(xx_changes_to_show_df['Do Not Expire'] == False) |
-                                                ((xx_changes_to_show_df['Do Not Expire'] == True) & 
-                                                    (xx_changes_to_show_df['Final Row Action'] == 'Pending'))].copy()
-
-    # take care of intended action == 'Expire'
-    tp_set_to_adjust = \
-    set(xx_all_changes_df[(xx_all_changes_df['Intended Action'] == 'Expire') & 
-                      (xx_all_changes_df['Group'] == 'Keep2') &
-                      (xx_all_changes_df['Actual Action'] == 'No Change') &
-                      (xx_all_changes_df['Final Row Action'] == 'Execute')]['File Row'])
-    final_all_changes_df.loc[:, 'Actual Action'] = final_all_changes_df.apply(lambda x: 'No Change'
-                                                                        if (x['File Row'] in tp_set_to_adjust and 
-                                                                            x['Intended Action'] == 'Expire' and
-                                                                            x['Dataset'] == 'TP' and
-                                                                            x['Actual Action'] == 'Merged') else x['Actual Action'], axis=1)
-
-    # fill nan so it will not cause issue during JSON serialization
-    final_all_changes_df['Validation Flag'] = final_all_changes_df['Validation Flag'].fillna('SAFE - no further validation needed')
-    final_all_changes_df['Final Row Action'] = final_all_changes_df['Final Row Action'].fillna('Execute')
-    final_changes_to_show_df['Validation Flag'] = final_changes_to_show_df['Validation Flag'].fillna('SAFE - no further validation needed')
-    final_changes_to_show_df['Final Row Action'] = final_changes_to_show_df['Final Row Action'].fillna('Execute')
-
-    # in final commit, we don't need to show the 'Update (Existing)' and 'No Change' action since this is not going to be exected
-    final_commit_df = final_changes_to_show_df[~final_changes_to_show_df['Actual Action'].isin(['Update (Existing)',
-                                                                                                'No Change'])].copy()
-    # in final_validation, we need to show the items with errors and we will pause any changes we want to make related the affected file row
-    # user should confirm the data with vendor and re-run everything to make sure things are correct
-    validation_results = final_errors_before_commit(final_validation_df)
-    final_validation_errors = validation_results['final_validation_errors'] 
-    final_validation_checks = validation_results['final_validation_checks'] 
-
-    problematic_file_rows = set(final_validation_errors['File Row']) | \
-                            set(final_validation_checks['File Row'])
-
-    error_file_rows = set(final_validation_errors['File Row'])
-
-    def compose_group_validation_flag(file_row, error_file_rows):
-        if file_row in error_file_rows:
-            return f'ERROR - error catched for file row group {file_row}, all changes related to the item will get paused.'
+        # fill na for the column Mfg Part Num (Original) and UOM (Origianl)
+        if 'Mfg Part Num (Original)' not in x_all_changes_df.columns:
+            x_all_changes_df['Mfg Part Num (Original)'] = x_all_changes_df['Mfg Part Num']
         else:
-            return f'CHECK - unexpected case catched for file row group {file_row}, please check with developer.'
-    
-    # for anything that is in the problematic file rows, we will need to pause all our changes related to those file rows
-    for df in [final_all_changes_df, final_changes_to_show_df, final_commit_df]:
-        df['Final File Row Action'] = df.apply(lambda x: 'Pending' if x['File Row'] in problematic_file_rows else x['Final Row Action'], axis=1)
-        df['Final Row Validation Flag'] = df['Validation Flag'].copy()
-        df['Validation Flag'] = df.apply(lambda x: x['Final Row Validation Flag'] 
-                                         if x['Final Row Action'] == x['Final File Row Action']
-                                         else compose_group_validation_flag(x['File Row'], error_file_rows), axis=1)
+            x_all_changes_df['Mfg Part Num (Original)'] = x_all_changes_df['Mfg Part Num (Original)'].fillna(x_all_changes_df['Mfg Part Num'])
+        if 'UOM (Original)' not in x_all_changes_df.columns:
+            x_all_changes_df['UOM (Original)'] = x_all_changes_df['UOM']
+        else:
+            x_all_changes_df['UOM (Original)'] = x_all_changes_df['UOM (Original)'].fillna(x_all_changes_df['UOM'])
+        
+        if 'Mfg Part Num (Original)' not in x_changes_to_show_df.columns:
+            x_changes_to_show_df['Mfg Part Num (Original)'] = x_changes_to_show_df['Mfg Part Num']
+        else:
+            x_changes_to_show_df['Mfg Part Num (Original)'] = x_changes_to_show_df['Mfg Part Num (Original)'].fillna(x_changes_to_show_df['Mfg Part Num'])
+        if 'UOM (Original)' not in x_changes_to_show_df.columns:
+            x_changes_to_show_df['UOM (Original)'] = x_changes_to_show_df['UOM']
+        else:
+            x_changes_to_show_df['UOM (Original)'] = x_changes_to_show_df['UOM (Original)'].fillna(x_changes_to_show_df['UOM'])
+
+
+        join_key = ['File Row', 'Dataset', 'Contract Number', 'ERP Vendor ID', 'Mfg Part Num', 'QOE']
+        xx_all_changes_df = x_all_changes_df.merge(final_validation_df[join_key + ['Validation Flag', 'Final Row Action']],
+                                                on = join_key,
+                                                    how = 'left')
+        xx_changes_to_show_df = x_changes_to_show_df.merge(final_validation_df[join_key + ['Validation Flag', 'Final Row Action']],
+                                                        on = join_key,
+                                                            how = 'left')
+        
+        # remove the 'Do Not Expire' == True items if they don't have error
+        final_all_changes_df = xx_all_changes_df[(xx_all_changes_df['Do Not Expire'] == False) |
+                                            ((xx_all_changes_df['Do Not Expire'] == True) &
+                                            (xx_all_changes_df['Final Row Action'] == 'Pending'))].copy()
+        
+        final_changes_to_show_df = xx_changes_to_show_df[(xx_changes_to_show_df['Do Not Expire'] == False) |
+                                                    ((xx_changes_to_show_df['Do Not Expire'] == True) & 
+                                                        (xx_changes_to_show_df['Final Row Action'] == 'Pending'))].copy()
+
+        # take care of intended action == 'Expire'
+        tp_set_to_adjust = \
+        set(xx_all_changes_df[(xx_all_changes_df['Intended Action'] == 'Expire') & 
+                        (xx_all_changes_df['Group'] == 'Keep2') &
+                        (xx_all_changes_df['Actual Action'] == 'No Change') &
+                        (xx_all_changes_df['Final Row Action'] == 'Execute')]['File Row'])
+        final_all_changes_df.loc[:, 'Actual Action'] = final_all_changes_df.apply(lambda x: 'No Change'
+                                                                            if (x['File Row'] in tp_set_to_adjust and 
+                                                                                x['Intended Action'] == 'Expire' and
+                                                                                x['Dataset'] == 'TP' and
+                                                                                x['Actual Action'] == 'Merged') else x['Actual Action'], axis=1)
+
+        # fill nan so it will not cause issue during JSON serialization
+        final_all_changes_df['Validation Flag'] = final_all_changes_df['Validation Flag'].fillna('SAFE - no further validation needed')
+        final_all_changes_df['Final Row Action'] = final_all_changes_df['Final Row Action'].fillna('Execute')
+        final_changes_to_show_df['Validation Flag'] = final_changes_to_show_df['Validation Flag'].fillna('SAFE - no further validation needed')
+        final_changes_to_show_df['Final Row Action'] = final_changes_to_show_df['Final Row Action'].fillna('Execute')
+
+        # in final commit, we don't need to show the 'Update (Existing)' and 'No Change' action since this is not going to be exected
+        final_commit_df = final_changes_to_show_df[~final_changes_to_show_df['Actual Action'].isin(['Update (Existing)',
+                                                                                                    'No Change'])].copy()
+        # in final_validation, we need to show the items with errors and we will pause any changes we want to make related the affected file row
+        # user should confirm the data with vendor and re-run everything to make sure things are correct
+        validation_results = final_errors_before_commit(final_validation_df)
+        final_validation_errors = validation_results['final_validation_errors'] 
+        final_validation_checks = validation_results['final_validation_checks'] 
+
+        problematic_file_rows = set(final_validation_errors['File Row']) | \
+                                set(final_validation_checks['File Row'])
+
+        error_file_rows = set(final_validation_errors['File Row'])
+
+        def compose_group_validation_flag(file_row, error_file_rows):
+            if file_row in error_file_rows:
+                return f'ERROR - error catched for file row group {file_row}, all changes related to the item will get paused.'
+            else:
+                return f'CHECK - unexpected case catched for file row group {file_row}, please check with developer.'
+        
+        # for anything that is in the problematic file rows, we will need to pause all our changes related to those file rows
+        for df in [final_all_changes_df, final_changes_to_show_df, final_commit_df]:
+            df['Final File Row Action'] = df.apply(lambda x: 'Pending' if x['File Row'] in problematic_file_rows else x['Final Row Action'], axis=1)
+            df['Final Row Validation Flag'] = df['Validation Flag'].copy()
+            df['Validation Flag'] = df.apply(lambda x: x['Final Row Validation Flag'] 
+                                            if x['Final Row Action'] == x['Final File Row Action']
+                                            else compose_group_validation_flag(x['File Row'], error_file_rows), axis=1)
 
 
     final_all_changes_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'final_all_changes_df.xlsx'), index=False) #debug
@@ -3313,3 +3385,26 @@ class PlotlyJSONEncoder(json.JSONEncoder):
         elif isinstance(obj, np.floating):
             return float(obj)
         return json.JSONEncoder.default(self, obj)
+
+
+def make_final_validation_error_report(final_error_df, final_check_df, final_warning_df, tp_error_df):
+    """
+    compose the report to let user see the final validation errors and warnings
+    """
+    final_error_report_df = pd.concat([final_error_df, final_check_df, final_warning_df,
+                                       tp_error_df], ignore_index=True)
+    final_error_report_df = final_error_report_df.sort_values(by=['File Row', 'Dataset', 'Contract Number', 'ERP Vendor ID', 'Mfg Part Num'], 
+                                                                ascending=[True, True, True, True, True]).reset_index(drop=True)
+
+    cols_to_take = ['File Row', 'Dataset', 'Contract Number', 'ERP Vendor ID',
+                    'Mfg Part Num', 'Vendor Part Num', 'UOM', 'QOE',
+                    'Contract Price', 'Effective Date (before action)',
+                    'Expiration Date (before action)', 'Intended Action',
+                    'Actual Action', 'Do Not Expire', 'Item', 'Validation Flag',
+                    'Final Row Action']
+    final_error_report_df = final_error_report_df[cols_to_take].copy()
+    final_error_report_df.loc[:, 'Actual Action'] = final_error_report_df['Actual Action'].fillna('Expire')
+    final_error_report_df = final_error_report_df.drop_duplicates(keep = 'first')
+    final_error_report_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'final_error_report_df.xlsx'), index=False) #debug
+    
+    return final_error_report_df

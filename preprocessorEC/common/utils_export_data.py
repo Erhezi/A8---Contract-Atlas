@@ -578,3 +578,5 @@ def make_single_contract_csv(single_df, single_filepath_csv, contract_number):
         error_msg = f"Error preparing single contract upload CSV: {str(e)}"
         print(error_msg)
         return False, error_msg
+
+

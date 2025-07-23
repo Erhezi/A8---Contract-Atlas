@@ -4,6 +4,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Ensure modal is completely hidden with inline style as a backup
     document.getElementById('changeStatsModal').style.display = 'none';
+    
+    // Set up export validation report button
+    const exportValidationReportBtn = document.getElementById('export-validation-report-btn');
+    if (exportValidationReportBtn) {
+        exportValidationReportBtn.addEventListener('click', function() {
+            downloadFinalValidationReport();
+        });
+    }
 
     // Change mode description toggler
     const updateActionModeSelect = document.getElementById('update_action_mode');
@@ -1302,7 +1310,8 @@ function finalizeChanges() {
                 error: data.result.final_errors || [],
                 warning: data.result.final_warnings || [],
                 check: data.result.final_checks || [],
-                tp_no_execution: data.result.final_tp_no_execution || []
+                tp_no_execution: data.result.final_tp_no_execution || [],
+                final_error_report: data.result.final_error_report || []
             };
 
             // Update the TP No Execution count directly
@@ -1850,6 +1859,16 @@ function updateValidationFlagCounts(validationData) {
         tp_no_execution: window.validationFlagData?.tp_no_execution || []
     };
 
+    // Show/hide export validation report button based on counts
+    const exportContainer = document.getElementById('export-validation-report-container');
+    if (exportContainer) {
+        if (errorCount > 0 || warningCount > 0 || checkCount > 0 || tpNoExecutionCount > 0) {
+            exportContainer.style.display = '';
+        } else {
+            exportContainer.style.display = 'none';
+        }
+    }
+    
     // Show the cards container
     const cardsContainer = document.querySelector('.validation-flag-cards');
     if (cardsContainer) {
@@ -1954,6 +1973,59 @@ function showValidationFlagModal(flagType, data) {
 document.getElementById('commit-changes-btn').addEventListener('click', function() {
     commitChanges();
 });
+
+// Function to download the final validation error report
+function downloadFinalValidationReport() {
+    // Check if we have any validation data to export
+    if (!window.validationFlagData) {
+        showAlert('warning', 'No validation data available to export.');
+        return;
+    }
+    
+    let reportData = [];
+    
+    // Collect all validation issues
+    if (window.validationFlagData.error && window.validationFlagData.error.length > 0) {
+        reportData = reportData.concat(window.validationFlagData.error);
+    }
+    
+    if (window.validationFlagData.warning && window.validationFlagData.warning.length > 0) {
+        reportData = reportData.concat(window.validationFlagData.warning);
+    }
+    
+    if (window.validationFlagData.check && window.validationFlagData.check.length > 0) {
+        reportData = reportData.concat(window.validationFlagData.check);
+    }
+    
+    if (window.validationFlagData.tp_no_execution && window.validationFlagData.tp_no_execution.length > 0) {
+        // Add TP No Execution data with flag type for clarity
+        const tpData = window.validationFlagData.tp_no_execution.map(item => {
+            return {...item, 'Validation Flag': 'TP NO EXECUTION'};
+        });
+        reportData = reportData.concat(tpData);
+    }
+    
+    // Check if we have any data after collecting
+    if (reportData.length === 0) {
+        showAlert('warning', 'No validation issues to export.');
+        return;
+    }
+    
+    try {
+        // Convert to worksheet
+        const ws = XLSX.utils.json_to_sheet(reportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Validation Report');
+        
+        // Generate file and trigger download
+        XLSX.writeFile(wb, 'final_validation_report.xlsx');
+        
+        showAlert('success', 'Final validation report downloaded successfully.');
+    } catch (error) {
+        console.error('Error generating validation report:', error);
+        showAlert('danger', 'Failed to generate validation report. Please try again.');
+    }
+}
 
 // Function to commit changes to the database
 function commitChanges() {

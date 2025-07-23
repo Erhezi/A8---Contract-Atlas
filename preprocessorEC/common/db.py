@@ -165,13 +165,21 @@ def create_temp_table(table_name, df, conn):
                     insert_df[col] = None
 
         # Batch insert for better performance
-        for _, row in insert_df.iterrows():
-            row_values = [None if pd.isnull(v) or v == '' else v for v in row.values]
-            placeholders = ','.join(['?' for _ in row_values])
+        batch_size = 10000  # Adjust batch size as needed
+        rows = [
+            [None if pd.isnull(v) or v == '' else v for v in row.values]
+            for _, row in insert_df.iterrows()
+        ]
+
+        for i in range(0, len(rows), batch_size):
+            batch = rows[i:i + batch_size]
+            placeholders = ','.join(['?' for _ in columns])
             column_names = ','.join(columns)
             insert_sql = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
-            cursor.execute(insert_sql, row_values)
-            conn.commit()  # Commit each insert to avoid memory issues
+            cursor.executemany(insert_sql, batch)
+            print('Inserted batch from {} to {}'.format(i, i + len(batch) - 1)) # for monitoring process to get a sense of timing
+
+        conn.commit()  # Commit once after all batches
         
         return True, table_name
     
@@ -1062,7 +1070,7 @@ def get_task_history(conn, user_id = None, user_role = None):
             query = """
                 SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
                        CustomDirection, CustomFields, SimulationMode,
-                       Status, CompletedBy, ExportedBy,
+                       Status, WithError, CompletedBy, ExportedBy,
                        h.CreateDT, h.UpdateDT
                 FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
                 LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
@@ -1074,7 +1082,7 @@ def get_task_history(conn, user_id = None, user_role = None):
             query = """
                 SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
                        CustomDirection, CustomFields, SimulationMode,
-                       Status, CompletedBy, ExportedBy,
+                       Status, WithError, CompletedBy, ExportedBy,
                        h.CreateDT, h.UpdateDT
                 FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
                 LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]

@@ -99,8 +99,22 @@ document.addEventListener('DOMContentLoaded', function() {
     // Table header click for sorting
     document.querySelectorAll('#items-table-4-1 th[data-sort]').forEach(th => {
         th.addEventListener('click', function() {
-            const field = this.dataset.sort;
+            // IMPORTANT: Capture checkbox states before sorting
+            const checkboxStates = {};
+            document.querySelectorAll('#items-tbody-4-1 input.false-positive-checkbox').forEach(checkbox => {
+                const index = parseInt(checkbox.dataset.index);
+                checkboxStates[index] = checkbox.checked;
+            });
             
+            // Update the currentItems with the current checkbox states
+            currentItems.forEach((item, index) => {
+                if (checkboxStates[index] !== undefined) {
+                    item.false_positive = checkboxStates[index];
+                }
+            });
+            
+            // Update sort field and direction
+            const field = this.dataset.sort;
             if (field === sortField) {
                 sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
             } else {
@@ -889,7 +903,19 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add fresh event listener
             newTh.addEventListener('click', function() {
-                console.log("Sort clicked on", this.dataset.sort);
+                // IMPORTANT: Capture checkbox states before sorting
+                const checkboxStates = {};
+                document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
+                    const index = parseInt(checkbox.dataset.index);
+                    checkboxStates[index] = checkbox.checked;
+                });
+
+                allItemMasterItems.forEach((item, index) => {
+                    // Restore checkbox states after sorting
+                    if (checkboxStates[index] !== undefined) {
+                        item.false_positive = checkboxStates[index];
+                    }
+                });
                 
                 // Get the sort field from the data attribute
                 const field = this.dataset.sort;
@@ -1309,6 +1335,22 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add fresh event listener
             newTh.addEventListener('click', function() {
+                // IMPORTANT: Capture checkbox states before sorting
+                const checkboxStates = {};
+                document.querySelectorAll('#uom-qoe-tbody input.false-positive-checkbox').forEach(checkbox => {
+                    const index = parseInt(checkbox.dataset.index);
+                    checkboxStates[index] = checkbox.checked;
+                });
+                
+                // Update allUomQoeItems with current checkbox states
+                allUomQoeItems.forEach((item, index) => {
+                    if (checkboxStates[index] !== undefined) {
+                        item.False_Positive = checkboxStates[index];
+                        // Also set alternate field name if used
+                        item["False Positive"] = checkboxStates[index];
+                    }
+                });
+                
                 const field = this.dataset.sort;
                 
                 // Update sort direction

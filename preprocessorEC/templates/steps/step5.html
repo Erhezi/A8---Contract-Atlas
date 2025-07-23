@@ -1419,6 +1419,14 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Export Final Validation Error Report Button -->
+            <div id="export-validation-report-container" style="margin: 20px 0 15px 10px; display: none;">
+                <button id="export-validation-report-btn" class="btn btn-primary">
+                    <i class="fas fa-file-export mr-2"></i> Export Final Validation Error Report
+                </button>
+            </div>
+            
             <!-- Validation Flag Reference Guide -->
             <div class="mb-3">
                 <div class="card-header" style="background-color: #f8f9fa; cursor: pointer; border: none; padding: 0px 0 0px 0; margin-top: 10px; margin-bottom: -5px;" id="validation-flag-guide-header">
@@ -1650,4 +1658,5 @@
 
 <!-- Add Plotly.js CDN -->
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="{{ url_for('static', filename='js/step5.js') }}"></script>

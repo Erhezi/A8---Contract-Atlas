@@ -72,8 +72,8 @@
     }
     
     /* Minimize date columns */
-    .compact-table td:nth-child(9),
-    .compact-table td:nth-child(10) {
+    .compact-table td:nth-child(10),
+    .compact-table td:nth-child(11) {
         font-size: 0.75rem;
         white-space: nowrap;
     }
@@ -81,6 +81,75 @@
     /* Add subtle hover effect to rows */
     .compact-table tbody tr:hover {
         background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    .compact-table th:nth-child(9),
+    .compact-table td:nth-child(9) {
+        text-align: center;
+        width: 100px;
+    }
+
+    .bg-danger {
+        color: #fff;
+        background-color: #dc3545;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-warning {
+        color: #212529;
+        background-color: #ffc107;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-success {
+        color: #fff;
+        background-color: #28a745;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-secondary {
+        color: #fff;
+        background-color: #6c757d;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-progress {
+        color: #fff;
+        background-color: #17a2b8;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .btn-danger {
+        color: #fff;
+        background-color: #dc3545;
+        border: 1px solid #dc3545; 
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem; 
+        border-radius: 0.25rem; 
+        cursor: pointer; 
+        transition: background-color 0.2s ease, border-color 0.2s ease; 
+    }
+
+    .btn-danger:hover {
+        background-color: #c82333; 
+        border-color: #bd2130;
+    }
+
+    .btn-danger:disabled {
+        background-color: #e4606d; 
+        border-color: #e4606d;
+        cursor: not-allowed; 
+        opacity: 0.65; 
     }
 </style>
 {% endblock %}
@@ -129,6 +198,7 @@
                                 <th>Dedup</th>
                                 <th>UpdateKey</th>
                                 <th>Status</th>
+                                <th>WithError</th>
                                 <th>Created</th>
                                 <th>Updated</th>
                                 <th>Delete</th>
@@ -158,9 +228,16 @@
                                     {% elif task.Status == 'Exported' %}
                                         <span class="badge bg-warning">Exported</span>
                                     {% elif task.Status == 'Pending' %}
-                                        <span class="badge bg-danger">Pending</span>
+                                        <span class="badge bg-progress">Pending</span>
                                     {% else %}
                                         <span class="badge bg-secondary">{{ task.Status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if task.WithError == 'Yes' %}
+                                        <span class="badge bg-danger">Yes</span>
+                                    {% else %}
+                                        <span class="badge bg-success">No</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ task.CreateDT.strftime('%Y-%m-%d %H:%M:%S') if task.CreateDT else '' }}</td>
