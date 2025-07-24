@@ -67,12 +67,34 @@ def dashboard():
     user_id = current_user.id
     # Check if we need to restart the process
     if request.args.get('restart') or request.args.get('new_process'):
-        store_current_step(user_id, 1) # Use helper
-        store_completed_steps(user_id, []) # Use helper
+        # Store authentication-related session keys that should be preserved
+        auth_keys = ['_user_id', '_fresh', '_id']
+        auth_values = {key: session.get(key) for key in auth_keys if key in session}
+        
+        # Clear all user-specific session data
+        for key in list(session.keys()):
+            if not key.startswith('_') or key in ['_task_id', '_commit_task_id']:
+                session.pop(key, None)
+                
+        # Restore authentication values
+        for key, value in auth_values.items():
+            session[key] = value
+            
+        # Reset step tracking
+        store_current_step(user_id, 1)
+        store_completed_steps(user_id, [])
         session.modified = True
-        # Optionally clear other user-specific data here
-        flash('Starting a new process', 'info')
-        # Redirect to remove 'restart' from URL args
+        
+        # Also clear any temp tables if they exist
+        try:
+            conn = get_db_connection()
+            if conn:
+                table_to_drop = f'temp_contract_{user_id}'
+                drop_temp_table(table_to_drop, conn)
+        except Exception as e:
+            current_app.logger.warning(f"Failed to drop temp table: {str(e)}")
+        
+        flash('Starting a new process with clean data', 'info')
         return redirect(url_for('common.dashboard'))
 
     # Get current step and completed steps for the user from session
@@ -187,13 +209,15 @@ def process_step(step_id):
         
         # Log the skip action
         current_app.logger.info(f"Skipping steps {skip_steps} to step {step_id} for user {user_id}")
-        flash(f"Skipped steps {skip_steps} and moved to step {step_id}", "info")
+        flash(f"Skipped steps {skip_steps} and moved to step {step_id + 1}", "info")
     
     # Validate if user can process this step (should be the current step)
     current_step_id = get_current_step_from_session(user_id)
+    print("current_step_id:", current_step_id) #debug
     if step_id != current_step_id:
         flash(f"Cannot process Step {step_id}. Current step is {current_step_id}.", 'warning')
         return redirect(url_for('common.dashboard'))
+
 
     success = False
     error_msg = None
@@ -255,23 +279,54 @@ def process_step(step_id):
                 }
                 store_deduplication_results(user_id, step3_results) # Use helper
                 next_step_id = 4 # Skip to step 4
+                success = True
                 flash("Step 3 (Duplication Resolution) automatically completed.", "info")
 
         elif step_id == 3:
-            # Step 3: Duplication Resolution completion check
-            comparison_results = get_comparison_results(user_id)
-            if not comparison_results:
-                raise ValueError("Item comparison not completed. Please complete Step 2 first.")
 
-            deduplication_results = get_deduped_results(user_id) # Use helper
-            if not deduplication_results:
-                flash("No deduplication results available. Please apply a deduplication policy before completing this step.", "warning")
-                # Don't redirect here, let the user stay on step 3 to apply policy
-                return redirect(url_for('common.dashboard')) # Or step_view
+            validated_data = get_validated_data(user_id)
+            if not validated_data:
+                raise ValueError("No validated data available. Please complete Step 1 first.")
 
-            resolution_strategy = deduplication_results.get('policy', {}).get('type', 'unknown')
-            success = True
-            flash(f"Deduplication results processed successfully using [{resolution_strategy}] policy!", "success")
+            if skip2 and skip3:
+                completed_steps = get_completed_steps(user_id)
+                if 3 not in completed_steps:
+                    completed_steps.append(3)
+                    store_completed_steps(user_id, completed_steps) # Save updated list
+                # need to store default info to deduplications_results_{user_id}
+                to_upload_count = len(validated_data)
+                step3_results = {
+                    'policy': {"custom_directions": [],
+                               "custom_fields": [],
+                               "type": "no_duplicates"},
+                    'stacked_data': [],
+                    'summary': {
+                        "duplicates_removed": 0,
+                        "kept_ccx": 0,
+                        "kept_uploaded": to_upload_count,
+                        "total_items": to_upload_count,
+                        "unique_duplicates": to_upload_count}
+                }
+                store_deduplication_results(user_id, step3_results) # Use helper
+                next_step_id = 4 # Skip to step 4
+                success = True
+            
+            else:
+                # Step 3: Duplication Resolution completion check
+                comparison_results = get_comparison_results(user_id)
+                if not comparison_results:
+                    raise ValueError("Item comparison not completed. Please complete Step 2 first.")
+
+                deduplication_results = get_deduped_results(user_id) # Use helper
+                if not deduplication_results:
+                    flash("No deduplication results available. Please apply a deduplication policy before completing this step.", "warning")
+                    # Don't redirect here, let the user stay on step 3 to apply policy
+                    return redirect(url_for('common.dashboard')) # Or step_view
+
+                resolution_strategy = deduplication_results.get('policy', {}).get('type', 'unknown')
+            
+                success = True
+                flash(f"Deduplication results processed successfully using [{resolution_strategy}] policy!", "success")
 
         elif step_id == 4:
             # Step 4: Item Master Matching completion check
@@ -283,7 +338,15 @@ def process_step(step_id):
             if skip2 and skip3:
                 # If we skipped steps 2 and 3, we need to ensure we have the necessary data
                 # This is a special case where we assume the user has already handled these steps
-                pass
+                infor_im_matches = get_infor_im_matches(user_id) # Use helper
+                if not infor_im_matches:
+                    raise ValueError("Infor Item Master matching not completed. Please run the matching process first.")
+                
+                uom_qoe_validation = get_uom_qoe_validation(user_id)
+                if not uom_qoe_validation:  
+                    raise ValueError("UOM and QOE validation not completed. Please run the validation process first.")
+                
+                success = True
             
             else:
                 # Check if matching results exist in session
@@ -298,8 +361,9 @@ def process_step(step_id):
                 uom_qoe_validation = get_uom_qoe_validation(user_id)
                 if not uom_qoe_validation:  
                     raise ValueError("UOM and QOE validation not completed. Please run the validation process first.")
+
+                success = True
             
-            success = True
             flash("Step 4 (Item Master Matching) completed successfully.", "success")
 
         elif step_id == 5:

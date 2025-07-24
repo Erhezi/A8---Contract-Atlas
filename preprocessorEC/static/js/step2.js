@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <h4>No matching contracts found on CCX</h4>
                             <p>Mostly there is no duplication for your uploaded items on CCX, we can skip step2 and 3.</p>
                             <div class="action-buttons" style="margin-top: 20px; text-align: center;">
-                                <form method="POST" action="${processStepUrls.step4}">
+                                <form method="POST" action="${processStepUrls.step3}">
                                     <input type="hidden" name="skip_steps" value="2,3">
                                     <input type="hidden" name="step_completed" value="true">
                                     <button type="submit" class="btn btn-success">Skip to Step 4</button>
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <h4>No contracts are currently included</h4>
                                 <p>All contracts have been excluded. You can include some contracts or skip to step 4.</p>
                                 <div class="action-buttons" style="margin-top: 20px; text-align: center;">
-                                    <form method="POST" action="${processStepUrls.step4}">
+                                    <form method="POST" action="${processStepUrls.step3}">
                                         <input type="hidden" name="skip_steps" value="2,3">
                                         <input type="hidden" name="step_completed" value="true">
                                         <button type="submit" class="btn btn-success">Skip to Step 4</button>

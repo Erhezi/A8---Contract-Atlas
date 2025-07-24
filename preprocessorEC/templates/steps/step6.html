@@ -292,7 +292,7 @@
         border: 1px solid #6f42c1;
     }
     
-     .highlight-explanation {
+    .highlight-explanation {
         font-size: 0.7rem; /* Smaller font size for the legend */
         color: #6c757d; /* Keep muted text color */
         margin: 10px;
@@ -331,19 +331,24 @@
     }
 
     .file-links-container {
-        display: flex;
-        align-items: center;
-        gap: 10px; /* Add spacing between file links */
+        display: none;
+        border: 2px dashed #ccc;
+        padding: 8px 12px;
+        border-radius: 4px;
+        min-height: 38px;
+        min-width: 200px;
     }
 
     .file-links-container .file-link {
-        margin: 0; /* Remove unnecessary margins */
+        margin: 0;
     }
 
-    .card-footer.d-flex.justify-content-between {
+    /* Update the parent container to align items at the bottom */
+    .card-footer.bg-light.d-flex.justify-content-between.align-items-center {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-end;
+        padding: 12px 15px;
     }
 
     .small-text {

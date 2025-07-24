@@ -422,7 +422,15 @@ def finalize_changes():
 
         # possible there is no further review needed (no expiration triggered from insertion)
         # in this case, we skip the final expire item validation
-        if changes_to_show_df[changes_to_show_df['Do Not Expire'] == True].empty:
+        need_final_validation = True
+        if changes_to_show_df.empty or all_changes_df[((all_changes_df['Primary Action'] == 'Expire CCX')
+                                                        & (all_changes_df['Intended Action'] == 'Upsert')) 
+                                                      | ((all_changes_df['Primary Action'] == 'Expire CCX')
+                                                         & (all_changes_df['Intended Action'] == 'Expire')
+                                                         & (all_changes_df['Item'] != ''))].empty:
+            need_final_validation = False
+        
+        if not need_final_validation:
 
             final_commit_res, final_changes_to_show_df, final_all_changes_df = final_commit(all_changes_df,
                                                                                             changes_to_show_df,
@@ -456,7 +464,7 @@ def finalize_changes():
                 }
             }), 200
 
-        if not changes_to_show_df[changes_to_show_df['Do Not Expire'] == True].empty:
+        else:
             # final expire item validation
             final_expire_item_validated_df, more_changes_to_append_df, item_related_action_df = final_expire_item_validation(changes_to_show_df, 
                                                                                                     reference_for_expire_rows_df, 
@@ -563,8 +571,10 @@ def commit_changes():
 
         # get dedup policy
         # this can be empty if we skip step 3 (deduplication)
-        dedup_mode = get_deduped_results(user_id) if get_deduped_results(user_id) else {}
-        dedup_policy = dedup_mode.get('policy', {})
+        dedup_res = get_deduped_results(user_id) if get_deduped_results(user_id) else {}
+        print(dedup_res.keys()) #debug
+        dedup_mode = dedup_res.get('policy', {})
+        print(dedup_mode) #debug
         if not dedup_mode or dedup_mode == {}:
             dedup_policy = ''
             custom_direction = ''

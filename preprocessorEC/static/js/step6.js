@@ -184,6 +184,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     updateItemLinkTable(paginationState.itemLink.allData);
                     updateContractToCloseTable(paginationState.contractToClose.allData);
 
+                
                     // Enable export button if there's data
                     if (exportAllBtn && (
                         paginationState.batch.allData.length > 0 || 
@@ -192,8 +193,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         paginationState.contractToClose.allData.length > 0
                     )) {
                         exportAllBtn.disabled = false;
+                        exportAllBtn.classList.remove('committed'); // Remove committed class if it was previously added
+                        exportAllBtn.innerHTML = '<i class="fas fa-file-export"></i> Export for Execution';
                     } else if (exportAllBtn) {
                         exportAllBtn.disabled = true;
+                        exportAllBtn.classList.add('committed'); // Add committed class for better visual indication
+                        exportAllBtn.innerHTML = '<i class="fas fa-ban mr-2"></i> No Data Available';
                         // Show the appropriate step complete button if no data
                         const completeStepContainer = document.getElementById('complete-step-container');
                         if (completeStepContainer) {
@@ -216,6 +221,90 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadingSpinner.style.display = 'none';
                 console.error('Error:', error);
                 alert('An error occurred while loading preview data. Please try again.');
+            });
+        });
+    }
+
+    // Add event listener for export button
+    if (exportAllBtn) {
+        exportAllBtn.addEventListener('click', function() {
+            // Disable the button to prevent multiple clicks
+            exportAllBtn.disabled = true;
+            exportAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Exporting...';
+            
+            // Show loading spinner
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'flex';
+            }
+
+            // Prepare data for the request
+            const requestData = {
+                skip_gpo: skipGpoCheckbox.checked,
+                export_format: exportFormatSelect.value
+            };
+
+            // Send export request
+            fetch(getApiUrl('/data-export/export-data'), {
+                method: 'POST',
+                body: JSON.stringify(requestData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading spinner
+                loadingSpinner.style.display = 'none';
+                
+                if (data.success) {
+                    // Clear existing file links
+                    if (fileLinksContainer) {
+                        fileLinksContainer.innerHTML = '';
+                    }
+                    
+                    // Add the zip file link
+                    if (data.zipFile) {
+                        const fileLink = document.createElement('a');
+                        fileLink.href = data.zipFile.url;
+                        fileLink.className = 'btn btn-outline-primary file-link';
+                        fileLink.innerHTML = `<i class="fas fa-file-archive mr-1"></i> ${data.zipFile.name}`;
+                        fileLink.setAttribute('download', data.zipFile.name);
+                        fileLinksContainer.appendChild(fileLink);
+                    }
+                    
+                    // Show success message
+                    alert('Export completed successfully! Click the link to download your files.');
+                    
+                    // Mark button as committed
+                    exportAllBtn.classList.add('committed');
+                    exportAllBtn.disabled = true;
+                    exportAllBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Exported';
+                    
+                    // Show complete step container
+                    if (completeStepContainer) {
+                        completeStepContainer.style.display = 'block';
+                    }
+                } else {
+                    // Show error message
+                    alert('Export failed: ' + data.message);
+                    
+                    // Reset button
+                    exportAllBtn.disabled = false;
+                    exportAllBtn.innerHTML = '<i class="fas fa-file-export"></i>Export for Execution';
+                }
+            })
+            .catch(error => {
+                // Hide loading spinner
+                loadingSpinner.style.display = 'none';
+                
+                // Show error message
+                console.error('Error:', error);
+                alert('An error occurred during export. Please try again.');
+                
+                // Reset button
+                exportAllBtn.disabled = false;
+                exportAllBtn.innerHTML = '<i class="fas fa-file-export"></i> Export for Execution';
             });
         });
     }
