@@ -134,6 +134,39 @@ def goto_step(step_id):
     completed_steps = get_completed_steps(user_id)
     current_step_id = get_current_step_from_session(user_id)
     
+    # Treat going back to Step 1 as a restart action
+    if step_id == 1 and (current_step_id > 1 or completed_steps):
+        # Store authentication-related session keys that should be preserved
+        auth_keys = ['_user_id', '_fresh', '_id']
+        auth_values = {key: session.get(key) for key in auth_keys if key in session}
+        
+        # Clear all user-specific session data
+        for key in list(session.keys()):
+            if not key.startswith('_') or key in ['_task_id', '_commit_task_id']:
+                session.pop(key, None)
+                
+        # Restore authentication values
+        for key, value in auth_values.items():
+            session[key] = value
+            
+        # Reset step tracking
+        store_current_step(user_id, 1)
+        store_completed_steps(user_id, [])
+        session.modified = True
+        
+        # Also clear any temp tables if they exist
+        try:
+            conn = get_db_connection()
+            if conn:
+                table_to_drop = f'temp_contract_{user_id}'
+                drop_temp_table(table_to_drop, conn)
+        except Exception as e:
+            current_app.logger.warning(f"Failed to drop temp table: {str(e)}")
+        
+        flash('Starting a new process with clean data', 'info')
+        return redirect(url_for('common.dashboard'))
+    
+    # Original functionality for other steps
     # Check if the step is accessible (must be a step user has completed or current step)
     if step_id in completed_steps or step_id == current_step_id:
         # Going back to an earlier step - reset all steps after this one
@@ -213,7 +246,6 @@ def process_step(step_id):
     
     # Validate if user can process this step (should be the current step)
     current_step_id = get_current_step_from_session(user_id)
-    print("current_step_id:", current_step_id) #debug
     if step_id != current_step_id:
         flash(f"Cannot process Step {step_id}. Current step is {current_step_id}.", 'warning')
         return redirect(url_for('common.dashboard'))

@@ -1311,7 +1311,7 @@ function finalizeChanges() {
                 warning: data.result.final_warnings || [],
                 check: data.result.final_checks || [],
                 tp_no_execution: data.result.final_tp_no_execution || [],
-                final_error_report: data.result.final_error_report || []
+                final_validation_error_report_path: data.result.final_validation_error_report_path || null
             };
 
             // Update the TP No Execution count directly
@@ -1976,55 +1976,17 @@ document.getElementById('commit-changes-btn').addEventListener('click', function
 
 // Function to download the final validation error report
 function downloadFinalValidationReport() {
-    // Check if we have any validation data to export
-    if (!window.validationFlagData) {
-        showAlert('warning', 'No validation data available to export.');
-        return;
-    }
+    // Create a hidden form to submit the request (better for file downloads)
+    const form = document.createElement('form');
+    form.method = 'GET';
+    form.action = getApiUrl('/change-simulation/download-validation-report');
     
-    let reportData = [];
+    // Append to body and submit
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
     
-    // Collect all validation issues
-    if (window.validationFlagData.error && window.validationFlagData.error.length > 0) {
-        reportData = reportData.concat(window.validationFlagData.error);
-    }
-    
-    if (window.validationFlagData.warning && window.validationFlagData.warning.length > 0) {
-        reportData = reportData.concat(window.validationFlagData.warning);
-    }
-    
-    if (window.validationFlagData.check && window.validationFlagData.check.length > 0) {
-        reportData = reportData.concat(window.validationFlagData.check);
-    }
-    
-    if (window.validationFlagData.tp_no_execution && window.validationFlagData.tp_no_execution.length > 0) {
-        // Add TP No Execution data with flag type for clarity
-        const tpData = window.validationFlagData.tp_no_execution.map(item => {
-            return {...item, 'Validation Flag': 'TP NO EXECUTION'};
-        });
-        reportData = reportData.concat(tpData);
-    }
-    
-    // Check if we have any data after collecting
-    if (reportData.length === 0) {
-        showAlert('warning', 'No validation issues to export.');
-        return;
-    }
-    
-    try {
-        // Convert to worksheet
-        const ws = XLSX.utils.json_to_sheet(reportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Validation Report');
-        
-        // Generate file and trigger download
-        XLSX.writeFile(wb, 'final_validation_report.xlsx');
-        
-        showAlert('success', 'Final validation report downloaded successfully.');
-    } catch (error) {
-        console.error('Error generating validation report:', error);
-        showAlert('danger', 'Failed to generate validation report. Please try again.');
-    }
+    showAlert('success', 'Downloading validation report...');
 }
 
 // Function to commit changes to the database

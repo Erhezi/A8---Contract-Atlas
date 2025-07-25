@@ -194,11 +194,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     )) {
                         exportAllBtn.disabled = false;
                         exportAllBtn.classList.remove('committed'); // Remove committed class if it was previously added
-                        exportAllBtn.innerHTML = '<i class="fas fa-file-export"></i> Export for Execution';
+                        exportAllBtn.innerHTML = '<i class="fas fa-file-export"></i>Export for Execution';
                     } else if (exportAllBtn) {
                         exportAllBtn.disabled = true;
                         exportAllBtn.classList.add('committed'); // Add committed class for better visual indication
-                        exportAllBtn.innerHTML = '<i class="fas fa-ban mr-2"></i> No Data Available';
+                        exportAllBtn.innerHTML = '<i class="fas fa-ban mr-2"></i>No Data Available';
                         // Show the appropriate step complete button if no data
                         const completeStepContainer = document.getElementById('complete-step-container');
                         if (completeStepContainer) {
@@ -265,6 +265,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Add the zip file link
                     if (data.zipFile) {
+                        // make contianer visible
+                        fileLinksContainer.style.display = 'block';
+
                         const fileLink = document.createElement('a');
                         fileLink.href = data.zipFile.url;
                         fileLink.className = 'btn btn-outline-primary file-link';
@@ -279,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Mark button as committed
                     exportAllBtn.classList.add('committed');
                     exportAllBtn.disabled = true;
-                    exportAllBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Exported';
+                    exportAllBtn.innerHTML = '<i class="fas fa-check mr-2"></i>Changes Exported';
                     
                     // Show complete step container
                     if (completeStepContainer) {
@@ -304,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Reset button
                 exportAllBtn.disabled = false;
-                exportAllBtn.innerHTML = '<i class="fas fa-file-export"></i> Export for Execution';
+                exportAllBtn.innerHTML = '<i class="fas fa-file-export"></i>Export for Execution';
             });
         });
     }
@@ -701,110 +704,6 @@ document.addEventListener('DOMContentLoaded', function() {
         renderSingleTablePage();
     }
 
-    // Update pagination info for item link table
-    function updateItemLinkPagination() {
-        const totalItems = paginationState.itemLink.filteredData.length;
-        paginationState.itemLink.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
-        
-        // Update pagination controls
-        if (paginationControls.itemLink.totalPagesEl) {
-            paginationControls.itemLink.totalPagesEl.textContent = paginationState.itemLink.totalPages;
-        }
-        if (paginationControls.itemLink.currentPageEl) {
-            paginationControls.itemLink.currentPageEl.textContent = paginationState.itemLink.currentPage;
-        }
-        
-        // Update button states
-        if (paginationControls.itemLink.prevButton) {
-            paginationControls.itemLink.prevButton.disabled = paginationState.itemLink.currentPage <= 1;
-        }
-        if (paginationControls.itemLink.nextButton) {
-            paginationControls.itemLink.nextButton.disabled = 
-                paginationState.itemLink.currentPage >= paginationState.itemLink.totalPages;
-        }
-        
-        // Update count badge
-        const itemLinkCount = document.getElementById('item-link-count');
-        if (itemLinkCount) {
-            itemLinkCount.textContent = `${totalItems} records (${paginationState.itemLink.currentPage} of ${paginationState.itemLink.totalPages} pages)`;
-        }
-    }
-    
-    // Render current page of item link table
-    function renderItemLinkTablePage() {
-        const itemLinkTable = document.getElementById('item-link-table');
-        const itemLinkNoData = document.getElementById('item-link-no-data');
-        
-        if (!itemLinkTable) return;
-        
-        const tbody = itemLinkTable.querySelector('tbody');
-        
-        // Clear existing rows
-        tbody.innerHTML = '';
-        
-        // Calculate start and end indices for current page
-        const startIdx = (paginationState.itemLink.currentPage - 1) * ROWS_PER_PAGE;
-        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.itemLink.filteredData.length);
-        
-        // Get current page data
-        const currentPageData = paginationState.itemLink.filteredData.slice(startIdx, endIdx);
-        
-        // Update pagination controls
-        updateItemLinkPagination();
-        
-        if (currentPageData.length === 0) {
-            // Show no data message
-            if (itemLinkNoData) itemLinkNoData.style.display = 'block';
-            
-            const noDataRow = document.createElement('tr');
-            noDataRow.className = 'no-data-row';
-            noDataRow.innerHTML = '<td colspan="14" class="no-data-message">No records to display</td>';
-            tbody.appendChild(noDataRow);
-        } else {
-            // Hide no data message and populate table
-            if (itemLinkNoData) itemLinkNoData.style.display = 'none';
-            
-            currentPageData.forEach(record => {
-                const row = document.createElement('tr');
-                
-                // Check for conditions that require red highlighting
-                const hasError = 
-                    (record['Inconsistent Mfg Part Num'] === 'Inconsistent') || 
-                    (record['Invalid Buy UOM'] === 'Invalid') || 
-                    (record['Invalid Item'] === 'Invalid');
-                
-                // Check for condition that requires yellow highlighting
-                const isManualLink = record['Item Master Auto Link'] === 'Manual';
-                
-                // Apply appropriate class (prioritize red over yellow)
-                if (hasError) {
-                    row.classList.add('item-error'); // Red highlighting
-                } else if (isManualLink) {
-                    row.classList.add('manual-link'); // Yellow highlighting
-                }
-                
-                // Add the row HTML
-                row.innerHTML = `
-                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
-                    <td title="${escapeHtml(record['Vendor'] || '')}">${escapeHtml(record['Vendor'] || '')}</td>
-                    <td title="${escapeHtml(record['VendorItem'] || '')}">${escapeHtml(record['VendorItem'] || '')}</td>
-                    <td title="${escapeHtml(record['UOM'] || '')}">${escapeHtml(record['UOM'] || '')}</td>
-                    <td title="${record['QOE'] || ''}">${record['QOE'] || ''}</td>
-                    <td class="description-col" title="${escapeHtml(record['Description'] || '')}">${escapeHtml(record['Description'] || '')}</td>
-                    <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
-                    <td title="${escapeHtml(record['Item'] || '')}">${escapeHtml(record['Item'] || '')}</td>
-                    <td title="${escapeHtml(record['Item Master Auto Link'] || '')}">${escapeHtml(record['Item Master Auto Link'] || '')}</td>
-                    <td title="${escapeHtml(record['Infor Mfg Part Num'] || '')}">${escapeHtml(record['Infor Mfg Part Num'] || '')}</td>
-                    <td title="${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}">${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}</td>
-                    <td title="${escapeHtml(record['Invalid Buy UOM'] || '')}">${escapeHtml(record['Invalid Buy UOM'] || '')}</td>
-                    <td title="${escapeHtml(record['Invalid Item'] || '')}">${escapeHtml(record['Invalid Item'] || '')}</td>
-                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-    }
-
     // Function to update item link table
     function updateItemLinkTable(itemLinkData) {
         const itemLinkTable = document.getElementById('item-link-table');
@@ -878,86 +777,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td title="${escapeHtml(record['Invalid Buy UOM'] || '')}">${escapeHtml(record['Invalid Buy UOM'] || '')}</td>
                     <td title="${escapeHtml(record['Invalid Item'] || '')}">${escapeHtml(record['Invalid Item'] || '')}</td>
                     <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-    }
-
-    // Update pagination info for contract to close table
-    function updateContractToClosePagination() {
-        const totalItems = paginationState.contractToClose.filteredData.length;
-        paginationState.contractToClose.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
-        
-        // Update pagination controls
-        if (paginationControls.contractToClose.totalPagesEl) {
-            paginationControls.contractToClose.totalPagesEl.textContent = paginationState.contractToClose.totalPages;
-        }
-        if (paginationControls.contractToClose.currentPageEl) {
-            paginationControls.contractToClose.currentPageEl.textContent = paginationState.contractToClose.currentPage;
-        }
-        
-        // Update button states
-        if (paginationControls.contractToClose.prevButton) {
-            paginationControls.contractToClose.prevButton.disabled = paginationState.contractToClose.currentPage <= 1;
-        }
-        if (paginationControls.contractToClose.nextButton) {
-            paginationControls.contractToClose.nextButton.disabled = 
-                paginationState.contractToClose.currentPage >= paginationState.contractToClose.totalPages;
-        }
-        
-        // Update count badge
-        const contractToCloseCount = document.getElementById('contract-to-close-count');
-        if (contractToCloseCount) {
-            contractToCloseCount.textContent = `${totalItems} records`;
-        }
-    }
-    
-    // Render current page of contract to close table
-    function renderContractToCloseTablePage() {
-        const contractToCloseTable = document.getElementById('contract-to-close-table');
-        const contractToCloseNoData = document.getElementById('contract-to-close-no-data');
-        
-        if (!contractToCloseTable) return;
-        
-        const tbody = contractToCloseTable.querySelector('tbody');
-        
-        // Clear existing rows
-        tbody.innerHTML = '';
-        
-        // Calculate start and end indices for current page
-        const startIdx = (paginationState.contractToClose.currentPage - 1) * ROWS_PER_PAGE;
-        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.contractToClose.filteredData.length);
-        
-        // Get current page data
-        const currentPageData = paginationState.contractToClose.filteredData.slice(startIdx, endIdx);
-        
-        // Update pagination controls
-        updateContractToClosePagination();
-        
-        if (currentPageData.length === 0) {
-            // Show no data message
-            if (contractToCloseNoData) contractToCloseNoData.style.display = 'block';
-            
-            const noDataRow = document.createElement('tr');
-            noDataRow.className = 'no-data-row';
-            noDataRow.innerHTML = '<td colspan="6" class="no-data-message">No records to display</td>';
-            tbody.appendChild(noDataRow);
-        } else {
-            // Hide no data message and populate table
-            if (contractToCloseNoData) contractToCloseNoData.style.display = 'none';
-            
-            currentPageData.forEach(record => {
-                const row = document.createElement('tr');
-                
-                // Add the row HTML
-                row.innerHTML = `
-                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
-                    <td title="${record['Total Lines (Original)'] || '0'}">${record['Total Lines (Original)'] || '0'}</td>
-                    <td title="${record['Total Lines (Change Applied)'] || '0'}">${record['Total Lines (Change Applied)'] || '0'}</td>
-                    <td title="${record['Total Lines Expired'] || '0'}">${record['Total Lines Expired'] || '0'}</td>
-                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
-                    <td title="${escapeHtml(record['UserID'] || '')}">${escapeHtml(record['UserID'] || '')}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -1130,29 +949,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('An error occurred while loading preview data. Please try again.');
             });
         });
-    }
-
-    // function to do filter batch table by contract number
-    function filterBatchTableByContract(contractNumber) {
-        const batchTable = document.getElementById('batch-table');
-        if (!batchTable) return;
-        
-        // Reset to page 1 when filtering
-        paginationState.batch.currentPage = 1;
-        
-        // If "all" is selected, show all rows
-        if (contractNumber === 'all') {
-            paginationState.batch.filteredData = [...paginationState.batch.allData];
-        } else {
-            // Filter the data based on contract number
-            paginationState.batch.filteredData = paginationState.batch.allData.filter(record => 
-                record['Contract Number'] === contractNumber
-            );
-        }
-        
-        // Update pagination and render
-        updateBatchPagination();
-        renderBatchTablePage();
     }
 
     // Update pagination info for batch table
@@ -1515,190 +1311,8 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSinglePagination();
         renderSingleTablePage();
     }
-
-    // Update pagination info for item link table
-    function updateItemLinkPagination() {
-        const totalItems = paginationState.itemLink.filteredData.length;
-        paginationState.itemLink.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
-        
-        // Update pagination controls
-        if (paginationControls.itemLink.totalPagesEl) {
-            paginationControls.itemLink.totalPagesEl.textContent = paginationState.itemLink.totalPages;
-        }
-        if (paginationControls.itemLink.currentPageEl) {
-            paginationControls.itemLink.currentPageEl.textContent = paginationState.itemLink.currentPage;
-        }
-        
-        // Update button states
-        if (paginationControls.itemLink.prevButton) {
-            paginationControls.itemLink.prevButton.disabled = paginationState.itemLink.currentPage <= 1;
-        }
-        if (paginationControls.itemLink.nextButton) {
-            paginationControls.itemLink.nextButton.disabled = 
-                paginationState.itemLink.currentPage >= paginationState.itemLink.totalPages;
-        }
-        
-        // Update count badge
-        const itemLinkCount = document.getElementById('item-link-count');
-        if (itemLinkCount) {
-            itemLinkCount.textContent = `${totalItems} records (${paginationState.itemLink.currentPage} of ${paginationState.itemLink.totalPages} pages)`;
-        }
-    }
     
-    // Render current page of item link table
-    function renderItemLinkTablePage() {
-        const itemLinkTable = document.getElementById('item-link-table');
-        const itemLinkNoData = document.getElementById('item-link-no-data');
-        
-        if (!itemLinkTable) return;
-        
-        const tbody = itemLinkTable.querySelector('tbody');
-        
-        // Clear existing rows
-        tbody.innerHTML = '';
-        
-        // Calculate start and end indices for current page
-        const startIdx = (paginationState.itemLink.currentPage - 1) * ROWS_PER_PAGE;
-        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.itemLink.filteredData.length);
-        
-        // Get current page data
-        const currentPageData = paginationState.itemLink.filteredData.slice(startIdx, endIdx);
-        
-        // Update pagination controls
-        updateItemLinkPagination();
-        
-        if (currentPageData.length === 0) {
-            // Show no data message
-            if (itemLinkNoData) itemLinkNoData.style.display = 'block';
-            
-            const noDataRow = document.createElement('tr');
-            noDataRow.className = 'no-data-row';
-            noDataRow.innerHTML = '<td colspan="14" class="no-data-message">No records to display</td>';
-            tbody.appendChild(noDataRow);
-        } else {
-            // Hide no data message and populate table
-            if (itemLinkNoData) itemLinkNoData.style.display = 'none';
-            
-            currentPageData.forEach(record => {
-                const row = document.createElement('tr');
-                
-                // Check for conditions that require red highlighting
-                const hasError = 
-                    (record['Inconsistent Mfg Part Num'] === 'Inconsistent') || 
-                    (record['Invalid Buy UOM'] === 'Invalid') || 
-                    (record['Invalid Item'] === 'Invalid');
-                
-                // Check for condition that requires yellow highlighting
-                const isManualLink = record['Item Master Auto Link'] === 'Manual';
-                
-                // Apply appropriate class (prioritize red over yellow)
-                if (hasError) {
-                    row.classList.add('item-error'); // Red highlighting
-                } else if (isManualLink) {
-                    row.classList.add('manual-link'); // Yellow highlighting
-                }
-                
-                // Add the row HTML
-                row.innerHTML = `
-                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
-                    <td title="${escapeHtml(record['Vendor'] || '')}">${escapeHtml(record['Vendor'] || '')}</td>
-                    <td title="${escapeHtml(record['VendorItem'] || '')}">${escapeHtml(record['VendorItem'] || '')}</td>
-                    <td title="${escapeHtml(record['UOM'] || '')}">${escapeHtml(record['UOM'] || '')}</td>
-                    <td title="${record['QOE'] || ''}">${record['QOE'] || ''}</td>
-                    <td class="description-col" title="${escapeHtml(record['Description'] || '')}">${escapeHtml(record['Description'] || '')}</td>
-                    <td title="${escapeHtml(record['Mfg Part Num'] || '')}">${escapeHtml(record['Mfg Part Num'] || '')}</td>
-                    <td title="${escapeHtml(record['Item'] || '')}">${escapeHtml(record['Item'] || '')}</td>
-                    <td title="${escapeHtml(record['Item Master Auto Link'] || '')}">${escapeHtml(record['Item Master Auto Link'] || '')}</td>
-                    <td title="${escapeHtml(record['Infor Mfg Part Num'] || '')}">${escapeHtml(record['Infor Mfg Part Num'] || '')}</td>
-                    <td title="${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}">${escapeHtml(record['Inconsistent Mfg Part Num'] || '')}</td>
-                    <td title="${escapeHtml(record['Invalid Buy UOM'] || '')}">${escapeHtml(record['Invalid Buy UOM'] || '')}</td>
-                    <td title="${escapeHtml(record['Invalid Item'] || '')}">${escapeHtml(record['Invalid Item'] || '')}</td>
-                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-    }
-
-    // Update pagination info for contract to close table
-    function updateContractToClosePagination() {
-        const totalItems = paginationState.contractToClose.filteredData.length;
-        paginationState.contractToClose.totalPages = Math.max(1, Math.ceil(totalItems / ROWS_PER_PAGE));
-        
-        // Update pagination controls
-        if (paginationControls.contractToClose.totalPagesEl) {
-            paginationControls.contractToClose.totalPagesEl.textContent = paginationState.contractToClose.totalPages;
-        }
-        if (paginationControls.contractToClose.currentPageEl) {
-            paginationControls.contractToClose.currentPageEl.textContent = paginationState.contractToClose.currentPage;
-        }
-        
-        // Update button states
-        if (paginationControls.contractToClose.prevButton) {
-            paginationControls.contractToClose.prevButton.disabled = paginationState.contractToClose.currentPage <= 1;
-        }
-        if (paginationControls.contractToClose.nextButton) {
-            paginationControls.contractToClose.nextButton.disabled = 
-                paginationState.contractToClose.currentPage >= paginationState.contractToClose.totalPages;
-        }
-        
-        // Update count badge
-        const contractToCloseCount = document.getElementById('contract-to-close-count');
-        if (contractToCloseCount) {
-            contractToCloseCount.textContent = `${totalItems} records`;
-        }
-    }
     
-    // Render current page of contract to close table
-    function renderContractToCloseTablePage() {
-        const contractToCloseTable = document.getElementById('contract-to-close-table');
-        const contractToCloseNoData = document.getElementById('contract-to-close-no-data');
-        
-        if (!contractToCloseTable) return;
-        
-        const tbody = contractToCloseTable.querySelector('tbody');
-        
-        // Clear existing rows
-        tbody.innerHTML = '';
-        
-        // Calculate start and end indices for current page
-        const startIdx = (paginationState.contractToClose.currentPage - 1) * ROWS_PER_PAGE;
-        const endIdx = Math.min(startIdx + ROWS_PER_PAGE, paginationState.contractToClose.filteredData.length);
-        
-        // Get current page data
-        const currentPageData = paginationState.contractToClose.filteredData.slice(startIdx, endIdx);
-        
-        // Update pagination controls
-        updateContractToClosePagination();
-        
-        if (currentPageData.length === 0) {
-            // Show no data message
-            if (contractToCloseNoData) contractToCloseNoData.style.display = 'block';
-            
-            const noDataRow = document.createElement('tr');
-            noDataRow.className = 'no-data-row';
-            noDataRow.innerHTML = '<td colspan="6" class="no-data-message">No records to display</td>';
-            tbody.appendChild(noDataRow);
-        } else {
-            // Hide no data message and populate table
-            if (contractToCloseNoData) contractToCloseNoData.style.display = 'none';
-            
-            currentPageData.forEach(record => {
-                const row = document.createElement('tr');
-                
-                // Add the row HTML
-                row.innerHTML = `
-                    <td title="${escapeHtml(record['Contract Number'] || '')}">${escapeHtml(record['Contract Number'] || '')}</td>
-                    <td title="${record['Total Lines (Original)'] || '0'}">${record['Total Lines (Original)'] || '0'}</td>
-                    <td title="${record['Total Lines (Change Applied)'] || '0'}">${record['Total Lines (Change Applied)'] || '0'}</td>
-                    <td title="${record['Total Lines Expired'] || '0'}">${record['Total Lines Expired'] || '0'}</td>
-                    <td title="${record['TaskID'] || ''}">${record['TaskID'] || ''}</td>
-                    <td title="${escapeHtml(record['UserID'] || '')}">${escapeHtml(record['UserID'] || '')}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-    }
 
     // Function to update contract to close table
     function updateContractToCloseTable(contractToCloseData) {
@@ -1710,7 +1324,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Store the data
+        // Store the datawht d
         paginationState.contractToClose.allData = contractToCloseData;
         paginationState.contractToClose.filteredData = [...contractToCloseData];
         

@@ -61,8 +61,10 @@ def view_history():
         # Set the current step object (not just ID)
         current_step = {"id": 6, "name": "Export Changes"}
         
-        # Fetch task history based on user role
-        success, msg, tasks = get_task_history(conn, user_id=user_id, user_role=current_user.role)
+        # # Fetch task history based on user role
+        # success, msg, tasks = get_task_history(conn, user_id=user_id, user_role=current_user.role)
+        # Fetch task history (list all but delete tasks need to be limited by task owner if user is sourcing)
+        success, msg, tasks = get_task_history(conn, user_id=user_id, user_role="general") #hard-coded dummy user role to read all tasks
         
         if not success:
             flash(f"Error: {msg}", "danger")

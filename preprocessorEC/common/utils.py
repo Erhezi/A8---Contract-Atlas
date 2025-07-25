@@ -503,7 +503,8 @@ def save_error_file(error_df, user_id, original_filename):
     
     # Generate unique filename with timestamp
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    filename = f"error_report_{timestamp}_{secure_filename(original_filename)}"
+    original_filename_no_ext = os.path.splitext(original_filename)[0]
+    filename = f"error_report_{timestamp}_[{secure_filename(original_filename_no_ext)}].xlsx"
     
     # Full path for saving
     file_path = os.path.join(user_dir, filename)
@@ -3387,7 +3388,8 @@ class PlotlyJSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def make_final_validation_error_report(final_error_df, final_check_df, final_warning_df, tp_error_df):
+def make_final_validation_error_report(final_error_df, final_check_df, final_warning_df, tp_error_df, 
+                                       upload_filename = '', user_id = None):
     """
     compose the report to let user see the final validation errors and warnings
     """
@@ -3405,6 +3407,16 @@ def make_final_validation_error_report(final_error_df, final_check_df, final_war
     final_error_report_df = final_error_report_df[cols_to_take].copy()
     final_error_report_df.loc[:, 'Actual Action'] = final_error_report_df['Actual Action'].fillna('Expire')
     final_error_report_df = final_error_report_df.drop_duplicates(keep = 'first')
-    final_error_report_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'final_error_report_df.xlsx'), index=False) #debug
+
+    # add the upload filename to help track the source of error
+    final_error_report_df.loc[:, 'Uploaded File Name'] = upload_filename
+
+    upload_filename_no_ext = os.path.splitext(upload_filename)[0] if upload_filename else ''
+    filename = f'final_validation_error_[{upload_filename_no_ext}]_{user_id}.xlsx'
+    stored_filepath = os.path.join(current_app.root_path, 'temp_files', f'user_{user_id}', filename)
     
-    return final_error_report_df
+    os.makedirs(os.path.dirname(stored_filepath), exist_ok=True)
+    final_error_report_df.to_excel(stored_filepath, index=False)
+    print(f'Final validation error report saved to {stored_filepath}')  # debug
+    
+    return stored_filepath

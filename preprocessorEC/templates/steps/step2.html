@@ -1,12 +1,21 @@
 <!-- Duplication Overview Content -->
 <style>
-    .contract-cards {
+    #contract-cards-view, 
+    #contract-table-view {
+        width: 100%;
+    }
+
+    /* Make the card view itself a grid container for the cards */
+    #contract-cards-view {
         display: grid;
-        grid-template-columns: repeat(2, 1fr); /* Always 2 columns of equal width */
+        grid-template-columns: repeat(2, 1fr);
         gap: 20px;
+    }
+
+    .contract-cards {
         margin-bottom: 20px;
     }
-    
+
     .contract-card {
     /* No flex properties needed with grid */
     background-color: #fff;
@@ -32,8 +41,7 @@
         opacity: 0.7;
     }
 
-    .contract-cards .no-results {
-        grid-column: 1 / -1;
+    .no-results {
         width: 100%;
     }
         
@@ -86,8 +94,170 @@
         font-size: 0.8rem;
         color: #7f8c8d;
     }
-    
 
+    .contract-table-container {
+        width: 100%;
+        margin-bottom: 30px;
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 800px;
+    }
+
+    .contract-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 0.9rem;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+
+    .contract-table th {
+        background-color: #f5f5f5;
+        padding: 10px;
+        font-weight: 0.9rem;
+        text-align: left;
+        border-bottom: 2px solid #ddd;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .contract-table td {
+        padding: 10px;
+        border-bottom: 5px solid #eee;
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        position: relative;
+    }
+
+    .contract-table tr:hover {
+        background-color: #f9f9f9;
+    }
+
+
+    .contract-table tr.included-row {
+        border-left: 4px solid #2ecc71;
+        opacity: 1;
+    }
+
+    .contract-table tr.excluded-row {
+        border-left: 4px solid #e74c3c;
+        opacity: 0.7;
+    }
+
+    /* Button styles */
+    .contract-table .toggle-action-btn {
+        padding: 6px 12px;
+        border-radius: 4px;
+        border: none;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .contract-table .included-btn {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .contract-table .included-btn:hover {
+        background-color: #c3e6cb;
+    }
+
+    .contract-table .excluded-btn {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .contract-table .excluded-btn:hover {
+        background-color: #f5c6cb;
+    }
+
+    .contract-table .view-details-btn {
+        padding: 6px 12px;
+        background-color: #e1f5fe;
+        color: #0277bd;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .contract-table .view-details-btn:hover {
+        background-color: #b3e5fc;
+    }
+
+    /* Handle long text in description cell */
+    .contract-table td:nth-child(2) {
+        max-width: 250px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Responsive design for small screens */
+    @media (max-width: 992px) {
+        .contract-table th, .contract-table td {
+            padding: 8px 6px;
+            font-size: 0.85rem;
+        }
+        
+        .contract-table .toggle-action-btn, 
+        .contract-table .view-details-btn {
+            padding: 4px 8px;
+            font-size: 0.8rem;
+        }
+    }
+
+    /* Column width specifications for contract table */
+    .contract-table .col-contract-number,
+    .contract-table td:nth-child(1) {
+        width: 100px;
+        min-width: 100px;
+        max-width: 100px;
+    }
+
+    .contract-table .col-contract-desc,
+    .contract-table td:nth-child(2) {
+        width: 150px;
+        min-width: 150px;
+        max-width: 150px;
+    }
+
+    .contract-table .col-manufacturer,
+    .contract-table td:nth-child(3) {
+        width: 120px;
+        min-width: 120px;
+        max-width: 120px;
+    }
+
+    /* Numeric columns */
+    .contract-table .col-total-matches,
+    .contract-table td:nth-child(4),
+    .contract-table .col-exact-matches,
+    .contract-table td:nth-child(5),
+    .contract-table .col-ccx-lines,
+    .contract-table td:nth-child(6) {
+        width: 40px;
+        min-width: 40px;
+        max-width: 40px;
+        text-align: center;
+    }
+
+    /* Action columns */
+    .contract-table .col-included,
+    .contract-table td:nth-child(7),
+    .contract-table .col-details,
+    .contract-table td:nth-child(8) {
+        width: 40px;
+        min-width: 40px;
+        max-width: 40px;
+        text-align: center;
+    }
+        
+        
     .toggle-action-btn {
         font-size: 0.75rem;
         padding: 4px 10px;
@@ -861,7 +1031,34 @@
         <button id="start-analysis-btn" class="btn btn-primary">Start Duplication Analysis</button>
     </div>
 
-    <div id="contract-cards-container" class="contract-cards">
+    <!-- New parent container for both views -->
+    <div id="contract-container">
+        <!-- Card view container (default hidden) -->
+        <div id="contract-cards-view" class="contract-cards" style="display: none;">
+            <!-- Cards will be rendered here -->
+        </div>
+
+        <!-- Table view container (default hidden) -->
+        <div id="contract-table-view" class="contract-table-container" style="display: none;">
+            <table id="contract-table" class="contract-table" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th class="col-contract-number">Contract Number</th>
+                        <th class="col-contract-desc">Contract Description</th>
+                        <th class="col-manufacturer">Manufacturer Name</th>
+                        <th class="col-total-matches">Total Matches</th>
+                        <th class="col-exact-matches">Exact MFN Matches</th>
+                        <th class="col-ccx-lines">Total CCX Lines</th>
+                        <th class="col-included">Included</th>
+                        <th class="col-details">Details</th>
+                    </tr>
+                </thead>
+                <tbody id="contract-table-body">
+                    <!-- Contract rows will be rendered here by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
         <div class="loading-placeholder">
             Click "Start Duplication Analysis" to begin finding potential duplicates.
         </div>

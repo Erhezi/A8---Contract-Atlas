@@ -903,17 +903,25 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add fresh event listener
             newTh.addEventListener('click', function() {
-                // IMPORTANT: Capture checkbox states before sorting
+                // IMPORTANT: Capture checkbox states using unique identifiers instead of index
                 const checkboxStates = {};
                 document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
-                    const index = parseInt(checkbox.dataset.index);
-                    checkboxStates[index] = checkbox.checked;
+                    const fileRow = checkbox.dataset.fileRow || '';
+                    const itemNumber = checkbox.dataset.itemNumber || '';
+                    const inforMfn = checkbox.dataset.inforMfn || '';
+                    // Create a composite key that uniquely identifies this item
+                    const key = `${fileRow}-${itemNumber}-${inforMfn}`;
+                    checkboxStates[key] = checkbox.checked;
                 });
 
-                allItemMasterItems.forEach((item, index) => {
-                    // Restore checkbox states after sorting
-                    if (checkboxStates[index] !== undefined) {
-                        item.false_positive = checkboxStates[index];
+                // Update allItemMasterItems with current checkbox states using the same unique keys
+                allItemMasterItems.forEach(item => {
+                    const fileRow = item.File_Row || '';
+                    const itemNumber = item.item_number_infor || '';
+                    const inforMfn = item.mfg_part_num_infor || '';
+                    const key = `${fileRow}-${itemNumber}-${inforMfn}`;
+                    if (checkboxStates[key] !== undefined) {
+                        item.false_positive = checkboxStates[key];
                     }
                 });
                 
@@ -934,33 +942,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 this.classList.add(sortDirection42 === 'asc' ? 'sort-asc' : 'sort-desc');
                 
-                // Execute the sort and re-render
-                const sortedItems = [...allItemMasterItems].sort((a, b) => {
-                    let valA = a[field];
-                    let valB = b[field];
-                    
-                    // Handle null/undefined values
-                    if (valA === null || valA === undefined) valA = '';
-                    if (valB === null || valB === undefined) valB = '';
-                    
-                    // Handle numeric values
-                    if (!isNaN(parseFloat(valA)) && !isNaN(parseFloat(valB))) {
-                        return sortDirection42 === 'asc' ? 
-                            parseFloat(valA) - parseFloat(valB) : 
-                            parseFloat(valB) - parseFloat(valA);
-                    }
-                    
-                    // Handle string values
-                    valA = String(valA).toLowerCase();
-                    valB = String(valB).toLowerCase();
-                    
-                    if (valA < valB) return sortDirection42 === 'asc' ? -1 : 1;
-                    if (valA > valB) return sortDirection42 === 'asc' ? 1 : -1;
-                    return 0;
-                });
-                
-                // Render with sorted items
-                renderItemMasterTable(sortedItems);
+                // Re-render the table with the current sort
+                renderItemMasterTable(allItemMasterItems);
             });
         });
     }

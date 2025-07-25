@@ -246,7 +246,7 @@
                                     <form method="POST" action="{{ url_for('data_export.delete_task', task_id=task.TaskID) }}" style="display:inline;">
                                         <button type="submit" class="btn btn-sm btn-danger delete-task-btn" 
                                                 data-task-id="{{ task.TaskID }}"
-                                                {% if task.Status != 'Pending' %} disabled {% endif %}>
+                                                {% if task.Status != 'Pending' or (current_user.role == 'sourcing' and task.UserID != current_user.id) %} disabled {% endif %}>
                                             Delete
                                         </button>
                                     </form>

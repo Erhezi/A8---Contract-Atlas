@@ -1066,7 +1066,7 @@ def get_task_history(conn, user_id = None, user_role = None):
         cursor = conn.cursor()
         
         # Build the query based on user role
-        if user_role == 'admin' or user_role == 'mdm':
+        if user_role == 'admin' or user_role == 'mdm' or user_role == "general":
             query = """
                 SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
                        CustomDirection, CustomFields, SimulationMode,
@@ -1093,7 +1093,7 @@ def get_task_history(conn, user_id = None, user_role = None):
             """
         
         # Execute the query
-        if user_role == 'admin' or user_role == 'mdm':
+        if user_role == 'admin' or user_role == 'mdm' or user_role == "general":
             cursor.execute(query)
         else:
             cursor.execute(query, (user_id,))

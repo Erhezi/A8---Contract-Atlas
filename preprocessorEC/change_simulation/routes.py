@@ -1,4 +1,4 @@
-from flask import Blueprint, session, render_template, request, jsonify, flash, current_app, redirect, url_for
+from flask import Blueprint, session, request, jsonify, flash, current_app, send_file
 from flask_login import login_required, current_user
 from ..common.session import (get_validated_data, get_deduped_results, get_infor_cl_matches, 
                               store_change_simulation_results, get_change_simulation_results,
@@ -20,13 +20,13 @@ from ..common.db import (get_db_connection, get_relevant_contract_line,
                          commit_header, commit_all_changes, commit_commit_res,
                          commit_contract_line_count, delete_existing_commit,
                          commit_wrike)
-import os
 import numpy as np
 import pandas as pd
 import networkx as nx
 import string
 import random
 import re
+import os
 
 change_simulation_bp = Blueprint('change_simulation', __name__,
                               url_prefix='/change-simulation',
@@ -506,8 +506,12 @@ def finalize_changes():
 
             # compose the error report
             if len(final_errors) > 0 or len(final_checks) > 0 or len(final_warnings) > 0 or len(final_tp_no_execution) > 0:
-                final_error_report_df = make_final_validation_error_report(final_errors, final_checks, final_warnings, final_tp_no_execution)
-                simulation_results['final_error_report'] = final_error_report_df.to_dict(orient='records') if not final_error_report_df.empty else []
+                # get tp file name from session
+                tp_saved_filename = get_file_info(user_id).get('saved_name', '')
+                stored_filepath = make_final_validation_error_report(final_errors, final_checks, final_warnings, final_tp_no_execution, 
+                                                                                            upload_filename = tp_saved_filename, user_id = user_id)
+                simulation_results['final_validation_error_report_path'] = stored_filepath
+                store_change_simulation_results(user_id, simulation_results)
                 session.modified = True
                 
         return jsonify({
@@ -523,7 +527,7 @@ def finalize_changes():
                 'final_checks': final_checks.to_dict(orient='records') if not final_checks.empty else [],
                 'final_tp_no_execution': final_tp_no_execution.to_dict(orient='records') if not final_tp_no_execution.empty else [],
                 'line_operations': line_operations.to_dict(orient='records') if not line_operations.empty else [],
-                'final_error_report': simulation_results.get('final_error_report', [])
+                'final_validation_error_report_path': stored_filepath if 'stored_filepath' in locals() else None
             }
         })
 
@@ -533,7 +537,48 @@ def finalize_changes():
             'success': False,
             'message': f"An error occurred: {str(e)}"
         }), 500
+
+
+@change_simulation_bp.route('/download-validation-report', methods=['GET'])
+@login_required
+def download_validation_report():
+    """Serve the final validation error report file."""
+    user_id = current_user.id
+    # Get simulation results from session
+    simulation_results = get_change_simulation_results(user_id)
+    if not simulation_results:
+        return jsonify({
+            'success': False,
+            'message': "No simulation results found in session. Please run the simulation first."
+        }), 404 
     
+    report_path = simulation_results.get('final_validation_error_report_path')
+
+    if not report_path:
+        return jsonify({'success': False, 'message': 'No validation report available.'}), 404
+
+    try:
+        current_app.logger.info(f"Attempting to send file: {report_path}")
+        
+        # Get filename for download
+        filename = os.path.basename(report_path)
+        
+        # Determine correct MIME type for Excel
+        mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        
+        # Enhanced send_file with explicit parameters
+        return send_file(
+            report_path, 
+            mimetype=mime_type,
+            as_attachment=True,
+            download_name=filename
+        )
+    
+    except Exception as e:
+        current_app.logger.error(f"Error sending validation report: {str(e)}")
+        return jsonify({'success': False, 'message': 'Error downloading the validation report.'}), 500
+    
+
 
 @change_simulation_bp.route("/commit-changes", methods=["POST"])
 @login_required
@@ -647,14 +692,23 @@ def commit_changes():
                 conn,
                 wrike_task_id=wrike_task_id)
             
+            # get final all changes to be committed
+            final_all_changes = simulation_results.get('final_all_changes', [])
+            # Insert the raw file
+            res_all_changes, error_msg_all_changes = commit_all_changes(
+                        task_id,
+                        user_id,
+                        conn,
+                        final_all_changes = final_all_changes)
+            
             # Commit the transaction if all operations were successful
             # wrike and header commit has to be sucessful to complete the process
-            if not res_wrike or not res_header:
-                current_app.logger.error(f"Error committing changes for user {user_id}: {error_msg_header}, {error_msg_wrike}")
+            if not res_wrike or not res_header or not res_all_changes:
+                current_app.logger.error(f"Error committing changes for user {user_id}: {error_msg_header}, {error_msg_wrike}, {error_msg_all_changes}")
                 conn.rollback()
                 return jsonify({
                     'success': True,
-                    'message': f"Error committing changes: {error_msg_header}, {error_msg_wrike}"
+                    'message': f"Error committing changes: {error_msg_header}, {error_msg_wrike}, {error_msg_all_changes}"
                 }), 500
             
             
@@ -682,18 +736,6 @@ def commit_changes():
                         user_id,
                         conn,
                         final_line_operations = final_line_operations)
-                
-                # Insert final_all_changes records if the task has changed CCX data
-                final_all_changes = simulation_results.get('final_all_changes', [])
-                if final_all_changes == []:
-                    res_all_changes = True
-                    error_msg_all_changes = "No changes to commit."
-                else:
-                    res_all_changes, error_msg_all_changes = commit_all_changes(
-                        task_id,
-                        user_id,
-                        conn,
-                        final_all_changes = final_all_changes)
                 
             
             if not res_commit_res:

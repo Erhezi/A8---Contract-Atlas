@@ -492,66 +492,7 @@ def finalize_item_comparison():
             'success': False,
             'message': f'Error finalizing results: {str(e)}'
         })
-
-# @duplicate_bp.route('/process-item-comparison', methods=['POST'])
-# @login_required
-# def process_item_comparison():
-#     """Process item-level comparison for included contracts"""
-#     try:
-#         user_id = current_user.id # Get user_id
-#         # Check if we have contract data using helper
-#         contract_list = get_contract_duplicates(user_id)
-#         if contract_list is None:
-#             return jsonify({
-#                 'success': False,
-#                 'message': 'No contract data available. Please complete Step 2.1 first.'
-#             })
-
-#         # Get included contracts using helper
-#         included_contracts = get_included_contracts(user_id)
-
-#         if not included_contracts:
-#             return jsonify({
-#                 'success': False,
-#                 'message': 'No contracts have been included. Please include at least one contract in Step 2.1.'
-#             })
-
-#         # Get all contract items
-#         all_items = []
-#         # contract_list already fetched above
-
-#         for contract in contract_list:
-#             if contract['contract_number'] in included_contracts:
-#                 all_items.extend(contract['items'])
-
-#         if not all_items:
-#             return jsonify({
-#                 'success': False,
-#                 'message': 'No items found in the included contracts.'
-#             })
-
-#         # Get transformer model
-#         model = None
-#         if current_app.config.get('TRANSFORMER_MODEL_LOADED', False):
-#             model = current_app.config.get('TRANSFORMER_MODEL')
-
-#         # Process comparison
-#         comparison_results = process_item_comparisons(all_items, model=model)
-
-#         # Store in session using helper
-#         store_comparison_results(user_id, comparison_results)
-
-#         return jsonify({
-#             'success': True,
-#             'message': 'Item comparison completed successfully',
-#             'summary': comparison_results['summary']
-#         })
-
-#     except Exception as e:
-#         return jsonify({
-#             'success': False,
-#             'message': f'Error processing item comparison: {str(e)}'
-#         })
+    
 
 @duplicate_bp.route('/get-item-comparison-summary', methods=['GET'])
 @login_required
@@ -684,12 +625,28 @@ def update_false_positives():
         level_items = comparison_results[confidence_level]
 
         # Apply updates
+        # Apply updates using composite keys
         for update in item_updates:
-            index = update.get('index')
+            composite_key = update.get('composite_key')
             is_false_positive = update.get('is_false_positive')
-
-            if 0 <= index < len(level_items):
-                level_items[index]['false_positive'] = is_false_positive
+            
+            if composite_key:
+                # Parse the composite key components
+                parts = composite_key.split('|')
+                if len(parts) == 4:
+                    file_row, contract_number, mfg_part_num, uom = parts
+                    
+                    # Find the matching item
+                    for item in level_items:
+                        # Match on all parts of the composite key
+                        if (str(item.get('File_Row', '')) == file_row and
+                            str(item.get('contract_number_ccx', '')) == contract_number and
+                            str(item.get('mfg_part_num_ccx', '')) == mfg_part_num and
+                            str(item.get('uom_ccx', '')) == uom):
+                            
+                            # Update the item
+                            item['false_positive'] = is_false_positive
+                            break
 
         # Save back to session using helper
         comparison_results[confidence_level] = level_items
