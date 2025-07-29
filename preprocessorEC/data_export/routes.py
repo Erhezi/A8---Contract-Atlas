@@ -11,7 +11,9 @@ from ..common.db import (get_db_connection,
                          get_data_export_line, 
                          get_im_link_line, 
                          get_contract_to_close,
-                         data_persistence_after_export)
+                         data_persistence_after_export,
+                         get_contracts_to_link,
+                         commit_contract_link)
 from ..common.session import store_current_step, store_completed_steps
 from ..common.utils_export_data import (make_batch_upload_excel,
                                         make_single_contract_excel,
@@ -24,6 +26,7 @@ from ..common.utils_export_data import (make_batch_upload_excel,
 data_export_bp = Blueprint('data_export', __name__,
                            url_prefix='/data-export',
                            template_folder='templates')
+
 
 
 @data_export_bp.route('/history')
@@ -61,8 +64,6 @@ def view_history():
         # Set the current step object (not just ID)
         current_step = {"id": 6, "name": "Export Changes"}
         
-        # # Fetch task history based on user role
-        # success, msg, tasks = get_task_history(conn, user_id=user_id, user_role=current_user.role)
         # Fetch task history (list all but delete tasks need to be limited by task owner if user is sourcing)
         success, msg, tasks = get_task_history(conn, user_id=user_id, user_role="general") #hard-coded dummy user role to read all tasks
         
@@ -70,16 +71,94 @@ def view_history():
             flash(f"Error: {msg}", "danger")
             return redirect(url_for('common.home'))
         
+        # Fetch contracts that need linking
+        success_contracts, msg_contracts, contract_linking_data = get_contracts_to_link(conn)
+        
+        if not success_contracts:
+            flash(f"Error retrieving contracts to link: {msg_contracts}", "warning")
+            contract_linking_data = []
+        
         # Render history template with tasks and workflow information
         return render_template('history.html', 
                               tasks=tasks, 
                               workflow_steps=workflow_steps,
                               current_step=current_step,
-                              completed_steps=completed_steps)
+                              completed_steps=completed_steps,
+                              contract_linking_data=contract_linking_data)
     
     except Exception as e:
         flash(f"Error retrieving task history: {str(e)}", "danger")
         return redirect(url_for('common.home'))
+
+@data_export_bp.route('/commit-contract-link', methods=['POST'])
+@login_required
+def commit_contract_link_route():
+    """Handle committing contract links"""
+    try:
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # Extract data from request
+        task_id = data.get('task_id')
+        export_group = data.get('export_group')
+        contract_number_prp = data.get('contract_number_prp')
+        erp_vendor_id_prp = data.get('erp_vendor_id_prp')
+        contract_number = data.get('contract_number')
+        erp_vendor_id_ccx = data.get('erp_vendor_id_ccx')
+        user_id = current_user.id
+        
+        # Validate required fields
+        if not task_id or not contract_number_prp or not erp_vendor_id_prp or not contract_number or not erp_vendor_id_ccx:
+            return jsonify({
+                'success': False,
+                'message': 'Missing required fields'
+            }), 400
+        
+        # Get database connection
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection failed'
+            }), 500
+        
+        # Commit the contract link
+        try:
+            success, msg = commit_contract_link(
+                conn, 
+                task_id, 
+                contract_number_prp, 
+                erp_vendor_id_prp, 
+                contract_number, 
+                erp_vendor_id_ccx, 
+                export_group, 
+                user_id
+            )
+            
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'message': f'Failed to commit contract link: {msg}'
+                }), 500
+            
+            return jsonify({
+                'success': True,
+                'message': 'Contract link committed successfully'
+            })
+            
+        finally:
+            conn.close()
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        }), 500
 
 
 @data_export_bp.route('/task/<task_id>/delete', methods=['POST'])
@@ -122,6 +201,37 @@ def delete_task(task_id):
     
     except Exception as e:
         flash(f"Error deleting task: {str(e)}", "danger")
+        return redirect(url_for('data_export.view_history'))
+
+
+@data_export_bp.route('/task/<task_id>')
+@login_required
+def view_task(task_id):
+    """View details of a specific task"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            flash("Could not connect to database.", "danger")
+            return redirect(url_for('data_export.view_history'))
+        
+        # Fetch task details
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM [DM_MONTYNT\\dli2].PreprocessorHeader
+            WHERE TaskID = ?
+        """, (task_id,))
+        
+        task = cursor.fetchone()
+        
+        if not task:
+            flash("Task not found.", "warning")
+            return redirect(url_for('data_export.view_history'))
+        
+        # Render task details template
+        return render_template('task_details.html', task=task)
+    
+    except Exception as e:
+        flash(f"Error retrieving task details: {str(e)}", "danger")
         return redirect(url_for('data_export.view_history'))
 
 

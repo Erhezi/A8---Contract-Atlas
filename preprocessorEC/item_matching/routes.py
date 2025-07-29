@@ -11,7 +11,7 @@ from ..common.session import (get_temp_table_name,
                               store_uom_qoe_validation,
                               get_validated_data,
                               get_uom_qoe_validation)
-from ..common.db import match_to_infor_contract_lines, get_db_connection, match_to_item_master, get_valid_buying_uoms
+from ..common.db import match_to_infor_contract_lines, get_db_connection, match_to_item_master, get_valid_buying_uoms, get_EDI_sub_UOM
 # Removed unused imports for this specific function
 from ..common.utils import (three_way_contract_line_matching, 
                             three_way_item_master_matching_compute_similarity, 
@@ -308,11 +308,11 @@ def update_item_master_false_positives():
         # Update false positive flags on the items
         items_updated = 0
         for fp_item in false_positive_items:
-            file_row = str(fp_item.get('file_row', '')).strip().replace('N/A', '')
-            item_number = str(fp_item.get('item_number', '')).strip().replace('N/A', '')
-            infor_mfn = str(fp_item.get('infor_mfn', '')).strip().replace('N/A', '')
-            infor_vendor_id = str(fp_item.get('infor_vendor_id', '')).strip().replace('N/A', '')
-            is_false_positive = fp_item.get('is_false_positive', False)
+            file_row = str(fp_item.get('File_Row', '')).strip().replace('N/A', '')
+            item_number = str(fp_item.get('item_number_infor', '')).strip().replace('N/A', '')
+            infor_mfn = str(fp_item.get('mfg_part_num_infor', '')).strip().replace('N/A', '')
+            infor_vendor_id = str(fp_item.get('erp_vendor_id_infor', '')).strip().replace('N/A', '')
+            is_false_positive = fp_item.get('false_positive', False)
             
             # Find matching items using all available identifying information
             for item in all_items:
@@ -396,7 +396,7 @@ def validate_uom_qoe():
             
         try:
             success, error_msg, valid_uoms = get_valid_buying_uoms(item_numbers, conn)
-            
+
             if not success:
                 return jsonify({'success': False, 'message': f'Error fetching valid UOMs: {error_msg}'})
             
@@ -404,9 +404,14 @@ def validate_uom_qoe():
             
             if not validated_upload:
                 return jsonify({'success': False, 'message': f'Error fetching validated data: {error_msg}'})
+            
+            success, error_msg, edi_uom_sub = get_EDI_sub_UOM(conn)
+
+            if not success:
+                return jsonify({'success': False, 'message': f'Error fetching EDI sub UOMs: {error_msg}'})
                 
             # Analyze UOM/QOE discrepancies
-            results = analyze_uom_qoe_discrepancies(valid_uoms, validated_upload, im_catched_all_df)
+            results = analyze_uom_qoe_discrepancies(valid_uoms, validated_upload, im_catched_all_df, edi_uom_sub)
             
             # Store the results in the session
             store_uom_qoe_validation(user_id, results)
@@ -460,13 +465,13 @@ def update_uom_qoe_false_positives():
         # Update false positive flags on the items
         items_updated = 0
         for fp_item in false_positive_items:
-            file_row = str(fp_item.get('file_row', '')).strip()
-            item_number = str(fp_item.get('item', '')).strip()
-            is_false_positive = fp_item.get('is_false_positive', False)
+            file_row = str(fp_item.get('File Row', '')).strip()
+            item_number = str(fp_item.get('Item', '')).strip()
+            is_false_positive = fp_item.get('False Positive', False)
             
             # Find matching items
             for item in analyzed_df:
-                item_file_row = str(item.get('File_Row', item.get('File Row', ''))).strip()
+                item_file_row = str(item.get('File Row', '')).strip()
                 item_number_df = str(item.get('Item', '')).strip()
                 
                 if (item_file_row == file_row or item_number_df == item_number) and (file_row or item_number):

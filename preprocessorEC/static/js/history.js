@@ -5,6 +5,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteTaskBtns = document.querySelectorAll('.delete-task-btn');
     const loadingSpinner = document.getElementById('loading-spinner');
 
+    const historySearchInput = document.getElementById('history-search');
+    const historySearchType = document.getElementById('history-search-type');
+    const clearHistorySearchBtn = document.getElementById('clear-history-search-btn');
+
+    initContractLinking();
+
     // Navigate to Export Function (Step 6)
     if (goToExportBtn) {
         goToExportBtn.addEventListener('click', function() {
@@ -39,6 +45,258 @@ document.addEventListener('DOMContentLoaded', function() {
                 return true;
             });
         });
+    }
+
+    // Add event listeners
+    if (historySearchInput) {
+        historySearchInput.addEventListener('input', filterHistoryTable);
+    }
+    
+    if (historySearchType) {
+        historySearchType.addEventListener('change', filterHistoryTable);
+    }
+    
+    if (clearHistorySearchBtn) {
+        clearHistorySearchBtn.addEventListener('click', function() {
+            historySearchInput.value = '';
+            historySearchType.value = 'all';
+            filterHistoryTable();
+        });
+    }
+
+    function filterHistoryTable() {
+        const searchTerm = historySearchInput.value.toLowerCase();
+        const searchType = historySearchType.value;
+        const tableRows = document.querySelectorAll('#task-history-table tbody tr');
+        
+        tableRows.forEach(row => {
+            if (!searchTerm) {
+                row.style.display = '';
+                return;
+            }
+            
+            let match = false;
+            if (searchType === 'all') {
+                // Search in all cells
+                const rowText = row.textContent.toLowerCase();
+                match = rowText.includes(searchTerm);
+            } else {
+                // Get column index based on search type
+                let columnIndex = 0;
+                switch (searchType) {
+                    case 'task-id': columnIndex = 0; break;
+                    case 'user': columnIndex = 1; break;
+                    case 'wrike-id': columnIndex = 2; break;
+                    case 'filename': columnIndex = 3; break;
+                    case 'status': columnIndex = 5; break; // Using Status (CCX) column
+                    case 'status2': columnIndex = 6; break; // Using Status (Infor) column
+                }
+                
+                const cell = row.cells[columnIndex];
+                if (cell) {
+                    const cellText = cell.textContent.toLowerCase();
+                    match = cellText.includes(searchTerm);
+                }
+            }
+            
+            row.style.display = match ? '' : 'none';
+        });
+    }
+
+    function initContractLinking() {
+        const commitButtons = document.querySelectorAll('.commit-link-btn');
+        const resetButtons = document.querySelectorAll('.reset-link-btn');
+        const erpVendorInputs = document.querySelectorAll('.erp-vendor-id-ccx');
+        
+        if (!commitButtons.length) return;
+
+        // Check for already linked contracts
+        document.querySelectorAll('#contract-linking-table tbody tr').forEach(row => {
+            const contractInput = row.querySelector('.contract-number');
+            const erpVendorInput = row.querySelector('.erp-vendor-id-ccx');
+            const commitBtn = row.querySelector('.commit-link-btn');
+            
+            // If both inputs have values, mark as linked
+            if (contractInput && erpVendorInput && 
+                contractInput.value.trim() !== '' && 
+                erpVendorInput.value.trim() !== '') {
+                
+                // Apply linked styling
+                contractInput.disabled = true;
+                erpVendorInput.disabled = true;
+                contractInput.style.backgroundColor = '#e9ecef';
+                erpVendorInput.style.backgroundColor = '#e9ecef';
+                commitBtn.disabled = true;
+                commitBtn.textContent = 'Linked';
+                row.classList.add('table-success');
+            }
+        });
+        
+        // Add ERP Vendor ID validation
+        erpVendorInputs.forEach(input => {
+            input.addEventListener('input', validateErpVendorId);
+            // Initial validation
+            validateErpVendorId.call(input);
+        });
+        
+        // Reset button functionality
+        resetButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const row = this.closest('tr');
+                const contractInput = row.querySelector('.contract-number');
+                const erpVendorInput = row.querySelector('.erp-vendor-id-ccx');
+                const commitBtn = row.querySelector('.commit-link-btn');
+                
+                // Reset values
+                contractInput.value = '';
+                erpVendorInput.value = '';
+                
+                // Reset states
+                contractInput.disabled = false;
+                erpVendorInput.disabled = false;
+                
+                // Reset styling
+                contractInput.style.backgroundColor = '';
+                erpVendorInput.style.backgroundColor = '';
+                
+                // Reset commit button
+                commitBtn.disabled = false;
+                commitBtn.textContent = 'Commit';
+                
+                // Remove success styling
+                row.classList.remove('table-success');
+                
+                // Reset validation
+                erpVendorInput.style.borderColor = '';
+                const feedback = erpVendorInput.nextElementSibling;
+                if (feedback && feedback.classList.contains('invalid-feedback')) {
+                    feedback.style.display = 'none';
+                }
+            });
+        });
+        
+        commitButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const row = this.closest('tr');
+                
+                // Get data from the row
+                const taskId = row.querySelector('.task-id').textContent.trim();
+                const exportGroup = row.querySelector('.export-group').textContent.trim();
+                const contractNumberPrp = row.querySelector('.contract-number-prp').textContent.trim();
+                const erpVendorIdPrp = row.querySelector('.erp-vendor-id-prp').textContent.trim();
+                const contractNumber = row.querySelector('.contract-number').value.trim();
+                const erpVendorIdCcx = row.querySelector('.erp-vendor-id-ccx').value.trim();
+                
+                // Validate inputs
+                if (!contractNumber || !erpVendorIdCcx) {
+                    alert('Both Contract Number and ERP Vendor ID (CCX Sync) are required.');
+                    return;
+                }
+                
+                // Validate ERP Vendor ID format
+                if (!isValidErpVendorId(erpVendorIdCcx)) {
+                    alert('ERP Vendor ID (CCX Sync) must be 7 digits or 7 digits-B000.');
+                    return;
+                }
+                
+                // Show loading spinner
+                if (loadingSpinner) {
+                    loadingSpinner.style.display = 'flex';
+                }
+                
+                // Send API request
+                fetch('/data-export/commit-contract-link', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        task_id: taskId,
+                        export_group: exportGroup,
+                        contract_number_prp: contractNumberPrp,
+                        erp_vendor_id_prp: erpVendorIdPrp,
+                        contract_number: contractNumber,
+                        erp_vendor_id_ccx: erpVendorIdCcx
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loading spinner
+                    if (loadingSpinner) {
+                        loadingSpinner.style.display = 'none';
+                    }
+                    
+                    if (data.success) {
+                        // Show success message and disable inputs/button
+                        alert(data.message);
+                        const contractInput = row.querySelector('.contract-number');
+                        const erpVendorInput = row.querySelector('.erp-vendor-id-ccx');
+                        
+                        // Disable inputs
+                        contractInput.disabled = true;
+                        erpVendorInput.disabled = true;
+                        
+                        // Apply committed styling
+                        contractInput.style.backgroundColor = '#e9ecef';
+                        erpVendorInput.style.backgroundColor = '#e9ecef';
+                        
+                        // Disable commit button and update text
+                        button.disabled = true;
+                        button.textContent = 'Linked';
+                        
+                        // Add success styling to row
+                        row.classList.add('table-success');
+                    } else {
+                        alert(`Error: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    // Hide loading spinner
+                    if (loadingSpinner) {
+                        loadingSpinner.style.display = 'none';
+                    }
+                    alert(`Error: ${error.message}`);
+                });
+            });
+        });
+
+        // Helper functions for ERP Vendor ID validation
+        function isValidErpVendorId(value) {
+            return /^[0-9]{7}(-B[0-9]{3})?$/.test(value);
+        }
+        
+        function validateErpVendorId() {
+            const value = this.value.trim();
+            const isValid = isValidErpVendorId(value);
+            const feedback = this.nextElementSibling;
+            
+            if (value === '') {
+                this.style.borderColor = '';
+                if (feedback && feedback.classList.contains('invalid-feedback')) {
+                    feedback.style.display = 'none';
+                }
+                return;
+            }
+            
+            if (isValid) {
+                this.style.borderColor = '#28a745';
+                if (feedback && feedback.classList.contains('invalid-feedback')) {
+                    feedback.style.display = 'none';
+                }
+            } else {
+                this.style.borderColor = '#dc3545';
+                if (feedback && feedback.classList.contains('invalid-feedback')) {
+                    feedback.style.display = 'block';
+                }
+            }
+            
+            // Control the commit button
+            const row = this.closest('tr');
+            const commitBtn = row.querySelector('.commit-link-btn');
+            if (commitBtn) {
+                commitBtn.disabled = !isValid && value !== '';
+            }
+        }
     }
 
     // Helper function to get API URL (consistent with other JS files)

@@ -536,7 +536,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             cell.classList.add('different-value');
                         } else if (field === 'EA Price' && rank1EAPrice !== null && item['EA Price'] !== null) {
                             // For EA Price, apply different highlighting based on price ratio
-                            if (item['EA Price'] !== rank1EAPrice) {
+                            const itemPrice = parseFloat(item['EA Price']);
+                            const rank1Price = parseFloat(rank1EAPrice);
+                            if (Math.abs(itemPrice - rank1Price) > 0.01) {
                                 const priceRatio = parseFloat(item['EA Price']) / parseFloat(rank1EAPrice);
                                 
                                 // Check if price is significantly different (>2x or <0.5x)
@@ -824,25 +826,3 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-
-
-// document.addEventListener('DOMContentLoaded', function() {
-//     // Policy description toggler
-//     const policySelect = document.getElementById('resolution_strategy');
-//     const policyDescriptions = document.querySelectorAll('.policy-description');
-//     document.getElementById('completion_resolution_strategy').value = document.getElementById('resolution_strategy').value;
-
-//     policySelect.addEventListener('change', function() {
-//         // Hide all descriptions
-//         policyDescriptions.forEach(desc => desc.classList.remove('active-description'));
-        
-//         // Show the selected one
-//         const selectedDesc = document.getElementById(`${this.value}_desc`);
-//         if (selectedDesc) {
-//             selectedDesc.classList.add('active-description');
-//         }
-
-//         // add to the completion resolution strategy
-//         document.getElementById('completion_resolution_strategy').value = this.value;
-//     });
-// });

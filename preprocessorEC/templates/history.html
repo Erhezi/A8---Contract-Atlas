@@ -57,7 +57,7 @@
     
     /* Truncate long filenames */
     .filename-cell {
-        max-width: 150px;
+        max-width: 180px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -72,8 +72,8 @@
     }
     
     /* Minimize date columns */
-    .compact-table td:nth-child(10),
-    .compact-table td:nth-child(11) {
+    .compact-table td:nth-child(8),
+    .compact-table td:nth-child(9) {
         font-size: 0.75rem;
         white-space: nowrap;
     }
@@ -81,12 +81,6 @@
     /* Add subtle hover effect to rows */
     .compact-table tbody tr:hover {
         background-color: rgba(0, 123, 255, 0.05);
-    }
-
-    .compact-table th:nth-child(9),
-    .compact-table td:nth-child(9) {
-        text-align: center;
-        width: 100px;
     }
 
     .bg-danger {
@@ -129,6 +123,14 @@
         font-size: 0.75rem;
     }
 
+    .bg-progress-light {
+        color: #fff;
+        background-color: #7fb7f0;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
     .btn-danger {
         color: #fff;
         background-color: #dc3545;
@@ -151,57 +153,221 @@
         cursor: not-allowed; 
         opacity: 0.65; 
     }
+
+    .btn-primary {
+        color: #fff;
+        background-color: #3498db;
+        border: None;
+        padding: 10px 20px;
+        font-weight: bold;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    /* Secondary button styling */
+    .btn-secondary {
+        color: #fff;
+        background-color: #6c757d;
+        border: None;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn-commit {
+        color: #fff;
+        background-color: #28a745;
+        border: None;
+        padding: 10px 20px;
+        border-radius: 4px; 
+        cursor: pointer; 
+        transition: background-color 0.2s ease, border-color 0.2s ease; 
+    }
+
+    .btn-reset {
+        color: #fff;
+        background-color: #6c757d;
+        border: None;
+        padding: 10px 20px;
+        border-radius: 4px; 
+        cursor: pointer; 
+        transition: background-color 0.2s ease, border-color 0.2s ease; 
+    }
+
+    .table-responsive {
+        max-height: 700px;
+        overflow-y: auto;
+    }
+
+    .search-wrapper {
+        display: flex;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+        height: 36px;
+        margin-bottom: 0px;
+    }
+
+    .search-input {
+        padding: 8px 12px;
+        border: none;
+        width: 300px;
+    }
+
+    .clear-search-btn {
+        background: #f5f5f5;
+        border: none;
+        border-left: 1px solid #ddd;
+        padding: 0 12px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: #666;
+        transition: all 0.2s;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        min-width: 60px;
+    }
+
+    .clear-search-btn:hover {
+        background: #e0e0e0;
+        color: #333;
+    }
+
+    .filter-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+
+    .search-type-select {
+        padding: 8px;
+        border: none;
+        border-right: 1px solid #ddd;
+        background-color: #f5f5f5;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+
+    .d-flex.justify-content-between.align-items-center {
+        display: flex;
+        justify-content: space-between;
+        align-items: bottom;
+    }
+
+    #go-to-export-btn {
+        white-space: nowrap;
+    }
+
+    #contract-linking-table th,
+    #task-history-table th {
+        text-align: center !important;
+        vertical-align: middle;
+    }
+
+    #contract-linking-table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 180px;
+    }
+
+    #contract-linking-table td[title]:hover::after {
+        content: attr(title);
+        position: absolute;
+        left: 0;
+        top: 100%;
+        z-index: 1000;
+        background: #fff;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        white-space: normal;
+        max-width: 300px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
+
+    .contract-number, .erp-vendor-id-ccx {
+        width: 100%;
+        display: block;
+        margin-bottom: 0;
+        box-sizing: border-box;
+    }
+
+     #contract-linking-table input:disabled {
+        background-color: #e9ecef;
+        font-size: 0.75rem;  /* Match table font size */
+        color: #495057;
+        border-color: #ced4da;
+        cursor: not-allowed;
+        opacity: 0.8;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    #contract-linking-table input:disabled:hover {
+        cursor: not-allowed;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h4>Task History</h4>
-
-    <!-- Export Function Button Card -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h5 class="mb-0">Need to export data?</h5>
-                    <p class="mb-0 text-muted">Proceed to export functionality</p>
-                </div>
-                <button id="go-to-export-btn" class="btn btn-success">
-                    <i class="fas fa-file-export mr-1"></i> Go to Export Function
-                </button>
-            </div>
-        </div>
-    </div>
+    <h1>Task History</h1>
     
     <!-- Tasks List Card -->
-    <div class="card">
+    <div class="card" id = 'task-history-card'>
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">
-                {% if current_user.role in ['mdm', 'admin'] %}
-                    All Processing Tasks
-                {% else %}
-                    Your Processing Tasks
-                {% endif %}
-            </h5>
+            <h4 class="mb-0">All Preprocessor Tasks</h4>
         </div>
         <div class="card-body">
+            <!-- Controls container with filter on the left and export button on the right -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <!-- Filter container on the left -->
+                <div class="filter-container" id="history-filter-container">
+                    <div class="search-wrapper">
+                        <select id="history-search-type" class="search-type-select">
+                            <option value="all">All Fields</option>
+                            <option value="task-id">Task ID</option>
+                            <option value="user">User</option>
+                            <option value="wrike-id">Wrike ID</option>
+                            <option value="filename">Filename</option>
+                            <option value="status">Status (CCX)</option>
+                            <option value="status2">Status (Infor)</option>
+                        </select>
+                        <input type="text" id="history-search" class="search-input" placeholder="Filter tasks...">
+                        <button type="button" id="clear-history-search-btn" class="clear-search-btn" title="Clear search">Clear</button>
+                    </div>
+                </div>
+
+                <!-- Export button on the right -->
+                <div>
+                    <button id="go-to-export-btn" class="btn btn-primary">
+                        <i class="fas fa-file-export mr-1"></i> Go to Export Function
+                    </button>
+                </div>
+            </div>
             {% if tasks and tasks|length > 0 %}
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover compact-table">
+                    <table class="table table-striped table-hover compact-table" id="task-history-table">
                         <thead>
                             <tr>
                                 <th>Task ID</th>
                                 <th>User</th>
                                 <th>Wrike ID</th>
                                 <th>Filename</th>
-                                <th>PreCheck</th>
-                                <th>Dedup</th>
-                                <th>UpdateKey</th>
-                                <th>Status</th>
                                 <th>WithError</th>
+                                <th>Status (CCX)</th>
+                                <th>Status (Infor)</th>
                                 <th>Created</th>
                                 <th>Updated</th>
                                 <th>Delete</th>
+                                <th>More</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -219,9 +385,13 @@
                                     {% endif %}
                                 </td>
                                 <td class="filename-cell" title="{{ task.TPFileName }}">{{ task.TPFileName }}</td>
-                                <td>{{ task.PreCheckMode }}</td>
-                                <td>{{ task.DedupMode }}</td>
-                                <td>{{ task.SimulationMode }}</td>
+                                <td>
+                                    {% if task.WithError == 'Yes' %}
+                                        <span class="badge bg-danger">Yes</span>
+                                    {% else %}
+                                        <span class="badge bg-success">No</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     {% if task.Status == 'Completed' %}
                                         <span class="badge bg-success">Completed</span>
@@ -229,15 +399,21 @@
                                         <span class="badge bg-warning">Exported</span>
                                     {% elif task.Status == 'Pending' %}
                                         <span class="badge bg-progress">Pending</span>
+                                    {% elif task.Status == 'Hold' %}
+                                        <span class="badge bg-progress-light">Hold</span>
+                                    {% elif task.Status == 'Deleted' %}
+                                        <span class="badge bg-secondary">Deleted</span>
                                     {% else %}
                                         <span class="badge bg-secondary">{{ task.Status }}</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if task.WithError == 'Yes' %}
-                                        <span class="badge bg-danger">Yes</span>
+                                    {% if task.Status2 == 'Completed' %}
+                                        <span class="badge bg-success">Completed</span>
+                                    {% elif task.Status2 == 'Pending' %}
+                                        <span class="badge bg-progress">Pending</span>
                                     {% else %}
-                                        <span class="badge bg-success">No</span>
+                                        <span class="badge bg-secondary">{{ task.Status }}</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ task.CreateDT.strftime('%Y-%m-%d %H:%M:%S') if task.CreateDT else '' }}</td>
@@ -251,6 +427,10 @@
                                         </button>
                                     </form>
                                 </td>
+                                <td>
+                                    <a href="{{ url_for('data_export.view_task', task_id=task.TaskID) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -260,11 +440,71 @@
                 <div class="alert alert-info">No task history found.</div>
             {% endif %}
         </div>
-        <div class="card-footer bg-light d-flex justify-content-end">
-            <button id="go-home-btn" class="btn btn-secondary">
-                <i class="fas fa-home mr-1"></i> Back to Home
-            </button>
+    </div>
+
+    <!-- Contract Linking Table -->
+    {% if contract_linking_data and contract_linking_data|length > 0 %}
+    <div class="card mt-4" id='contract-linking-card' style="margin-top: 50px;">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">Contract Link</h4>
+            <p><small>Link contract number and ERP vendor IDs for tasks</small></p>
         </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover compact-table" id="contract-linking-table">
+                    <thead>
+                        <tr>
+                            <th>Task ID</th>
+                            <th>Export Group</th>
+                            <th>Contract Number (PrP)</th>
+                            <th>ERP Vendor ID (PrP)</th>
+                            <th>Contract Number (CCX Sync)</th>
+                            <th>ERP Vendor ID (CCX Sync)</th>
+                            <th>Exported By</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in contract_linking_data %}
+                        <tr>
+                            <td class="task-id">{{ item.TaskID }}</td>
+                            <td class="export-group">{{ item['Export Group'] }}</td>
+                            <td class="contract-number-prp" title="{{ item['Contract Number (PrP)'] }}">{{ item['Contract Number (PrP)'] }}</td>
+                            <td class="erp-vendor-id-prp" title = "{{ item['ERP Vendor ID (PrP)']}}">{{ item['ERP Vendor ID (PrP)'] }}</td>
+                            <td style="min-width: 180px;">
+                                <input type="text" class="form-control form-control-sm contract-number" 
+                                    value="{{ item['Contract Number'] or '' }}" required>
+                            </td>
+                            <td style="min-width: 180px;">
+                                <input type="text" class="form-control form-control-sm erp-vendor-id-ccx" 
+                                    value="{{ item['ERP Vendor ID (CCX Sync)'] or '' }}" required>
+                                <div class="invalid-feedback" style="display: none;">
+                                    Must be 7 digits or 7 digits-B00X
+                                </div>
+                            </td>
+                            <td>{{ item.ExportedBy }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-reset reset-link-btn" title="Reset fields" style="margin-right: 5px;">
+                                    Reset
+                                </button>
+                                <button type="button" class="btn btn-sm btn-commit commit-link-btn">
+                                    Commit
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Back To Home button -->
+     <div class="text-center mt-4 mb-4" style="text-align: right; margin-top: 10px;">
+        <button id="go-home-btn" class="btn btn-secondary">
+            <i class="fas fa-home mr-1"></i> Back to Home
+        </button>
     </div>
 </div>
 

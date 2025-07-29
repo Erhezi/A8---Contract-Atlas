@@ -885,7 +885,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Add event listeners to checkboxes
             document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
-                    console.log(`Checkbox toggled: item ${checkbox.dataset.itemNumber}, file row ${checkbox.dataset.fileRow}, is now ${checkbox.checked ? 'checked' : 'unchecked'}`);
+                    console.log(`Checkbox toggled: item ${checkbox.dataset.itemNumber}, file row ${checkbox.dataset.fileRow}, infor vendor id ${checkbox.dataset.inforVendorId},
+                        is now ${checkbox.checked ? 'checked' : 'unchecked'}`);
                 });
             });
             
@@ -903,25 +904,32 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add fresh event listener
             newTh.addEventListener('click', function() {
-                // IMPORTANT: Capture checkbox states using unique identifiers instead of index
+                // IMPORTANT: Capture checkbox states using reliable composite keys
                 const checkboxStates = {};
                 document.querySelectorAll('#items-tbody-4-2 input.false-positive-checkbox').forEach(checkbox => {
                     const fileRow = checkbox.dataset.fileRow || '';
                     const itemNumber = checkbox.dataset.itemNumber || '';
                     const inforMfn = checkbox.dataset.inforMfn || '';
-                    // Create a composite key that uniquely identifies this item
-                    const key = `${fileRow}-${itemNumber}-${inforMfn}`;
-                    checkboxStates[key] = checkbox.checked;
+                    const inforVendorId = checkbox.dataset.inforVendorId || '';
+                    
+                    // Use multiple composite keys to increase chance of matching
+                    // Primary key: all three identifiers
+                    const primaryKey = `${fileRow}-${itemNumber}-${inforMfn}-${inforVendorId}`;
+                    checkboxStates[primaryKey] = checkbox.checked;
                 });
 
-                // Update allItemMasterItems with current checkbox states using the same unique keys
+                // Update allItemMasterItems with current checkbox states using composite keys
                 allItemMasterItems.forEach(item => {
                     const fileRow = item.File_Row || '';
                     const itemNumber = item.item_number_infor || '';
                     const inforMfn = item.mfg_part_num_infor || '';
-                    const key = `${fileRow}-${itemNumber}-${inforMfn}`;
-                    if (checkboxStates[key] !== undefined) {
-                        item.false_positive = checkboxStates[key];
+                    const inforVendorId = item.erp_vendor_id_infor || '';
+                    
+                    // Try primary key first
+                    const primaryKey = `${fileRow}-${itemNumber}-${inforMfn}-${inforVendorId}`;
+                    if (checkboxStates[primaryKey] !== undefined) {
+                        item.false_positive = checkboxStates[primaryKey];
+                        return;
                     }
                 });
                 
@@ -946,27 +954,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 renderItemMasterTable(allItemMasterItems);
             });
         });
-    }
-
-    // Extract the sort handler to a named function
-    function handleSort42Click() {
-        const field = this.dataset.sort;
-        
-        if (field === sortField42) {
-            sortDirection42 = sortDirection42 === 'asc' ? 'desc' : 'asc';
-        } else {
-            sortField42 = field;
-            sortDirection42 = 'asc';
-        }
-        
-        // Update sort indicators
-        document.querySelectorAll('#items-table-4-2 th').forEach(header => {
-            header.classList.remove('sort-asc', 'sort-desc');
-        });
-        this.classList.add(sortDirection42 === 'asc' ? 'sort-asc' : 'sort-desc');
-        
-        // Re-render the table with new sort
-        renderItemMasterTable(allItemMasterItems);
     }
 
 
@@ -1318,19 +1305,28 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add fresh event listener
             newTh.addEventListener('click', function() {
-                // IMPORTANT: Capture checkbox states before sorting
+                // IMPORTANT: Capture checkbox states using composite keys instead of indices
                 const checkboxStates = {};
                 document.querySelectorAll('#uom-qoe-tbody input.false-positive-checkbox').forEach(checkbox => {
-                    const index = parseInt(checkbox.dataset.index);
-                    checkboxStates[index] = checkbox.checked;
+                    // Fix typo in data attribute (remove $ if present)
+                    const fileRow = checkbox.dataset.fileRow || '';
+                    const itemNumber = checkbox.dataset.item || '';
+                    
+                    // Create composite key that uniquely identifies this item
+                    const key = `${fileRow}-${itemNumber}`;
+                    checkboxStates[key] = checkbox.checked;
                 });
                 
-                // Update allUomQoeItems with current checkbox states
-                allUomQoeItems.forEach((item, index) => {
-                    if (checkboxStates[index] !== undefined) {
-                        item.False_Positive = checkboxStates[index];
+                // Update allUomQoeItems with current checkbox states using composite keys
+                allUomQoeItems.forEach(item => {
+                    const fileRow = item.File_Row || item['File Row'] || '';
+                    const itemNumber = item.Item || '';
+                    const key = `${fileRow}-${itemNumber}`;
+                    
+                    if (checkboxStates[key] !== undefined) {
+                        item.False_Positive = checkboxStates[key];
                         // Also set alternate field name if used
-                        item["False Positive"] = checkboxStates[index];
+                        item["False Positive"] = checkboxStates[key];
                     }
                 });
                 
@@ -1417,13 +1413,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td>${item.Item || 'N/A'}</td>
                     <td>${validOptions}</td>
                     <td>${item.UOM_upload || 'N/A'}</td>
+                    <td>${item.UOM_EDI || 'N/A'}</td>
                     <td>${item.QOE_upload || 'N/A'}</td>
                     <td>${validationStatus}</td>
                     <td>${item["Matched Count"] || 'N/A'}</td>
                     <td>
                         <input type="checkbox" class="false-positive-checkbox" 
                             data-index="${index}" 
-                            data-file-row="$${item.File_Row || item['File Row'] || ''}"
+                            data-file-row="${item.File_Row || item['File Row'] || ''}"
                             data-item="${item.Item || ''}"
                             ${isFalsePositive ? 'checked' : ''}>
                     </td>

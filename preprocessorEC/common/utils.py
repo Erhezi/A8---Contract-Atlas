@@ -114,8 +114,12 @@ def clean_text_data(text):
     text = unicodedata.normalize('NFKD', text)
     text = ''.join([c for c in text if not unicodedata.combining(c)])
     
-    # Remove any other unusual unicode characters like emojis
-    text = ''.join(c for c in text if c.isascii() or c.isalpha() or c.isdigit() or c.isspace() or c in '-_.,;:()[]{}#@!?+=/\\')
+    # Remove any other unusual unicode characters
+    # we don't keep isalpha() so the greek letters are gone
+    text = ''.join(c for c in text if c.isascii() and (c.isalpha() or c.isdigit() or c.isspace() or c in '-_.,;:()[]{}#@!+=/\\%'))
+
+    ## Replace all whitespace (space, tabs, newlines) with single space
+    text = re.sub(r'\s+', ' ', text)
     
     # Final strip to remove any whitespace created during cleaning
     return text.strip()
@@ -1403,7 +1407,7 @@ def extract_item_numbers_for_validation(im_catched_infor_cl, im_catched_infor_im
     
     return list(item_numbers), im_catched_all_df
 
-def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df):
+def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df, edi_uom_sub):
     """
     Analyze UOM and QOE discrepancies between validated upload and valid UOM.
     
@@ -1419,6 +1423,12 @@ def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df
     valid_uom_df = pd.DataFrame(valid_uom)
     valid_uom_df.rename(columns={'UOMConversion': 'QOE'}, inplace=True)
     validated_upload_df = pd.DataFrame(validated_upload)
+    edi_uom_sub_df = pd.DataFrame(edi_uom_sub)
+
+    # in case edi_uom_sub_df has unwanted dup, let's check
+    edi_uom_sub_df = edi_uom_sub_df.drop_duplicates(subset = ['UOM'], keep = 'first')
+    edi_uom_sub_df = edi_uom_sub_df[['UOM', 'UOM_EDI']].copy()
+
     # we only need some columns from the validated_upload_df
     validated_upload_df = validated_upload_df[['File Row', 
                                                'ERP Vendor ID', 
@@ -1431,10 +1441,16 @@ def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df
 
     # make sure the join key columns are in the same format
     valid_uom_df['Item'] = valid_uom_df['Item'].astype(str).str.strip().str.upper()
+
+    # convert the upload file's UOM to EDI version
+    validated_upload_df_edi = validated_upload_df.merge(edi_uom_sub_df,
+                                                        on = ['UOM'],
+                                                        how = 'left')
+    validated_upload_df_edi.loc[:, 'UOM_EDI'] = validated_upload_df_edi['UOM_EDI'].fillna(validated_upload_df_edi['UOM'])
     
     # Merge the two DataFrames on 'File Row' and 'ItemNumber'
     merged_df = im_catched_all_df.merge(
-        validated_upload_df,
+        validated_upload_df_edi,
         on=['File Row'],
         how='left'
     ).merge(
@@ -1446,12 +1462,13 @@ def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df
 
     # Check for discrepancies in UOM and QOE
     # UOM need to be string and QOE will be int
-    for col in ['UOM_im', 'UOM_upload']:
+    for col in ['UOM_im', 'UOM_upload', 'UOM_EDI']:
         merged_df[col] = merged_df[col].astype(str).str.strip().str.upper()
     for col in ['QOE_im', 'QOE_upload']:
         merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype('Int64')
     
-    merged_df['UOM Check'] = merged_df['UOM_im'] == merged_df['UOM_upload']
+    # merged_df['UOM Check'] = merged_df['UOM_im'] == merged_df['UOM_upload']
+    merged_df['UOM Check'] = merged_df['UOM_EDI'] == merged_df['UOM_upload'] # CHECK THE AFTER SUBSTITUTION VALUE
     merged_df['QOE Check'] = merged_df['QOE_im'] == merged_df['QOE_upload']
 
     # isolate any file row with a passed check in UOM or QOE
@@ -1473,6 +1490,7 @@ def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df
                                'Mfg Part Num',
                                'Vendor Part Num',
                                'UOM_upload', 
+                               'UOM_EDI',
                                'QOE_upload',
                                'Description',
                                'Contract Number',
@@ -2783,6 +2801,8 @@ def final_commit(all_changes_df,
                     df[col] = 'SAFE - no further validation needed)'
                 elif col in ('Final Row Action', 'Final File Row Action'):
                     df[col] = 'Execute'
+        # for final_commit_df, we don't need to show the 'Update (Existing)' and 'No Change' action since this is not going to be executed
+        final_commit_df = final_commit_df[~final_commit_df['Actual Action'].isin(['Update (Existing)', 'No Change'])].copy()
         return final_commit_df, final_changes_to_show_df, final_all_changes_df
 
 

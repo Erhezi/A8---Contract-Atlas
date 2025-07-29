@@ -664,6 +664,53 @@ def get_valid_buying_uoms(item_numbers, conn):
         return False, error_msg, None
 
 
+def get_EDI_sub_UOM(conn):
+    """
+    Get EDI sub UOMs from the database
+    
+    Args:
+        conn: Database connection
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Execute the query
+        query = f"""
+           select 
+            a.UOM, 
+            COALESCE(b.LawsonValue, A.UOM) AS UOM_EDI,
+            count(1) over (partition by a.uom order by a.uom) as ck
+        from
+            (select distinct UOM 
+            from [DM_MONTYNT\\dli2].ccx_dump_validation_stg) [a]
+            left join [DM_MONTYNT\\dli2].MDM_EDI_SUB_UOM [b]
+            on a.uom = b.ExternalValue
+            order by ck, a.UOM
+        """
+        
+        cursor.execute(query)
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error in get_EDI_sub_UOM: {str(e)}"
+        current_app.logger.error(error_msg)
+        if conn and 'conn' in locals() and not conn.closed:
+            conn.close()
+        return False, error_msg, None
+
+
 
 def get_relevant_contract_line(contract_numbers, conn):
     """
@@ -1070,7 +1117,7 @@ def get_task_history(conn, user_id = None, user_role = None):
             query = """
                 SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
                        CustomDirection, CustomFields, SimulationMode,
-                       Status, WithError, CompletedBy, ExportedBy,
+                       Status, Status2, WithError, CompletedBy, ExportedBy,
                        h.CreateDT, h.UpdateDT
                 FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
                 LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
@@ -1082,7 +1129,7 @@ def get_task_history(conn, user_id = None, user_role = None):
             query = """
                 SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
                        CustomDirection, CustomFields, SimulationMode,
-                       Status, WithError, CompletedBy, ExportedBy,
+                       Status, Status2, WithError, CompletedBy, ExportedBy,
                        h.CreateDT, h.UpdateDT
                 FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
                 LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
@@ -1357,5 +1404,124 @@ def data_persistence_after_export(conn, user_id=None, user_role=None, zip_filena
         # Capture and log the error message
         conn.rollback()
         error_msg = f"Error executing stored procedure: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+    
+
+def get_contracts_to_link(conn):
+    """
+    Get contracts that need linking from PreprocessorExported table
+    
+    Args:
+        conn: Database connection
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Execute the query to find contracts needing linkage
+        query = """
+            SELECT DISTINCT 
+                TaskID, 
+                [Export Group], 
+                [Contract Number (PrP)], 
+                [ERP Vendor ID (PrP)],
+                [Contract Number], 
+                [ERP Vendor ID (CCX Sync)], 
+                ExportedBy
+            FROM [DM_MONTYNT\\dli2].PreprocessorExported
+            WHERE TaskID IN (
+                SELECT TaskID 
+                FROM PreprocessorHeader 
+                WHERE Status2 = 'Pending'
+            )
+        """
+        
+        cursor.execute(query)
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            cleaned_row = [fix_encoding(item) for item in row]
+            results.append(dict(zip(columns, cleaned_row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error getting contracts to link: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
+
+
+def commit_contract_link(conn, task_id, contract_number_prp, erp_vendor_id_prp, 
+                         contract_number, erp_vendor_id_ccx, export_group, user_id):
+    """
+    Save contract link information to PreprocessorContractLink table
+    
+    Args:
+        conn: Database connection
+        task_id: TaskID to link
+        contract_number_prp: Contract number from PrP
+        erp_vendor_id_prp: ERP vendor ID from PrP
+        contract_number: Contract number for CCX Sync
+        erp_vendor_id_ccx: ERP vendor ID for CCX Sync
+        export_group: Export group
+        user_id: Current user ID
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Check if record exists
+        cursor.execute("""
+            SELECT TaskID FROM PreprocessorContractLink
+            WHERE TaskID = ? AND [Contract Number (PrP)] = ? AND [ERP Vendor ID (PrP)] = ?
+        """, (task_id, contract_number_prp, erp_vendor_id_prp))
+        
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Update existing record
+            cursor.execute("""
+                UPDATE [DM_MONTYNT\\dli2].PreprocessorContractLink
+                SET [Contract Number] = ?, 
+                    [ERP Vendor ID (CCX Sync)] = ?,
+                    LinkedBy = ?,
+                    UpdateDT = GETDATE()
+                WHERE TaskID = ? 
+                    AND [Contract Number (PrP)] = ? 
+                    AND [ERP Vendor ID (PrP)] = ?
+            """, (contract_number, erp_vendor_id_ccx, user_id, 
+                  task_id, contract_number_prp, erp_vendor_id_prp))
+        else:
+            # Insert new record
+            cursor.execute("""
+                INSERT INTO [DM_MONTYNT\\dli2].PreprocessorContractLink
+                (TaskID, [Export Group], [Contract Number (PrP)], [ERP Vendor ID (PrP)], 
+                 [Contract Number], [ERP Vendor ID (CCX Sync)], LinkedBy, CreateDT, UpdateDT)
+                VALUES (?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE())
+            """, (task_id, export_group, contract_number_prp, erp_vendor_id_prp,
+                  contract_number, erp_vendor_id_ccx, user_id))
+        
+        # conn.commit()
+
+        cursor.execute("""
+            EXEC [DM_MONTYNT\\dli2].sp_UpdatePreprocessorExportedFromLink
+        """)
+        
+        # Commit the changes made by the stored procedure
+        conn.commit()
+
+        return True, ""
+        
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"Error committing contract link: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
