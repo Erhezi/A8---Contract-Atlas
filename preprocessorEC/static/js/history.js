@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (deleteTaskBtns) {
         deleteTaskBtns.forEach(function(btn) {
             btn.addEventListener('click', function(event) {
-                if (!confirm('Are you sure you want to delete this task?')) {
+                if (!confirm('Are you sure you want to delete this task? this action can NOT be undone.')) {
                     event.preventDefault();
                     return false;
                 }

@@ -3,48 +3,120 @@
 {% block extra_styles %}
 <style>
     .task-details {
-        max-width: 800px;
-        margin: auto;
-        padding: 20px;
+        max-width: 900px;
+        margin: 20px auto;
+        padding: 15px;
         background-color: #f8f9fa;
         border-radius: 8px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     
-    .task-info {
-        margin-bottom: 20px;
+    .task-header {
+        margin-bottom: 15px;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 10px;
     }
     
-    .task-info p {
-        margin: 5px 0;
+    .info-row {
+        display: flex;
+        padding: 10px;
+        margin-bottom: 10px;
+        background-color: white;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    .info-item {
+        flex: 1;
+        padding: 0 10px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .info-item:not(:last-child) {
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .info-label {
+        font-weight: bold;
+        margin-right: 8px;
+        color: #495057;
+    }
+    
+    .info-value {
+        background-color: #e9ecef;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+
+    .info-value-danger {
+        background-color: #dc3545;
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: #fff;
+    }
+
+    .info-value-warning {
+        background-color: #ffc107;
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: #fff;
+    }
+
+    .info-value-success {
+        background-color: #28a745;
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: #fff;
+    }
+
+    .info-value-progress {
+        background-color: #17a2b8;
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: #fff;
+    }
+
+    .info-value-progress-light {
+        background-color: #7fb7f0;
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: #fff;
     }
     
     .task-actions {
-        margin-bottom: 20px;
+        margin-top: 20px;
+        display: flex;
+        justify-content: space-between;
     }
     
-    .task-content pre {
-        background-color: #e9ecef;
-        padding: 15px;
-        border-radius: 4px;
-        overflow-x: auto;
-    }
-    .task-content p {
-        margin: 0;
-    }
     .btn {
-        padding: 10px 15px;
+        display: inline-block;
+        padding: 10px 20px;
         border-radius: 4px;
         text-decoration: none;
         font-weight: bold;
+        cursor: pointer;
     }
-    .btn-secondary {
-        background-color: #6c757d;
-        color: white;
-    }
+    
     .btn-primary {
-        background-color: #007bff;
+        background-color: #3498db;
         color: white;
+    }
+    
+    .btn-secondary {
+        background-color: #95a5a6;
+        color: white;
+    }
+    
+    .btn:hover {
+        opacity: 0.9;
+    }
+
+    /* Align the Updated timestamp to the right */
+    .updated-timestamp {
+        justify-content: flex-end;
+        text-align: right;
     }
 </style>
 {% endblock %}
@@ -53,36 +125,91 @@
 
 {% block content %}
 <div class="task-details">
-    <h1>Task Details for Task ID: {{ task.TaskID }}</h1>
-    
-    <div class="task-info">
-        <p><strong>Created:</strong> {{ task.CreateDT.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-        <p><strong>Updated:</strong> {{ task.UpdateDT.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-        <p><strong>Status (CCX):</strong> {{ task.Status }}</p>
-        <p><strong>Status (Infor):</strong> {{ task.Status2 }}</p>
-        <p><strong>WithError:</strong> {{ task.WithError }}</p>
+    <div class="task-header">
+        <h2>Task Details: {{ task.TaskID }}</h2>
     </div>
-
+    
+    <!-- Row 1: Status Information -->
+    <div class="info-row">
+        <div class="info-item">
+            <div class="info-label">Status (CCX):</div>
+            <div>
+                {% if task.Status == 'Completed' %}
+                    <span class="info-value-success">Completed</span>
+                {% elif task.Status == 'Exported' %}
+                    <span class="info-value-warning">Exported</span>
+                {% elif task.Status == 'Pending' %}
+                    <span class="info-value-progress">Pending</span>
+                {% elif task.Status == 'Hold' %}
+                    <span class="info-value-progress-light">Hold</span>
+                {% elif task.Status == 'Deleted' %}
+                    <span class="info-value-secondary">Deleted</span>
+                {% else %}
+                    <span class="info-value-secondary">{{ task.Status or 'N/A' }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Status (Infor):</div>
+            <div>
+                {% if task.Status2 == 'Completed' %}
+                    <span class="info-value-success">Completed</span>
+                {% elif task.Status2 == 'Pending' %}
+                    <span class="info-value-progress">Pending</span>
+                {% else %}
+                    <span class="info-value-secondary">{{ task.Status2 or 'N/A' }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">With Error:</div>
+            <div>
+                {% if task.WithError == 'Yes' %}
+                    <span class="info-value-danger">Yes</span>
+                {% else %}
+                    <span class="info-value-success">No</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Row 2: Task Configuration -->
+    <div class="info-row">
+        <div class="info-item">
+            <div class="info-label">Precheck Mode:</div>
+            <div class="info-value">{{ task.PreCheckMode or 'N/A' }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Dedup Mode:</div>
+            <div class="info-value">{{ task.DedupMode or 'N/A' }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Simulation Mode:</div>
+            <div class="info-value">{{ task.SimulationMode or 'N/A' }}</div>
+        </div>
+    </div>
+    
+    <!-- Row 3: Timestamps -->
+    <div class="info-row">
+        <div class="info-item">
+            <div class="info-label">Created:</div>
+            <div class="info-value">{{ task.CreateDT.strftime('%Y-%m-%d %H:%M:%S') if task.CreateDT else 'N/A' }}</div>
+        </div>
+        <div class="info-item updated-timestamp">
+            <div class="info-label">Updated:</div>
+            <div class="info-value">{{ task.UpdateDT.strftime('%Y-%m-%d %H:%M:%S') if task.UpdateDT else 'N/A' }}</div>
+        </div>
+    </div>
+    
     <div class="task-actions">
         <a href="{{ url_for('data_export.view_history') }}" class="btn btn-secondary">Back to History</a>
+        <a href="{{ url_for('data_export.view_history') }}" class="btn btn-primary">Go Sync Inspection</a>
     </div>
 
-    <div class="task-content">
-        <!-- Display task-specific content here -->
-        {% if task.Content %}
-            <pre>{{ task.Content }}</pre>
-        {% else %}
-            <p>No content available for this task.</p>
-        {% endif %}
-    </div>
+    <!-- Section to display Errors -->
+
+    <!-- Section to display Sync status for all exported rows -->
 </div>
-{% endblock %}
 
-{% block extra_scripts %}
-<script>
-    // Add any JavaScript needed for task details page here
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Task Details Page Loaded');
-    });
-</script>
+<script src="{{ url_for('static', filename='js/task_details.js') }}"></script>
 {% endblock %}

@@ -13,7 +13,9 @@ from ..common.db import (get_db_connection,
                          get_contract_to_close,
                          data_persistence_after_export,
                          get_contracts_to_link,
-                         commit_contract_link)
+                         commit_contract_link,
+                         delete_task_by_task_id,
+                         get_task_by_task_id)
 from ..common.session import store_current_step, store_completed_steps
 from ..common.utils_export_data import (make_batch_upload_excel,
                                         make_single_contract_excel,
@@ -164,41 +166,35 @@ def commit_contract_link_route():
 @data_export_bp.route('/task/<task_id>/delete', methods=['POST'])
 @login_required
 def delete_task(task_id):
-    """Mark a task as deleted"""
+    """Mark a task as deleted."""
     try:
         conn = get_db_connection()
         if not conn:
             flash("Could not connect to database.", "danger")
             return redirect(url_for('data_export.view_history'))
         
-        # Check if user has permission to delete this task
-        # For non-admin users, they should only be able to delete their own tasks
-        if current_user.role not in ['admin', 'mdm']:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT UserID FROM [DM_MONTYNT\\dli2].PreprocessorHeader
-                WHERE TaskID = ?
-            """, (task_id,))
-            
-            task_owner = cursor.fetchone()
-            
-            if not task_owner or task_owner[0] != current_user.id:
-                flash("You don't have permission to delete this task.", "danger")
+        # add safe guard to check if task belong to current user 
+        # front end should have delete disabled, adding this in case people directly access the URL
+        user_id = current_user.id
+        user_role = current_user.role
+        if user_role not in ['admin', 'mdm']:
+            # get user tasks
+            success, msg, tasks = get_task_history(conn, user_id=user_id, user_role=user_role)
+            if not success:
+                flash(f"Error retrieving tasks: {msg}", "danger")
                 return redirect(url_for('data_export.view_history'))
-        
-        # Update task status to 'Deleted' and also update the UpdateDT column
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
-            SET Status = 'Deleted', UpdateDT = GETDATE(), DeletedBy = ?
-            WHERE TaskID = ?
-        """, (current_user.id, task_id))
-        
-        conn.commit()
-        
-        flash("Task has been marked as deleted.", "success")
+            # check if task belong to current user
+            if not any(task['TaskID'] == task_id for task in tasks):
+                flash("You do not have permission to delete this task.", "danger")
+                return redirect(url_for('data_export.view_history'))
+
+        # Use the refactored function to delete the task
+        success, error_msg = delete_task_by_task_id(conn, task_id, current_user.id)
+        if not success:
+            flash(f"Error deleting task: {error_msg}", "danger")
+        else:
+            flash("Task has been marked as deleted.", "success")
         return redirect(url_for('data_export.view_history'))
-    
     except Exception as e:
         flash(f"Error deleting task: {str(e)}", "danger")
         return redirect(url_for('data_export.view_history'))
@@ -207,29 +203,21 @@ def delete_task(task_id):
 @data_export_bp.route('/task/<task_id>')
 @login_required
 def view_task(task_id):
-    """View details of a specific task"""
+    """View details of a specific task."""
     try:
         conn = get_db_connection()
         if not conn:
             flash("Could not connect to database.", "danger")
             return redirect(url_for('data_export.view_history'))
-        
-        # Fetch task details
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT * FROM [DM_MONTYNT\\dli2].PreprocessorHeader
-            WHERE TaskID = ?
-        """, (task_id,))
-        
-        task = cursor.fetchone()
-        
-        if not task:
-            flash("Task not found.", "warning")
+
+        # Use the refactored function to get task details
+        success, error_msg, task = get_task_by_task_id(conn, task_id)
+        if not success:
+            flash(f"Error retrieving task details: {error_msg}", "danger")
             return redirect(url_for('data_export.view_history'))
-        
+
         # Render task details template
         return render_template('task_details.html', task=task)
-    
     except Exception as e:
         flash(f"Error retrieving task details: {str(e)}", "danger")
         return redirect(url_for('data_export.view_history'))

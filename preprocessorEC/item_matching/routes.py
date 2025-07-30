@@ -286,6 +286,7 @@ def update_item_master_false_positives():
     """Update false positive flags for Item Master matches"""
     user_id = current_user.id
     
+
     try:
         # Parse JSON data from request
         data = request.get_json()
@@ -308,11 +309,12 @@ def update_item_master_false_positives():
         # Update false positive flags on the items
         items_updated = 0
         for fp_item in false_positive_items:
-            file_row = str(fp_item.get('File_Row', '')).strip().replace('N/A', '')
-            item_number = str(fp_item.get('item_number_infor', '')).strip().replace('N/A', '')
-            infor_mfn = str(fp_item.get('mfg_part_num_infor', '')).strip().replace('N/A', '')
-            infor_vendor_id = str(fp_item.get('erp_vendor_id_infor', '')).strip().replace('N/A', '')
-            is_false_positive = fp_item.get('false_positive', False)
+            file_row = str(fp_item.get('file_Row', '')).strip().replace('N/A', '')
+            item_number = str(fp_item.get('item_number', '')).strip().replace('N/A', '')
+            infor_mfn = str(fp_item.get('infor_mfn', '')).strip().replace('N/A', '')
+            infor_vendor_id = str(fp_item.get('infor_vendor_id', '')).strip().replace('N/A', '')
+            is_false_positive = fp_item.get('is_false_positive', False)
+            # print(file_row, item_number, infor_mfn, infor_vendor_id, is_false_positive) #debug
             
             # Find matching items using all available identifying information
             for item in all_items:
@@ -327,7 +329,7 @@ def update_item_master_false_positives():
                     (not infor_vendor_id or item_vendor_id == infor_vendor_id)):
                     
                     # Mark the item
-                    item['false_positive'] = is_false_positive
+                    item['false_positive'] = True if is_false_positive else False
                     items_updated += 1
         
         # Update the false positive count
@@ -465,9 +467,9 @@ def update_uom_qoe_false_positives():
         # Update false positive flags on the items
         items_updated = 0
         for fp_item in false_positive_items:
-            file_row = str(fp_item.get('File Row', '')).strip()
-            item_number = str(fp_item.get('Item', '')).strip()
-            is_false_positive = fp_item.get('False Positive', False)
+            file_row = str(fp_item.get('file_row', '')).strip()
+            item_number = str(fp_item.get('item', '')).strip()
+            is_false_positive = fp_item.get('is_false_positive', False)
             
             # Find matching items
             for item in analyzed_df:

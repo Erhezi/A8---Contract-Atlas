@@ -1079,7 +1079,9 @@ def delete_existing_commit(user_id, task_id, conn):
                       'PreprocessorCommitLine', 
                       'PreprocessorContractLineCount',
                       'PreprocessorHeader',
-                      'PreprocessorWrike']:
+                      'PreprocessorWrike',
+                      'PreprocessorExported',
+                      'PreprocessorContractClose']:
         
             delete_sql = f"""
                 DELETE FROM [DM_MONTYNT\\dli2].{table}
@@ -1525,3 +1527,66 @@ def commit_contract_link(conn, task_id, contract_number_prp, erp_vendor_id_prp,
         error_msg = f"Error committing contract link: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
+
+
+def delete_task_by_task_id(conn, task_id, user_id):
+    """
+    Mark a task as deleted in the database.
+
+    Args:
+        conn: Database connection.
+        task_id: ID of the task to delete.
+        user_id: ID of the user performing the delete.
+
+    Returns:
+        Tuple of (success, error_message).
+    """
+    try:
+        cursor = conn.cursor()
+        # Update task status to 'Deleted' and set DeletedBy
+        cursor.execute("""
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
+            SET Status = 'Deleted', UpdateDT = GETDATE(), DeletedBy = ?
+            WHERE TaskID = ?
+        """, (user_id, task_id))
+        conn.commit()
+        return True, ""
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"Error deleting task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+
+def get_task_by_task_id(conn, task_id):
+    """
+    Retrieve task details by task ID.
+
+    Args:
+        conn: Database connection.
+        task_id: ID of the task to retrieve.
+
+    Returns:
+        Tuple of (success, error_message, task_data).
+    """
+    try:
+        cursor = conn.cursor()
+        # Fetch task details
+        cursor.execute("""
+            SELECT TaskID, UserID, Status, Status2, WithError, PreCheckMode, DedupMode, SimulationMode, 
+                   CreateDT, UpdateDT, TPFileName
+            FROM [DM_MONTYNT\\dli2].PreprocessorHeader
+            WHERE TaskID = ?
+        """, (task_id,))
+        task = cursor.fetchone()
+        if not task:
+            return False, "Task not found.", None
+
+        # Map the result to a dictionary
+        columns = [column[0] for column in cursor.description]
+        task_data = dict(zip(columns, task))
+        return True, "", task_data
+    except Exception as e:
+        error_msg = f"Error retrieving task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
