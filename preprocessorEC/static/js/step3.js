@@ -33,10 +33,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (saveSelectionsBtn) {
         saveSelectionsBtn.addEventListener('click', saveKeepSelections);
     }
+
     const completeStepForm = document.querySelector('form[action*="process_step"]');
     if (completeStepForm) {
         completeStepForm.addEventListener('submit', function(e) {
             e.preventDefault();
+
+            showSpinner();
+            
             saveKeepSelections();
 
             setTimeout(() => {
@@ -44,6 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 1000); // Delay to allow for save completion
         });
     }
+
     if (focusDifferencesBtn) {
         focusDifferencesBtn.addEventListener('click', filterDifferenceGroups);
     }
@@ -82,11 +87,6 @@ document.addEventListener('DOMContentLoaded', function() {
     resolutionForm.addEventListener('submit', function(e) {
         e.preventDefault();
         applyResolution();
-    });
-    
-    // Complete step button handler
-    completeStepBtn.addEventListener('click', function() {
-        completeStep();
     });
 
     // --- Functions ---
@@ -773,33 +773,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update button state
         document.getElementById('focus-differences-btn').classList.remove('active');
         document.getElementById('show-all-btn').classList.add('active');
-    }
-    
-    function completeStep() {
-        showSpinner();
-        
-        fetch(getApiUrl('/duplicate-detection/complete-step3'), {
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideSpinner();
-            
-            if (data.success) {
-                showAlert('success', data.message);
-                
-                // Redirect to next step
-                setTimeout(() => {
-                    window.location.href = data.redirect || '/';
-                }, 1000);
-            } else {
-                showAlert('danger', data.message);
-            }
-        })
-        .catch(error => {
-            hideSpinner();
-            showAlert('danger', 'Error completing step: ' + error.message);
-        });
     }
     
     // Utility functions

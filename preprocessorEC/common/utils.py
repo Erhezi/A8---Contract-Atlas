@@ -162,6 +162,7 @@ def prepare_dataframe(df, column_mapping):
     # Add derived columns
     mapped_df['Original UOM'] = mapped_df['UOM'].apply(lambda x: np.nan if pd.isnull(x) else x.strip().upper())
     mapped_df['Reduced Mfg Part Num'] = mapped_df['Mfg Part Num'].apply(reduce_mfg_part_num)
+    mapped_df['Reduced Vendor Part Num'] = mapped_df['Vendor Part Num'].apply(reduce_mfg_part_num)
     mapped_df['File Row'] = [i for i in range(1, len(mapped_df) + 1)]
     
     # Check for missing required fields
@@ -171,10 +172,10 @@ def prepare_dataframe(df, column_mapping):
     
     # make vendor erp id standardized
     mapped_df['ERP Vendor ID'] = mapped_df['ERP Vendor ID'].str.strip().str.upper()
-    mapped_df['ERP Vendor ID'] = mapped_df['ERP Vendor ID'].apply(lambda x: x[:7])
+    mapped_df['ERP Vendor ID'] = mapped_df['ERP Vendor ID'].apply(lambda x: x.replace(' ','')[:12])
 
     # Create copies for validation and results
-    result_df = mapped_df[required_fields[:3] + ['Buyer Part Num'] + required_fields[3:] + ['Reduced Mfg Part Num', 'Original UOM', 'File Row']].copy()
+    result_df = mapped_df[required_fields[:3] + ['Buyer Part Num'] + required_fields[3:] + ['Reduced Mfg Part Num', 'Reduced Vendor Part Num', 'Original UOM', 'File Row']].copy()
     columns_to_save_to_session = result_df.columns.tolist()
     error_df = result_df.copy()
     
@@ -251,15 +252,31 @@ def validate_source_contract_type(error_df):
     return error_df
 
 def validate_required_fields(error_df, required_fields, duplicate_mode):
-    """Check that all required fields have values"""
+    """Check that all required fields have values and append missing field names."""
     forgiven_fields = []
     if duplicate_mode == 'distributor':
         forgiven_fields = ['Vendor Part Num']
 
-    for field in set(required_fields).difference(set(forgiven_fields)):
-        missing_mask = error_df[field].isna() | (error_df[field].str.strip() == '')
-        error_df.loc[missing_mask, 'Error-Missing Field'] = 'Missing Data'
-        error_df.loc[missing_mask, 'Has Error'] = True
+    check_fields = set(required_fields) - set(forgiven_fields)
+
+    # Initialize columns if they don't exist
+    if 'Error-Missing Field' not in error_df.columns:
+        error_df['Error-Missing Field'] = ''
+    if 'Has Error' not in error_df.columns:
+        error_df['Has Error'] = False
+
+    # Collect missing fields for each row
+    missing_field_names = []
+
+    for idx, row in error_df.iterrows():
+        missing_fields = [field for field in check_fields 
+                          if pd.isna(row[field]) or str(row[field]).strip() == '']
+        if missing_fields:
+            # Create message like: "Missing Data - Field1, Field2"
+            message = 'Missing Data - ' + ', '.join(missing_fields)
+            error_df.at[idx, 'Error-Missing Field'] = message
+            error_df.at[idx, 'Has Error'] = True
+
     return error_df
 
 def parse_date_safely(date_str):
@@ -302,7 +319,7 @@ def validate_dates(error_df):
         (error_df['Expiration_Date_Dt'].dt.date < today_dt) | 
         (error_df['Expiration_Date_Dt'] <= error_df['Effective_Date_Dt'])
     )
-    error_df.loc[invalid_exp_mask, 'Error-Invalid Date'] = 'Expiration Date must be > Effective Date and >= today'
+    error_df.loc[invalid_exp_mask, 'Error-Invalid Date'] = 'Expiration Date must > Effective Date and must >= today'
     error_df.loc[invalid_exp_mask, 'Has Error'] = True
     
     return error_df
@@ -402,18 +419,23 @@ def validate_contract_vendor_relationship(error_df):
     return error_df
 
 
-def validate_vendor_id(error_df, valid_vids = None):
-    """Validate Vendor ID is legitimate"""
-    # validate if vendor id is a 7 digit number
-    invalid_vid_mask = ~error_df['ERP Vendor ID'].str.match(r'^\d{7}$')
-    if valid_vids is not None:
-        # Check if vendor ID is in the list of valid vendor IDs
-        invalid_vid_mask |= ~error_df['ERP Vendor ID'].isin(valid_vids)       
-            
-    # Add error message
-    error_df.loc[invalid_vid_mask, 'Error-Invalid Vendor'] = 'vendor ID is not Valid'
-    error_df.loc[invalid_vid_mask, 'Has Error'] = True
+def validate_vendor_id(error_df, valid_vids=None):
+    """Validate Vendor ID is legitimate: either 7 digits or 7 digits-Bxxx. 
+       If valid_vids is provided, check only first 7 digits."""
     
+    # Pattern: 7 digits, optional '-B' + 3 digits
+    pattern = r'^\d{7}(-B\d{3})?$'
+    invalid_vid_mask = ~error_df['ERP Vendor ID'].str.match(pattern)
+
+    if valid_vids is not None:
+        # Extract first 7 digits for validation
+        base_vid = error_df['ERP Vendor ID'].str[:7]
+        invalid_vid_mask |= ~base_vid.isin(valid_vids)
+
+    # Add error message
+    error_df.loc[invalid_vid_mask, 'Error-Invalid Vendor'] = 'Vendor ID is not valid'
+    error_df.loc[invalid_vid_mask, 'Has Error'] = True
+
     return error_df
 
 
@@ -1232,8 +1254,8 @@ def three_way_item_master_matching_compute_similarity(merged_df):
     no_need_review_df = merged_to_show_df[merged_to_show_df['Need Review'] == 'No'].copy()
 
     review_count, no_need_review_count = len(need_review_df), len(no_need_review_df)
-    im_count = len(set(no_need_review_df[no_need_review_df['item_number_infor'] != '']['File_Row']))
-    im_catched = no_need_review_df[no_need_review_df['item_number_infor'] != ''][['File_Row', 'item_number_infor']].drop_duplicates()
+    im_count = len(set(no_need_review_df[(no_need_review_df['item_number_infor'] != '') & (no_need_review_df['False Positive'] == False)]['File_Row']))
+    im_catched = no_need_review_df[(no_need_review_df['item_number_infor'] != '') & (no_need_review_df['False Positive'] == False)][['File_Row', 'item_number_infor']].drop_duplicates()
     im_catched = im_catched.rename(columns={'item_number_infor': 'ItemNumber'})
     im_catched = im_catched.drop_duplicates(subset = ['File_Row', 'ItemNumber'], keep = 'first')
 

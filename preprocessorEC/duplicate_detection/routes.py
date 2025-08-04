@@ -985,38 +985,3 @@ def update_keep_status():
             'message': f'Error updating keep status: {str(e)}'
         })
     
-
-@duplicate_bp.route('/complete-step3', methods=['POST'])
-@login_required
-def complete_step3():
-    """Complete Step 3 and move to Step 4"""
-    user_id = current_user.id # Get user_id
-
-    deduplication_results = get_deduped_results(user_id) # Use helper
-    if not deduplication_results:
-        return jsonify({
-            'success': False,
-            'message': 'No deduplication results found. Please apply a resolution policy first.'
-        })
-
-    # Mark step as completed
-    try:
-        # Assuming mark_step_complete is a method on the app or a helper function
-        # that might also need user context if it stores completion status per user.
-        # If it's global, it remains as is. If user-specific, it might need user_id.
-        # For now, assume it's handled elsewhere or is global.
-        current_app.mark_step_complete(3)
-
-        # Update current step in session using helper
-        store_current_step(user_id, 4)
-
-        return jsonify({
-            'success': True,
-            'message': 'Step 3 completed successfully',
-            'redirect': url_for('dashboard') # Assuming 'dashboard' is the correct endpoint
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error completing step: {str(e)}'
-        })

@@ -1,4 +1,5 @@
 from flask import session
+from .common.session import store_completed_steps, get_completed_steps
 
 class StepManager:
     def __init__(self):
@@ -38,12 +39,12 @@ class StepManager:
     def mark_step_complete(self, step_id):
         """Mark a step as complete and advance to the next step"""
         # Make sure completed_steps exists
-        if 'completed_steps' not in session:
-            session['completed_steps'] = []
-            
-        # Add to completed steps if not already there
-        if step_id not in session['completed_steps']:
-            session['completed_steps'].append(step_id)
+        user_id = session.get('_user_id', None)
+        print(user_id, "called from step.py") # Debugging line to check user_id
+        completed_steps = get_completed_steps(user_id)
+        if step_id not in completed_steps:
+            completed_steps.append(step_id)
+            store_completed_steps(user_id, completed_steps)
             
         # If this is the current step, advance to the next step
         if session.get('current_step_id', 1) == step_id:
