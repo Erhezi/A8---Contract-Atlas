@@ -1528,6 +1528,73 @@ def commit_contract_link(conn, task_id, contract_number_prp, erp_vendor_id_prp,
         current_app.logger.error(error_msg)
         return False, error_msg
 
+def hold_task_by_task_id(conn, task_id, user_id):
+    """
+    Mark a task as held (on hold) in the database.
+
+    Args:
+        conn: Database connection.
+        task_id: ID of the task to hold.
+        user_id: ID of the user performing the action.
+
+    Returns:
+        Tuple of (success, error_message).
+    """
+    try:
+        cursor = conn.cursor()
+        # Update task status to 'Hold'
+        cursor.execute("""
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
+            SET Status = 'Hold', UpdateDT = GETDATE()
+            WHERE TaskID = ? AND Status = 'Pending'
+        """, (task_id,))
+        
+        # Check if any rows were affected
+        if cursor.rowcount == 0:
+            return False, "Task not found or not in 'Pending' status."
+            
+        conn.commit()
+        return True, ""
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"Error holding task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+
+def unhold_task_by_task_id(conn, task_id, user_id):
+    """
+    Unhold a task (change from 'Hold' to 'Pending') in the database.
+
+    Args:
+        conn: Database connection.
+        task_id: ID of the task to unhold.
+        user_id: ID of the user performing the action.
+
+    Returns:
+        Tuple of (success, error_message).
+    """
+    try:
+        cursor = conn.cursor()
+        # Update task status from 'Hold' to 'Pending'
+        cursor.execute("""
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
+            SET Status = 'Pending', UpdateDT = GETDATE()
+            WHERE TaskID = ? AND Status = 'Hold'
+        """, (task_id,))
+        
+        # Check if any rows were affected
+        if cursor.rowcount == 0:
+            return False, "Task not found or not in 'Hold' status."
+            
+        conn.commit()
+        return True, ""
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"Error unholding task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+    
 
 def delete_task_by_task_id(conn, task_id, user_id):
     """
@@ -1590,3 +1657,265 @@ def get_task_by_task_id(conn, task_id):
         error_msg = f"Error retrieving task {task_id}: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg, None
+
+
+def get_task_errors(conn, task_id):
+    """
+    Retrieve error records for a given task ID.
+    
+    Args:
+        conn: Database connection
+        task_id: ID of the task to retrieve errors for
+        
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # SQL query to fetch error records
+        query = """
+        (
+        SELECT *
+        FROM [DM_MONTYNT\\dli2].PreprocessorProcessedRaw
+        WHERE TaskID = ?
+          AND [File Row Action] = 'Pending'
+          AND [DataSet] = 'TP'
+
+        UNION ALL
+
+        SELECT *
+        FROM [DM_MONTYNT\\dli2].PreprocessorProcessedRaw
+        WHERE TaskID = ?
+          AND [Row Action] = 'Pending'
+        )
+        ORDER BY [FileRow], [DataSet] DESC
+        """
+        
+        # Execute query with parameters
+        cursor.execute(query, (task_id, task_id))
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            results.append(dict(zip(columns, row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error retrieving task errors: {str(e)}"
+        print(error_msg)
+        return False, error_msg, []
+
+
+def save_error_edit(conn, edit_data):
+    """
+    Save edits made to error records in the PreprocessorErrorEdit table.
+    If the record already exists, update it; otherwise, insert a new record.
+    If no changes need to be persisted, delete the record if it exists.
+
+    Args:
+        conn: Database connection
+        edit_data: Dictionary containing edit information
+
+    Returns:
+        Tuple of (success, error_message)
+    """
+    try:
+        cursor = conn.cursor()
+
+        # Check if the new value is the same as the corresponding field's value
+        if (
+            (edit_data['edit_field'] == 'MfgPartNum' and edit_data['new_value'] == edit_data['mfg_part_num']) or
+            (edit_data['edit_field'] == 'VendorPartNum' and edit_data['new_value'] == edit_data['vendor_part_num']) or
+            (edit_data['edit_field'] == 'UOM' and edit_data['new_value'] == edit_data['uom']) or
+            (edit_data['edit_field'] == 'QOE' and str(edit_data['new_value']) == str(edit_data['qoe']))
+        ) and (
+            edit_data['edit_field'] != 'DROP' and edit_data['is_drop'] == 0
+        ):
+            # If the new value is the same as the existing value, delete the record if it exists
+            delete_query = """
+            DELETE FROM [DM_MONTYNT\\dli2].PreprocessorErrorEdit
+            WHERE TaskID = ? AND PKID_PrPRaw = ? AND [Edit Field] = ?
+            """
+            cursor.execute(delete_query, (
+                edit_data['task_id'],
+                edit_data['pkid'],
+                edit_data['edit_field']
+            ))
+            conn.commit()
+            rows_deleted = cursor.rowcount
+            if rows_deleted > 0:
+                return True, f"Record deleted as no changes needed to persist (rows deleted: {rows_deleted})"
+            else:
+                return True, "No changes to persist and no record to delete"
+
+        # Use MERGE to handle insert or update
+        merge_query = """
+        MERGE INTO [DM_MONTYNT\\dli2].PreprocessorErrorEdit AS target
+        USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) AS source (
+            TaskID, DataSet, FileRow, [Mfg Part Num], [Vendor Part Num], [UOM], [QOE], 
+            [Contract Number], PKID_PrPRaw, isDrop, isWrong, [Edit Field], [New Value]
+        )
+        ON target.TaskID = source.TaskID 
+           AND target.PKID_PrPRaw = source.PKID_PrPRaw 
+           AND target.[Edit Field] = source.[Edit Field]
+        WHEN MATCHED THEN
+            UPDATE SET 
+                target.DataSet = source.DataSet,
+                target.FileRow = source.FileRow,
+                target.[Mfg Part Num] = source.[Mfg Part Num],
+                target.[Vendor Part Num] = source.[Vendor Part Num],
+                target.[UOM] = source.[UOM],
+                target.[QOE] = source.[QOE],
+                target.[Contract Number] = source.[Contract Number],
+                target.isDrop = source.isDrop,
+                target.isWrong = source.isWrong,
+                target.[New Value] = source.[New Value],
+                target.[UpdateDT] = GETDATE()
+        WHEN NOT MATCHED THEN
+            INSERT (
+                TaskID, DataSet, FileRow, [Mfg Part Num], [Vendor Part Num], [UOM], [QOE], 
+                [Contract Number], PKID_PrPRaw, isDrop, isWrong, [Edit Field], [New Value], 
+                [CreateDT], [UpdateDT], [EditBy]
+            )
+            VALUES (
+                source.TaskID, source.DataSet, source.FileRow, source.[Mfg Part Num], 
+                source.[Vendor Part Num], source.[UOM], source.[QOE], source.[Contract Number], 
+                source.PKID_PrPRaw, source.isDrop, source.isWrong, source.[Edit Field], 
+                source.[New Value], GETDATE(), GETDATE(), ?
+            );
+        """
+
+        # Execute the query with parameters
+        cursor.execute(merge_query, (
+            edit_data['task_id'],
+            edit_data['data_set'],
+            edit_data['file_row'],
+            edit_data['mfg_part_num'],
+            edit_data['vendor_part_num'],
+            edit_data['uom'],
+            edit_data['qoe'],
+            edit_data['contract_number'],
+            edit_data['pkid'],
+            edit_data['is_drop'],
+            edit_data['is_wrong'],
+            edit_data['edit_field'],
+            edit_data['new_value'],
+            edit_data['edit_by']
+        ))
+
+        conn.commit()
+        return True, ""
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        error_msg = f"Error saving error edit: {str(e)}"
+        print(error_msg)
+        return False, error_msg
+    
+
+def revert_error_edit(conn, task_id, pkid, data_set, file_row, contract_number):
+    """
+    Revert all edits for a specific error record by deleting from PreprocessorErrorEdit table
+    
+    Args:
+        conn: Database connection
+        task_id: Task ID
+        pkid: PKID_PrPRaw value
+        data_set: Data set value
+        file_row: File row number
+        contract_number: Contract number
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Delete all records from PreprocessorErrorEdit table for this row
+        delete_query = """
+        DELETE FROM [DM_MONTYNT\\dli2].PreprocessorErrorEdit
+        WHERE TaskID = ? AND PKID_PrPRaw = ? AND DataSet = ? 
+          AND FileRow = ? AND [Contract Number] = ?
+        """
+        
+        cursor.execute(delete_query, (
+            task_id, pkid, data_set, file_row, contract_number
+        ))
+        
+        # Get the number of affected rows
+        rows_affected = cursor.rowcount
+        
+        conn.commit()
+        
+        return True, f"Successfully reverted {rows_affected} edit(s)"
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        error_msg = f"Error reverting error edits: {str(e)}"
+        print(error_msg)
+        return False, error_msg
+
+
+def delete_all_error_edits(conn, task_id):
+    """    Delete all error edits for a specific task ID from PreprocessorErrorEdit table.
+    
+    Args:
+        conn: Database connection
+        task_id: Task ID to delete edits for    
+    Returns:
+        Tuple of (success, error_message)
+    """
+
+    try:
+        cursor = conn.cursor()
+        # Delete all records from PreprocessorErrorEdit table for this task ID
+        delete_query = """
+        DELETE FROM [DM_MONTYNT\\dli2].PreprocessorErrorEdit
+        WHERE TaskID = ?
+        """
+        cursor.execute(delete_query, (task_id,))
+        conn.commit()
+        return True, "All error edits deleted successfully"
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        error_msg = f"Error deleting all error edits for task {task_id}: {str(e)}"
+        print(error_msg)
+        return False, error_msg
+
+
+def check_task_owner(conn, task_id, user_id):
+    """
+    Check if the user is the owner of the task.
+    Args:
+        conn: Database connection
+        task_id: ID of the task to check 
+        user_id: ID of the user to check ownership
+    Returns:
+        Tuple of (success, error_message, is_owner)
+    """
+    try:
+        cursor = conn.cursor()
+        # Query to check if the user is the owner of the task
+        query = """
+        SELECT UserID FROM [DM_MONTYNT\\dli2].PreprocessorHeader
+        WHERE TaskID = ? AND UserID = ?
+        """
+        
+        cursor.execute(query, (task_id, user_id))
+        result = cursor.fetchone()
+        if result:
+            is_owner = True
+        else:
+            is_owner = False
+        return True, "", is_owner
+    except Exception as e:
+        error_msg = f"Error checking task ownership for task {task_id}: {str(e)}"
+        print(error_msg)
+        return False, error_msg, False

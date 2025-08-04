@@ -1,9 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // hide the modal to prevent it from showing
-    $('#changeStatsModal').modal('hide');
-    
+
     // Ensure modal is completely hidden with inline style as a backup
     document.getElementById('changeStatsModal').style.display = 'none';
+    document.getElementById('validationFlagModal').style.display = 'none';
+
     
     // Set up export validation report button
     const exportValidationReportBtn = document.getElementById('export-validation-report-btn');

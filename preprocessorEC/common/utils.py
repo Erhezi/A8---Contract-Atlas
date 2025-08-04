@@ -1468,8 +1468,9 @@ def analyze_uom_qoe_discrepancies(valid_uom, validated_upload, im_catched_all_df
         merged_df[col] = pd.to_numeric(merged_df[col], errors='coerce').astype('Int64')
     
     # merged_df['UOM Check'] = merged_df['UOM_im'] == merged_df['UOM_upload']
-    merged_df['UOM Check'] = merged_df['UOM_EDI'] == merged_df['UOM_upload'] # CHECK THE AFTER SUBSTITUTION VALUE
+    merged_df['UOM Check'] = merged_df['UOM_im'] == merged_df['UOM_EDI'] # CHECK THE AFTER SUBSTITUTION VALUE
     merged_df['QOE Check'] = merged_df['QOE_im'] == merged_df['QOE_upload']
+
 
     # isolate any file row with a passed check in UOM or QOE
     passed_file_row = set(merged_df[(merged_df['UOM Check'] == True) & (merged_df['QOE Check'] == True)]['File Row'])
@@ -2850,6 +2851,7 @@ def final_commit(all_changes_df,
                                                         (xx_changes_to_show_df['Final Row Action'] == 'Pending'))].copy()
 
         # take care of intended action == 'Expire'
+        # for them, their final descision of actual action should be 'No Change' if they are not going to be executed
         tp_set_to_adjust = \
         set(xx_all_changes_df[(xx_all_changes_df['Intended Action'] == 'Expire') & 
                         (xx_all_changes_df['Group'] == 'Keep2') &

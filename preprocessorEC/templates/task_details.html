@@ -96,7 +96,9 @@
         border-radius: 4px;
         text-decoration: none;
         font-weight: bold;
+        font-size: 0.95rem;
         cursor: pointer;
+        border: None;
     }
     
     .btn-primary {
@@ -117,6 +119,293 @@
     .updated-timestamp {
         justify-content: flex-end;
         text-align: right;
+    }
+
+    .task-errors {
+        margin-top: 50px;
+    }
+
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    .editable {
+        background-color: transparent !important;
+        z-index: 1;
+    }
+
+    .editable del {
+        color: #6c757d;
+        text-decoration: line-through;
+        display: block;
+    }
+
+    .editable div {
+        line-height: 1.2;
+    }
+
+    .editable div + div {
+        margin-top: 3px;
+        font-weight: bold;
+    }
+
+    .editing {
+        background-color: #fffce8;
+        border: 1px solid #ffc107;
+        padding: 2px 5px;
+    }
+
+    .task-errors-table-container {
+        overflow-x: auto;
+        overflow-y: auto;
+        max-width: 100%;
+        max-height: 500px;
+        border: 1px solid #eee;
+        position: relative;
+    }
+
+    .task-errors-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem;
+    }
+
+    .task-errors-table thead {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+
+    .task-errors-table th, 
+    .task-errors-table td {
+        padding: 6px; 
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+        white-space: wrap;
+        vertical-align: middle;
+    }
+
+    .task-errors-table th {
+        background-color: #f5f5f5;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        cursor: pointer;
+        padding: 6px;
+        text-align: left;
+        white-space: normal;
+        height: auto;
+        vertical-align: middle;
+    }
+
+    .task-errors-table th.action-col {
+        text-align: center;
+    }
+
+    .task-errors-table tbody tr:hover {
+        background-color: #f0f7ff;
+    }
+
+    /* Column specific styling */
+    .task-errors-table .dataset-col {
+        min-width: 30px;
+        max-width: 30px;
+    }
+
+    .task-errors-table .file-row-col {
+        min-width: 40px;
+        max-width: 50px;
+    }
+
+    .task-errors-table .contract-col {
+        min-width: 110px;
+        max-width: 180px;
+        white-space: nowrap !important;
+        overflow: hidden;
+        text-overflow: ellipsis !important;
+        position: relative;
+    }
+
+    .task-errors-table .vendor-id-col {
+        min-width: 65px;
+        max-width: 80px;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .task-errors-table .part-num-col {
+        white-space: nowrap;
+        min-width: 80px;
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .task-errors-table .uom-col {
+        min-width: 30px;
+        max-width: 50px;
+    }
+
+    .task-errors-table .qoe-col {
+        min-width: 30px;
+        max-width: 70px;
+    }
+
+    .task-errors-table .action-col {
+        min-width: 90px;
+        white-space: nowrap;
+    }
+
+    .task-errors-table .price-col {
+        min-width: 60px;
+        max-width: 100px;
+    }
+
+    .task-errors-table .item-col {
+        min-width: 60px;
+        max-width: 70px;
+    }
+
+    .task-errors-table .validation-col {
+        min-width: 80px;
+        max-width: 100px;
+        white-space: nowrap !important;
+        overflow: hidden;
+        text-overflow: ellipsis !important;
+        position: relative;
+    }
+
+    .task-errors-table .description-col {
+        white-space: nowrap !important;
+        min-width: 220px;
+        max-width: 250px;
+        overflow: hidden;
+        text-overflow: ellipsis !important;
+        position: relative;
+    }
+
+    .task-errors-table .date-col {
+        min-width: 60px;
+        max-width: 100px;
+        width: 80px;
+        white-space: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .task-errors-table td.description-col:hover::after {
+        content: attr(title);
+        position: absolute;
+        left: 0;
+        top: 100%;
+        z-index: 1000;
+        background-color: #f8f9fa;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        white-space: normal;
+        width: auto;
+        min-width: 200px;
+        max-width: 400px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        font-size: 0.8rem;
+        color: #333;
+        word-wrap: break-word;
+    }
+
+    /* Editable fields styling */
+    .task-errors-table .editable {
+        background-color: transparent !important;
+        z-index: 1;
+    }
+
+    .task-errors-table .editing {
+        background-color: #fffce8;
+        border: 1px solid #ffc107;
+        padding: 2px 5px;
+    }
+
+    /* Button styling within table */
+    .task-errors-table .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .row-expire {
+        background-color: #f8d7da;
+    }
+
+    .row-upsert {
+        background-color: #d4edda;
+    }
+
+    del {
+        color: #6c757d; /* Muted color */
+        text-decoration: line-through;
+        margin-right: 5px;
+    }
+
+    .table-warning {
+        color: #856404 !important;
+    }
+
+    .table-danger {
+        color: #a57177 !important;
+    }
+
+    .drop-btn.drop-state {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: None;
+    }
+
+    .drop-btn.drop-state:hover {
+        background-color: #f5c6cb;
+        color: #721c24;
+    }
+
+    .drop-btn.keep-state {
+        background-color: #d4edda; 
+        color: #155724;
+        border: None;
+    }
+
+    .drop-btn.keep-state:hover {
+        background-color: #c3e6cb;
+        color: #155724;
+    }
+
+    .btn-success.commit-btn:not([disabled]) {
+        color: #fff;
+        background-color: #28a745;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    .btn-success.commit-btn:not([disabled]):hover {
+        background-color: #218838;
+        border-color: #1e7e34;
+    }
+
+    .btn-success.commit-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.65;
+    }
+
+    .btn-primary.edit-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-secondary.revert-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Add style for the sync status section */
+    .sync-status {
+        margin-top: 50px;
     }
 </style>
 {% endblock %}
@@ -206,10 +495,72 @@
         <a href="{{ url_for('data_export.view_history') }}" class="btn btn-primary">Go Sync Inspection</a>
     </div>
 
-    <!-- Section to display Errors -->
-
     <!-- Section to display Sync status for all exported rows -->
+    <div class="sync-status mt-4">
+        <h4>Sync Status</h4>
+        <div class="alert alert-info">
+            <p>Sync status information will be displayed here once implemented.</p>
+        </div>
+    </div>
+
+    <!-- Section to display Errors -->
+    {% if task.WithError == 'Yes' %}
+    <div class="task-errors mt-4">
+        <h4>Task Errors</h4>
+        <p><small>Below are the errors associated with this task, try to resolve to achieve 100% data synchronization.</small></p>
+        <div class="task-errors-table-container">
+            <table class="task-errors-table" id="task-errors-table">
+                <thead>
+                    <tr>
+                        <th class="dataset-col">Data Set</th>
+                        <th class="file-row-col">File Row</th>
+                        <th class="contract-col">Contract Number</th>
+                        <th class="vendor-id-col">ERP Vendor ID</th>
+                        <th class="part-num-col">Mfg Part Num</th>
+                        <th class="uom-col">UOM</th>
+                        <th class="qoe-col">QOE</th>
+                        <th class="action-col">Action A</th>
+                        <th class="action-col">Action B</th>
+                        <th class="part-num-col">Vendor Part Num</th>
+                        <th class="price-col">Contract Price</th>
+                        <th class="item-col">Item</th>
+                        <th class="validation-col">Validation Flag</th>
+                        <th class="date-col">Effective Date</th>
+                        <th class="date-col">Expiration Date</th>
+                        <th class="description-col">Description</th>
+                    </tr>
+                </thead>
+                <tbody id="error-rows">
+                    <!-- Error rows will be populated via JavaScript -->
+                    <tr>
+                        <td colspan="16" class="text-center">Loading error data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Action buttons for errors -->
+        <div class="d-flex justify-content-end mt-3" style="text-align: right; margin-top: 30px;">
+            <button class="btn btn-secondary me-2" id="revert-all-btn">Revert All</button>
+            <button class="btn btn-primary me-2" id="try-resolve-btn">Try Resolve</button>
+            <button class="btn btn-success" id="export-btn">Export</button>
+        </div>
+ 
+    </div>
+    {% else %}
+    <div class="task-errors mt-4">
+        <div class="alert alert-success">
+            <h4>No Errors</h4>
+            <p>This task has no errors that need addressing.</p>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 
+<script>
+    // Pass task ID to JavaScript
+    const taskId = "{{ task.TaskID }}";
+</script>
 <script src="{{ url_for('static', filename='js/task_details.js') }}"></script>
 {% endblock %}

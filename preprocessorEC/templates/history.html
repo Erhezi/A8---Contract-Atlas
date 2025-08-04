@@ -39,8 +39,8 @@
     .compact-table th,
     .compact-table td {
         padding: 0.4rem 0.5rem;
-        vertical-align: middle; /* Align vertically to the middle */
-        text-align: center; /* Align horizontally to the center */
+        vertical-align: middle;
+        text-align: center;
     }
     
     .compact-table .btn-sm {
@@ -54,6 +54,13 @@
         min-width: 70px;
         max-width: 150px;
     }
+
+    /* Delete Hold column - make it wider */
+    .compact-table th:nth-child(10),
+    .compact-table td:nth-child(10) {
+        min-width: 70px;
+        max-width: 100px;
+    }
     
     /* Truncate long filenames */
     .filename-cell {
@@ -66,9 +73,9 @@
     
     /* Unify badge text size with other content */
     .compact-table .badge {
-        font-size: 0.75rem; /* Match the table font size */
+        font-size: 0.75rem;
         padding: 0.2em 0.6em;
-        font-weight: 500; /* Make it slightly less bold */
+        font-weight: 500;
     }
     
     /* Minimize date columns */
@@ -366,7 +373,7 @@
                                 <th>Status (Infor)</th>
                                 <th>Created</th>
                                 <th>Updated</th>
-                                <th>Delete</th>
+                                <th>Delete / Hold</th>
                                 <th>More</th>
                             </tr>
                         </thead>
@@ -423,8 +430,14 @@
                                         <button type="submit" class="btn btn-sm btn-danger delete-task-btn" 
                                                 data-task-id="{{ task.TaskID }}"
                                                 {% if task.Status != 'Pending' or (current_user.role == 'sourcing' and task.UserID != current_user.id) %} disabled {% endif %}>
-                                            Delete
+                                            Del
                                         </button>
+                                        <button type="button" class="btn btn-sm btn-danger hold-task-btn" 
+                                            data-task-id="{{ task.TaskID }}"
+                                            data-status="{{ task.Status }}"
+                                            {% if task.Status not in ['Pending', 'Hold'] or (current_user.role == 'sourcing' and task.UserID != current_user.id) %} disabled {% endif %}>
+                                        {% if task.Status == 'Hold' %}UH{% else %}H{% endif %}
+                                    </button>
                                     </form>
                                 </td>
                                 <td>

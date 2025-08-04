@@ -15,7 +15,14 @@ from ..common.db import (get_db_connection,
                          get_contracts_to_link,
                          commit_contract_link,
                          delete_task_by_task_id,
-                         get_task_by_task_id)
+                         get_task_by_task_id,
+                         get_task_errors,
+                         save_error_edit,
+                         revert_error_edit,
+                         hold_task_by_task_id,
+                         unhold_task_by_task_id,
+                         delete_all_error_edits,
+                         check_task_owner)
 from ..common.session import store_current_step, store_completed_steps
 from ..common.utils_export_data import (make_batch_upload_excel,
                                         make_single_contract_excel,
@@ -200,6 +207,57 @@ def delete_task(task_id):
         return redirect(url_for('data_export.view_history'))
 
 
+@data_export_bp.route('/toggle-task-hold', methods=['POST'])
+@login_required
+def toggle_task_hold():
+    """Toggle a task's status between Pending and Hold"""
+    try:
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+            
+        task_id = data.get('task_id')
+        new_status = data.get('new_status')
+        
+        # Validate input
+        if not task_id or new_status not in ['Pending', 'Hold']:
+            return jsonify({'success': False, 'message': 'Invalid request parameters'}), 400
+            
+        # Get database connection
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'success': False, 'message': 'Database connection failed'}), 500
+            
+        try:
+            # Get current task to verify eligibility
+            success, _, task = get_task_by_task_id(conn, task_id)
+            if not success or not task:
+                return jsonify({'success': False, 'message': 'Task not found'}), 404
+                
+            # Check permissions - only allow if task belongs to user or user is admin/mdm
+            if task['UserID'] != current_user.id and current_user.role not in ['admin', 'mdm']:
+                return jsonify({'success': False, 'message': 'Permission denied'}), 403
+                
+            # Update task status based on requested new status
+            if new_status == 'Hold':
+                success, error_message = hold_task_by_task_id(conn, task_id, current_user.id)
+            else:  # new_status == 'Pending'
+                success, error_message = unhold_task_by_task_id(conn, task_id, current_user.id)
+                
+            if not success:
+                return jsonify({'success': False, 'message': error_message}), 400
+                
+            return jsonify({'success': True})
+            
+        finally:
+            if conn:
+                conn.close()
+                
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @data_export_bp.route('/task/<task_id>')
 @login_required
 def view_task(task_id):
@@ -221,6 +279,295 @@ def view_task(task_id):
     except Exception as e:
         flash(f"Error retrieving task details: {str(e)}", "danger")
         return redirect(url_for('data_export.view_history'))
+    
+
+@data_export_bp.route('/task/<task_id>/errors')
+@login_required
+def get_task_errors_api(task_id):
+    """API endpoint to fetch task errors"""
+    try:
+        # Get database connection
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection failed'
+            }), 500
+        
+        # Fetch task errors
+        success, error_msg, errors = get_task_errors(conn, task_id)
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': error_msg
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'errors': errors
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@data_export_bp.route('/task/errors/edit', methods=['POST'])
+@login_required
+def edit_task_error():
+    """API endpoint to save edits to error records"""
+    conn = None
+    try:
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        
+        # Get database connection
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection failed'
+            }), 500
+        
+        # Process each edit
+        for edit in data.get('edits', []):
+            edit_data = {
+                'task_id': data.get('task_id'),
+                'data_set': data.get('data_set'),
+                'file_row': data.get('file_row'),
+                'mfg_part_num': data.get('mfg_part_num', ''),
+                'vendor_part_num': data.get('vendor_part_num', ''), 
+                'uom': data.get('uom', ''),
+                'qoe': data.get('qoe', 0), 
+                'contract_number': data.get('contract_number'),
+                'pkid': data.get('pkid'),
+                'is_drop': data.get('is_drop', 0),
+                'is_wrong': data.get('is_wrong', 0),
+                'edit_field': edit.get('field'),
+                'new_value': edit.get('newValue', ''),
+                'edit_by': current_user.id
+            }
+            
+            success, error_msg = save_error_edit(conn, edit_data)
+            
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': 'Edits saved successfully'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@data_export_bp.route('/task/errors/toggle-drop', methods=['POST'])
+@login_required
+def toggle_drop_error():
+    """API endpoint to toggle the drop state of an error record"""
+    conn = None
+    try:
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection failed'
+            }), 500
+        
+        # Extract data edits from request
+        edit_data = {
+            'task_id': data.get('task_id'),
+            'data_set': data.get('data_set'),
+            'file_row': data.get('file_row'),
+            'mfg_part_num': data.get('mfg_part_num', ''),
+            'vendor_part_num': data.get('vendor_part_num', ''), 
+            'uom': data.get('uom', ''),
+            'qoe': data.get('qoe', 0), 
+            'contract_number': data.get('contract_number'),
+            'pkid': data.get('pkid'),
+            'is_drop': data.get('is_drop', 0),
+            'is_wrong': data.get('is_wrong', 0),
+            'edit_field': 'DROP', 
+            'new_value': data.get('new_value', ''),
+            'edit_by': current_user.id
+        }
+
+        # step 1: revert any existing edits for this record
+        success, message = revert_error_edit(conn,
+                                            edit_data['task_id'],
+                                            edit_data['pkid'],
+                                            edit_data['data_set'],
+                                            edit_data['file_row'],
+                                            edit_data['contract_number'])
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 500
+        
+        # step 2: insert the new edits by calling the save_error_edit function
+        if edit_data['is_drop'] == 1:
+            success, message = save_error_edit(conn, edit_data)
+
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': 'Drop state toggled successfully'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+    
+
+@data_export_bp.route('/task/errors/revert', methods=['POST'])
+@login_required
+def revert_task_error():
+    """API endpoint to revert all changes for a record"""
+    conn = None
+    try:
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # Extract key parameters
+        task_id = data.get('task_id')
+        pkid = data.get('pkid')
+        data_set = data.get('data_set')
+        file_row = data.get('file_row')
+        contract_number = data.get('contract_number')
+        
+        # Validate required fields
+        if not all([task_id, pkid, data_set, file_row, contract_number]):
+            return jsonify({
+                'success': False,
+                'message': 'Missing required fields'
+            }), 400
+        
+        # Get database connection
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection failed'
+            }), 500
+        
+        # Use the new revert function
+        success, message = revert_error_edit(conn, task_id, pkid, data_set, file_row, contract_number)
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': message
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@data_export_bp.route('/task/<task_id>/revert-all', methods=['POST'])
+@login_required
+def revert_all_task_errors(task_id):
+    """API endpoint to revert all edits for a task"""
+    conn = None
+    try:
+        # Get database connection
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection failed'
+            }), 500
+        
+        user_id = current_user.id
+        user_role = current_user.role
+        is_owner = False
+
+        success, error_msg, is_owner = check_task_owner(conn, task_id, user_id)
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': error_msg
+            }), 500
+        
+        if is_owner is True or (user_role in ['admin', 'mdm']):
+            # Revert all edits for the task
+            success, message = delete_all_error_edits(conn, task_id)
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'message': message
+                }), 500
+
+        
+        return jsonify({
+            'success': True,
+            'message': 'All edits reverted successfully'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        }), 500
+
+    finally:
+        if conn:
+            conn.close()
 
 
 @data_export_bp.route('/preview-data', methods=['POST'])

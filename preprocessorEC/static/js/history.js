@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const clearHistorySearchBtn = document.getElementById('clear-history-search-btn');
 
     initContractLinking();
+    initHoldTaskButtons();
 
     // Navigate to Export Function (Step 6)
     if (goToExportBtn) {
@@ -205,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 // Send API request
-                fetch('/data-export/commit-contract-link', {
+                fetch(getApiUrl('/data-export/commit-contract-link'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -299,8 +300,84 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Helper function to get API URL (consistent with other JS files)
-    function getApiUrl(path) {
-        return path;
+    
+    function initHoldTaskButtons() {
+        const holdTaskBtns = document.querySelectorAll('.hold-task-btn');
+        
+        if (!holdTaskBtns.length) return;
+        
+        holdTaskBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const taskId = this.getAttribute('data-task-id');
+                const currentStatus = this.getAttribute('data-status');
+                const newStatus = currentStatus === 'Hold' ? 'Pending' : 'Hold';
+                
+                // Show loading spinner
+                if (loadingSpinner) {
+                    loadingSpinner.style.display = 'flex';
+                }
+                
+                // Send API request
+                fetch(getApiUrl('/data-export/toggle-task-hold'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        task_id: taskId,
+                        new_status: newStatus
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loading spinner
+                    if (loadingSpinner) {
+                        loadingSpinner.style.display = 'none';
+                    }
+                    
+                    if (data.success) {
+                        // Update button text and data attribute
+                        this.textContent = newStatus === 'Hold' ? 'UH' : 'H';
+                        this.setAttribute('data-status', newStatus);
+                        
+                        // Update status badge in the table
+                        const statusCell = this.closest('tr').querySelector('td:nth-child(6)');
+                        const statusBadge = statusCell.querySelector('.badge');
+                        
+                        if (statusBadge) {
+                            statusBadge.textContent = newStatus;
+                            
+                            // Update badge class
+                            if (newStatus === 'Hold') {
+                                statusBadge.className = 'badge bg-progress-light';
+                            } else {
+                                statusBadge.className = 'badge bg-progress';
+                            }
+                        }
+                        
+                        // Toggle delete button state based on hold status
+                        const row = this.closest('tr');
+                        const deleteBtn = row.querySelector('.delete-task-btn');
+                        if (deleteBtn) {
+                            if (newStatus === 'Hold') {
+                                deleteBtn.disabled = true;  // Disable delete when on hold
+                            } else {
+                                deleteBtn.disabled = false; // Enable delete when pending
+                            }
+                        }
+                    } else {
+                        alert('Failed to update task status: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    // Hide loading spinner
+                    if (loadingSpinner) {
+                        loadingSpinner.style.display = 'none';
+                    }
+                    alert('Error: ' + error.message);
+                });
+            });
+        });
     }
+
 });

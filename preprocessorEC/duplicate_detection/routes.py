@@ -4,7 +4,7 @@ from flask import current_app, stream_with_context
 from flask_login import login_required, current_user
 import pandas as pd
 from random import randint
-from ..common.db import get_db_connection, find_duplicates_with_ccx
+from ..common.db import get_db_connection, create_temp_table, find_duplicates_with_ccx
 from ..common.model_loader import get_sentence_transformer_model
 from ..common.utils import process_item_comparisons, calculate_confidence_score, apply_deduplication_policy
 # Import user-specific session helpers
@@ -57,8 +57,6 @@ def process_duplicates():
             table_name = f"temp_contract_{user_id}" # for dev purpose, ensure it's unique per user session if needed
             print(table_name)
 
-            # Create the temp table using the connection
-            from ..common.db import create_temp_table
             success, result = create_temp_table(table_name, validated_df, conn)
 
             if not success:
