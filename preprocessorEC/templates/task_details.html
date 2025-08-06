@@ -407,6 +407,50 @@
     .sync-status {
         margin-top: 50px;
     }
+
+    .sync-status-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        margin-top: 15px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .sync-status-table th, .sync-status-table td {
+        padding: 10px;
+        border: 1px solid #dee2e6;
+        text-align: center;
+    }
+
+    .sync-status-table th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+        color: #495057;
+    }
+
+    .sync-status-table td {
+        background-color: white;
+    }
+
+    .sync-status-table td[rowspan] {
+        vertical-align: middle;
+    }
+
+    /* Sync percentage color indicators */
+    .sync-high {
+        color: #28a745; /* Green for high sync */
+        font-weight: bold;
+    }
+
+    .sync-medium {
+        color: #ffc107; /* Yellow/amber for medium sync */
+        font-weight: bold;
+    }
+
+    .sync-low {
+        color: #dc3545; /* Red for low sync */
+        font-weight: bold;
+    }
 </style>
 {% endblock %}
 
@@ -492,14 +536,39 @@
     
     <div class="task-actions">
         <a href="{{ url_for('data_export.view_history') }}" class="btn btn-secondary">Back to History</a>
-        <a href="{{ url_for('data_export.view_history') }}" class="btn btn-primary">Go Sync Inspection</a>
+        <a href="{{ url_for('common.goto_step', step_id=7) }}" class="btn btn-primary">Go Sync Inspection</a>
     </div>
 
     <!-- Section to display Sync status for all exported rows -->
     <div class="sync-status mt-4">
         <h4>Sync Status</h4>
-        <div class="alert alert-info">
-            <p>Sync status information will be displayed here once implemented.</p>
+        <div class="table-responsive">
+            <table class="sync-status-table" id="sync-status-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2">System</th>
+                        <th rowspan="2">Max Possible Sync %</th>
+                        <th colspan="2">Sync Details</th>
+                    </tr>
+                    <tr>
+                        <th>TP Sync %</th>
+                        <th>Changes Sync %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>CCX</td>
+                        <td rowspan="2" id="max-sync">Loading...</td>
+                        <td id="ccx-tp-sync">Loading...</td>
+                        <td id="ccx-changes-sync">Loading...</td>
+                    </tr>
+                    <tr>
+                        <td>Infor</td>
+                        <td id="infor-tp-sync">Loading...</td>
+                        <td id="infor-changes-sync">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -519,8 +588,10 @@
                         <th class="part-num-col">Mfg Part Num</th>
                         <th class="uom-col">UOM</th>
                         <th class="qoe-col">QOE</th>
+                        {% if has_edit_permission %}
                         <th class="action-col">Action A</th>
                         <th class="action-col">Action B</th>
+                        {% endif %}
                         <th class="part-num-col">Vendor Part Num</th>
                         <th class="price-col">Contract Price</th>
                         <th class="item-col">Item</th>
@@ -541,9 +612,11 @@
 
         <!-- Action buttons for errors -->
         <div class="d-flex justify-content-end mt-3" style="text-align: right; margin-top: 30px;">
+            {% if has_edit_permission %}
             <button class="btn btn-secondary me-2" id="revert-all-btn">Revert All</button>
             <button class="btn btn-primary me-2" id="try-resolve-btn">Try Resolve</button>
             <button class="btn btn-success" id="export-btn">Export</button>
+            {% endif %}
         </div>
  
     </div>

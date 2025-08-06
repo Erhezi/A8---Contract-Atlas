@@ -57,8 +57,13 @@ def download_template():
 @common_bp.route('/')
 def home():
     if current_user.is_authenticated:
-        # Redirect authenticated users to index
-        return render_template('index.html')
+        # Get step definitions
+        all_steps = current_app.get_all_steps()
+        # Pass None explicitly for current_step to prevent any highlighting
+        return render_template('index.html',
+                              current_step=None,
+                              steps=all_steps,
+                              completed_steps=[])
     return redirect(url_for('auth.landing'))
 
 @common_bp.route('/dashboard')
@@ -133,6 +138,22 @@ def goto_step(step_id):
     user_id = current_user.id
     completed_steps = get_completed_steps(user_id)
     current_step_id = get_current_step_from_session(user_id)
+
+    if step_id == 7:
+        completed_steps = [1, 2, 3, 4, 5, 6]
+        store_completed_steps(user_id, completed_steps)
+        store_current_step(user_id, 7)  # Set current step to 7
+        session.modified = True
+        flash("Navigated to Sync Inspection.", 'info')
+        return redirect(url_for('common.dashboard'))
+    
+    if step_id == 6:
+        completed_steps = [1, 2, 3, 4, 5]
+        store_completed_steps(user_id, completed_steps)
+        store_current_step(user_id, 6)  # Set current step to 6
+        session.modified = True
+        flash("Navigated to Export Changes.", 'info')
+        return redirect(url_for('common.dashboard'))
     
     # Treat going back to Step 1 as a restart action
     if step_id == 1 and (current_step_id > 1 or completed_steps):
@@ -438,16 +459,30 @@ def process_step(step_id):
 
         elif step_id == 6:
             # Step 6: Export Changes completion check
-            # check if 
+            # before we do anything, we will update the completed steps to include step 6  
             success = True
-            flash("Step 6 completed (Placeholder).", "success")
+            flash("Step 6 marked as completed.", "success")
+
+            # Explicitly mark step 6 as completed before redirecting
+            completed_steps = get_completed_steps(user_id)
+            if step_id not in completed_steps:
+                completed_steps.append(step_id)
+                store_completed_steps(user_id, completed_steps)
+
+             # Check for redirect parameters based on user role
+            if request.form.get('redirect_to_history') == 'true' and current_user.role in ['admin', 'mdm']:
+                # Admin and MDM users get redirected to history page
+                return redirect(url_for('data_export.view_history'))
+            
+            elif request.form.get('redirect_to_home') == 'true' and current_user.role == 'sourcing':
+                # Sourcing users get redirected to home page
+                return redirect(url_for('common.home'))
 
         elif step_id == 7:
             # Step 7: Synchronization Inspection completion check
             # Add checks relevant to step 7
-            import time; time.sleep(0.1) # Simulate check
             success = True
-            flash("Step 7 completed (Placeholder).", "success")
+            flash("Step 6 marked as completed.", "success")
 
         elif step_id == 8:
             # Step 8: Completion - Always successful if reached

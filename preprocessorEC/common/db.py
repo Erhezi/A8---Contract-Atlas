@@ -1537,6 +1537,7 @@ def get_contracts_to_link(conn):
                 FROM PreprocessorHeader 
                 WHERE Status2 = 'Pending'
             )
+            ORDER BY [Export Group] desc, [Contract Number]
         """
         
         cursor.execute(query)
@@ -2017,3 +2018,94 @@ def check_task_owner(conn, task_id, user_id):
         error_msg = f"Error checking task ownership for task {task_id}: {str(e)}"
         print(error_msg)
         return False, error_msg, False
+    
+
+def get_sync_percentages(conn, task_id):
+    """
+    Get synchronization percentages for a specific task
+    
+    Args:
+        conn: Database connection
+        task_id: ID of the task to get sync percentages for
+        
+    Returns:
+        Tuple of (success, error_message, percentages_dict)
+    """
+    try:
+        cursor = conn.cursor()
+        percentages = {
+            'maxSync': 0.00,
+            'ccxTpSync': 0.00,
+            'ccxChangesSync': None,
+            'inforTpSync': 0.00,
+            'inforChangesSync': None
+        }
+        
+        # Query 1: TP sync % for CCX
+        query1 = """
+        SELECT 
+            TaskID,
+            CAST(100.0 * SUM(CASE WHEN Synced = 'Synced' THEN 1 ELSE 0 END) / COUNT(1) AS DECIMAL(10,2)) AS Synced_pct,
+            CAST(100.0 * SUM(CASE WHEN [file row action] = 'Execute' THEN 1 ELSE 0 END) / COUNT(1) AS DECIMAL(10,2)) AS Max_Synced_pct
+        FROM [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspectionTP
+        WHERE TaskID = ?
+        GROUP BY TaskID
+        """
+        cursor.execute(query1, (task_id,))
+        row = cursor.fetchone()
+        if row:
+            percentages['ccxTpSync'] = row[1] if row[1] else 0.00
+            max_sync = row[2] if row[2] else 0.00
+            percentages['maxSync'] = max(percentages['maxSync'], max_sync)
+        
+        # Query 2: TP sync % for Infor
+        query2 = """
+        SELECT 
+            TaskID,
+            CAST(100.0 * SUM(CASE WHEN Synced = 'Synced' THEN 1 ELSE 0 END) / COUNT(1) AS DECIMAL(10,2)) AS Synced_pct,
+            CAST(100.0 * SUM(CASE WHEN [file row action] = 'Execute' THEN 1 ELSE 0 END) / COUNT(1) AS DECIMAL(10,2)) AS Max_Synced_pct
+        FROM [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspectionTP2
+        WHERE TaskID = ?
+        GROUP BY TaskID
+        """
+        cursor.execute(query2, (task_id,))
+        row = cursor.fetchone()
+        if row:
+            percentages['inforTpSync'] = row[1] if row[1] else 0.00
+            max_sync = row[2] if row[2] else 0.00
+            percentages['maxSync'] = max(percentages['maxSync'], max_sync)
+        
+        # Query 3: Export changes sync % for CCX
+        query3 = """
+        SELECT 
+            TaskID,
+            CAST(100.0 * SUM(CASE WHEN Synced = 'Synced' THEN 1 ELSE 0 END) / COUNT(*) AS DECIMAL(10,2)) AS Synced_Percentage
+        FROM [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspection
+        WHERE TaskID = ?
+        GROUP BY TaskID
+        """
+        cursor.execute(query3, (task_id,))
+        row = cursor.fetchone()
+        if row:
+            percentages['ccxChangesSync'] = row[1] if row[1] else 0.00
+        
+        # Query 4: Export changes sync % for Infor
+        query4 = """
+        SELECT 
+            TaskID,
+            CAST(100.0 * SUM(CASE WHEN Synced = 'Synced' THEN 1 ELSE 0 END) / COUNT(*) AS DECIMAL(10,2)) AS Synced_Percentage
+        FROM [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspection2
+        WHERE TaskID = ?
+        GROUP BY TaskID
+        """
+        cursor.execute(query4, (task_id,))
+        row = cursor.fetchone()
+        if row:
+            percentages['inforChangesSync'] = row[1] if row[1] else 0.00
+            
+        return True, "", percentages
+        
+    except Exception as e:
+        error_msg = f"Error getting sync percentages: {str(e)}"
+        current_app.logger.error(error_msg) if 'current_app' in globals() else print(error_msg)
+        return False, error_msg, None

@@ -22,8 +22,9 @@ from ..common.db import (get_db_connection,
                          hold_task_by_task_id,
                          unhold_task_by_task_id,
                          delete_all_error_edits,
-                         check_task_owner)
-from ..common.session import store_current_step, store_completed_steps
+                         check_task_owner,
+                         get_sync_percentages)
+from ..common.session import store_current_step, store_completed_steps, get_completed_steps
 from ..common.utils_export_data import (make_batch_upload_excel,
                                         make_single_contract_excel,
                                         make_infor_direct_excel,
@@ -52,11 +53,19 @@ def view_history():
         # Get user ID and role
         user_id = current_user.id
 
-        # automatically mark 1-5 as completed
-        completed_steps = [1,2,3,4,5]
-        store_completed_steps(user_id, completed_steps)
-        store_current_step(user_id, 6)  # Set current step to 6 (Export Changes)
-        session.modified = True
+        current_completed_steps = get_completed_steps(user_id)
+        print(current_completed_steps)
+        if 6 not in current_completed_steps:
+            # automatically mark 1-5 as completed
+            completed_steps = [1,2,3,4,5]
+            store_completed_steps(user_id, completed_steps)
+            store_current_step(user_id, 6)  # Set current step to 6 (Export Changes)
+            session.modified = True
+        else:
+            completed_steps = [1,2,3,4,5,6]
+            store_completed_steps(user_id, completed_steps)
+            store_current_step(user_id, 6)  
+            session.modified = True
         
         # Define the workflow steps for the sidebar
         workflow_steps = [
@@ -273,9 +282,17 @@ def view_task(task_id):
         if not success:
             flash(f"Error retrieving task details: {error_msg}", "danger")
             return redirect(url_for('data_export.view_history'))
+        
+        has_edit_permission = False
+        is_admin = current_user.role in ['admin', 'mdm']
+        is_task_owner = task['UserID'] == current_user.id
+        has_edit_permission = is_admin or is_task_owner
+        print(current_user.id, task['UserID'], is_admin, is_task_owner, has_edit_permission)
 
         # Render task details template
-        return render_template('task_details.html', task=task)
+        return render_template('task_details.html', 
+                               task=task,
+                               has_edit_permission=has_edit_permission)
     except Exception as e:
         flash(f"Error retrieving task details: {str(e)}", "danger")
         return redirect(url_for('data_export.view_history'))
@@ -544,6 +561,12 @@ def revert_all_task_errors(task_id):
                 'message': error_msg
             }), 500
         
+        if not is_owner and user_role not in ['admin', 'mdm']:
+            return jsonify({
+                'success': False,
+                'message': 'Permission denied. Only the task owner or admin/mdm can revert all edits.'
+            }), 403
+        
         if is_owner is True or (user_role in ['admin', 'mdm']):
             # Revert all edits for the task
             success, message = delete_all_error_edits(conn, task_id)
@@ -565,6 +588,48 @@ def revert_all_task_errors(task_id):
             'message': f'An error occurred: {str(e)}'
         }), 500
 
+    finally:
+        if conn:
+            conn.close()
+
+
+@data_export_bp.route('/task/<task_id>/sync-status')
+@login_required
+def get_task_sync_status(task_id):
+    """API endpoint to fetch task synchronization status"""
+    try:
+        # Get database connection
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Database connection failed'
+            }), 500
+        
+        # Get sync percentages from the database
+        success, error_msg, percentages = get_sync_percentages(conn, task_id)
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': error_msg
+            }), 500
+        
+        # Return the sync percentages
+        return jsonify({
+            'success': True,
+            'maxSync': percentages['maxSync'],
+            'ccxTpSync': percentages['ccxTpSync'],
+            'ccxChangesSync': percentages['ccxChangesSync'],
+            'inforTpSync': percentages['inforTpSync'],
+            'inforChangesSync': percentages['inforChangesSync']
+        })
+    
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        }), 500
     finally:
         if conn:
             conn.close()

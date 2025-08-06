@@ -9,6 +9,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Check if taskId exists and load sync status data
+    if (typeof taskId !== 'undefined') {
+        loadSyncStatus();
+    }
+
     // Check if taskId exists and if there are errors to load
     if (typeof taskId !== 'undefined' && document.getElementById('error-rows')) {
         loadTaskErrors();
@@ -46,6 +51,9 @@ document.addEventListener('DOMContentLoaded', function() {
             errorRows.innerHTML = '<tr><td colspan="16" class="text-center">No error records found.</td></tr>';
             return;
         }
+
+        // check if action columns exist in the table (due to permission)
+        const hasActionCols = document.querySelector('#task-errors-table th.action-col') !== null;
 
         errors.forEach(row => {
             const tr = document.createElement('tr');
@@ -93,54 +101,68 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            tr.innerHTML = `
+            // Build HTML for the row based on columns that exist
+            let rowHTML = `
                 <td class="dataset-col">${row.DataSet || ''}</td>
                 <td class="file-row-col">${row.FileRow || ''}</td>
                 <td class="contract-col" title="${row['Contract Number']}">${row['Contract Number'] || ''}</td>
                 <td class="vendor-id-col">${row['ERP Vendor ID'] || ''}</td>
                 <td class="part-num-col editable" data-field="MfgPartNum">${row['Mfg Part Num'] || ''}</td>
                 <td class="uom-col editable" data-field="UOM">${row.UOM || ''}</td>
-                <td class="qoe-col editable" data-field="QOE">${row.QOE || ''}</td>
-                <td class="action-col">
-                    <button class="btn btn-danger btn-sm drop-btn">Drop</button>
-                    <button class="btn btn-secondary btn-sm revert-btn">Revert</button>
-                </td>
-                <td class="action-col">
-                    <button class="btn btn-primary btn-sm edit-btn">Edit</button>
-                    <button class="btn btn-success btn-sm commit-btn" disabled>Commit</button>
-                </td>
+                <td class="qoe-col editable" data-field="QOE">${row.QOE || ''}</td>`;
+                
+            // Only add action columns if they exist in the table
+            if (hasActionCols) {
+                rowHTML += `
+                    <td class="action-col">
+                        <button class="btn btn-danger btn-sm drop-btn">Drop</button>
+                        <button class="btn btn-secondary btn-sm revert-btn">Revert</button>
+                    </td>
+                    <td class="action-col">
+                        <button class="btn btn-primary btn-sm edit-btn">Edit</button>
+                        <button class="btn btn-success btn-sm commit-btn" disabled>Commit</button>
+                    </td>`;
+            }
+            
+            // Add remaining columns
+            rowHTML += `
                 <td class="part-num-col editable" data-field="VendorPartNum">${row['Vendor Part Num'] || ''}</td>
                 <td class="price-col">${price}</td>
                 <td class="item-col">${row.Item || ''}</td>
                 <td class="validation-col" title="${validationFlag}">${formattedValidationFlag}</td>
                 <td class="date-col">${effectiveDate}</td>
                 <td class="date-col">${expirationDate}</td>
-                <td class="description-col" title="${description}">${description}</td>
-            `;
+                <td class="description-col" title="${description}">${description}</td>`;
+                
+            tr.innerHTML = rowHTML;
 
-            if (row.isDrop === 1) {
-                tr.classList.add('table-danger');
-                tr.style.textDecoration = 'line-through';
-                tr.querySelector('.drop-btn').innerText = 'Keep';
-                tr.querySelector('.revert-btn').disabled = true;
-                tr.querySelector('.edit-btn').disabled = true;
-                tr.querySelector('.commit-btn').disabled = true;
-            }
+            if (hasActionCols) {
+                if (row.isDrop === 1) {
+                    tr.classList.add('table-danger');
+                    tr.style.textDecoration = 'line-through';
+                    tr.querySelector('.drop-btn').innerText = 'Keep';
+                    tr.querySelector('.revert-btn').disabled = true;
+                    tr.querySelector('.edit-btn').disabled = true;
+                    tr.querySelector('.commit-btn').disabled = true;
+                }
 
-            const dropBtn = tr.querySelector('.drop-btn');
-            if (row.isDrop === 1) {
-                dropBtn.innerText = 'Keep';
-                dropBtn.classList.add('keep-state');
-            } else {
-                dropBtn.innerText = 'Drop';
-                dropBtn.classList.add('drop-state');
+                const dropBtn = tr.querySelector('.drop-btn');
+                if (row.isDrop === 1) {
+                    dropBtn.innerText = 'Keep';
+                    dropBtn.classList.add('keep-state');
+                } else {
+                    dropBtn.innerText = 'Drop';
+                    dropBtn.classList.add('drop-state');
+                }
             }
                         
             errorRows.appendChild(tr);
         });
 
         // Add event listeners for all buttons
-        setupButtonListeners();
+        if (hasActionCols) {
+            setupButtonListeners();
+        }
     }
 
     // Function to setup button event listeners
@@ -702,6 +724,81 @@ document.addEventListener('DOMContentLoaded', function() {
                 showErrorMessage(`Error reverting all changes: ${error.message}`);
             });
     }
+
+
+    // Function to load sync status data
+    function loadSyncStatus() {
+        fetch(getApiUrl(`/data-export/task/${taskId}/sync-status`))
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    updateSyncStatusTable(data);
+                } else {
+                    showSyncStatusError(data.message);
+                }
+            })
+            .catch(error => {
+                showSyncStatusError(`Failed to load sync status: ${error.message}`);
+            });
+    }
+
+    // Function to update the sync status table with data
+    function updateSyncStatusTable(data) {
+        // Update Max Sync %
+        const maxSyncCell = document.getElementById('max-sync');
+        if (maxSyncCell) {
+            maxSyncCell.innerHTML = formatSyncPercentage(data.maxSync);
+        }
+        
+        // Update CCX sync percentages
+        const ccxTpSync = document.getElementById('ccx-tp-sync');
+        const ccxChangesSync = document.getElementById('ccx-changes-sync');
+        if (ccxTpSync) ccxTpSync.innerHTML = formatSyncPercentage(data.ccxTpSync);
+        if (ccxChangesSync) ccxChangesSync.innerHTML = formatSyncPercentage(data.ccxChangesSync);
+        
+        // Update Infor sync percentages
+        const inforTpSync = document.getElementById('infor-tp-sync');
+        const inforChangesSync = document.getElementById('infor-changes-sync');
+        if (inforTpSync) inforTpSync.innerHTML = formatSyncPercentage(data.inforTpSync);
+        if (inforChangesSync) inforChangesSync.innerHTML = formatSyncPercentage(data.inforChangesSync);
+    }
+
+    // Function to format sync percentage with color coding
+    function formatSyncPercentage(value) {
+        if (value === null || value === undefined) return 'N/A';
+        
+        const percent = parseFloat(value).toFixed(2);
+        let colorClass = '';
+        
+        if (percent >= 100) {
+            colorClass = 'sync-high';
+        } else if (percent >= 90) {
+            colorClass = 'sync-medium';
+        } else {
+            colorClass = 'sync-low';
+        }
+        
+        return `<span class="${colorClass}">${percent}%</span>`;
+    }
+
+    // Function to show sync status error
+    function showSyncStatusError(message) {
+        const table = document.getElementById('sync-status-table');
+        if (table) {
+            const container = table.parentElement;
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <p>Error loading sync status: ${message}</p>
+                </div>
+            `;
+        }
+    }
+
 
     // Helper functions for messages
     function showSuccessMessage(message) {

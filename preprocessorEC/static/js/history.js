@@ -108,15 +108,32 @@ document.addEventListener('DOMContentLoaded', function() {
         const commitButtons = document.querySelectorAll('.commit-link-btn');
         const resetButtons = document.querySelectorAll('.reset-link-btn');
         const erpVendorInputs = document.querySelectorAll('.erp-vendor-id-ccx');
-        
+        const contractNumberInputs = document.querySelectorAll('.contract-number');
+
         if (!commitButtons.length) return;
 
-        // Check for already linked contracts
+        // Automatically format Contract Number (CCX Sync) inputs
+        contractNumberInputs.forEach(input => {
+            input.addEventListener('input', function () {
+                // Convert to uppercase and trim leading/trailing spaces
+                this.value = this.value.toUpperCase().trim();
+            });
+        });
+
+        // Check for already linked contracts and disable inputs for 'Batch Upload'
         document.querySelectorAll('#contract-linking-table tbody tr').forEach(row => {
+            const exportGroup = row.querySelector('.export-group').textContent.trim();
             const contractInput = row.querySelector('.contract-number');
             const erpVendorInput = row.querySelector('.erp-vendor-id-ccx');
             const commitBtn = row.querySelector('.commit-link-btn');
-            
+
+            // Disable Contract Number (CCX Sync) input if Export Group is 'Batch Upload'
+            if (exportGroup === 'Batch Upload') {
+                contractInput.disabled = true;
+                contractInput.style.backgroundColor = '#e9ecef'; // Add a disabled styling
+                contractInput.setAttribute('data-original-value', contractInput.value); // Store the original value
+            }
+
             // If both inputs have values, mark as linked
             if (contractInput && erpVendorInput && 
                 contractInput.value.trim() !== '' && 
@@ -132,41 +149,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.classList.add('table-success');
             }
         });
-        
+
         // Add ERP Vendor ID validation
         erpVendorInputs.forEach(input => {
             input.addEventListener('input', validateErpVendorId);
             // Initial validation
             validateErpVendorId.call(input);
         });
-        
+
         // Reset button functionality
         resetButtons.forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function () {
                 const row = this.closest('tr');
+                const exportGroup = row.querySelector('.export-group').textContent.trim();
                 const contractInput = row.querySelector('.contract-number');
                 const erpVendorInput = row.querySelector('.erp-vendor-id-ccx');
                 const commitBtn = row.querySelector('.commit-link-btn');
-                
+
                 // Reset values
-                contractInput.value = '';
+                if (exportGroup === 'Batch Upload') {
+                    // Restore the original value for Batch Upload rows
+                    const originalValue = contractInput.getAttribute('data-original-value') || '';
+                    contractInput.value = originalValue;
+                } else {
+                    // Clear the value for other rows
+                    contractInput.value = '';
+                    contractInput.disabled = false;
+                    contractInput.style.backgroundColor = '';
+                }
+
                 erpVendorInput.value = '';
-                
-                // Reset states
-                contractInput.disabled = false;
                 erpVendorInput.disabled = false;
-                
-                // Reset styling
-                contractInput.style.backgroundColor = '';
                 erpVendorInput.style.backgroundColor = '';
-                
+
                 // Reset commit button
                 commitBtn.disabled = false;
                 commitBtn.textContent = 'Commit';
-                
+
                 // Remove success styling
                 row.classList.remove('table-success');
-                
+
                 // Reset validation
                 erpVendorInput.style.borderColor = '';
                 const feedback = erpVendorInput.nextElementSibling;
@@ -175,11 +197,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
-        
+
         commitButtons.forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function () {
                 const row = this.closest('tr');
-                
+
                 // Get data from the row
                 const taskId = row.querySelector('.task-id').textContent.trim();
                 const exportGroup = row.querySelector('.export-group').textContent.trim();
@@ -187,24 +209,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 const erpVendorIdPrp = row.querySelector('.erp-vendor-id-prp').textContent.trim();
                 const contractNumber = row.querySelector('.contract-number').value.trim();
                 const erpVendorIdCcx = row.querySelector('.erp-vendor-id-ccx').value.trim();
-                
+
                 // Validate inputs
-                if (!contractNumber || !erpVendorIdCcx) {
-                    alert('Both Contract Number and ERP Vendor ID (CCX Sync) are required.');
+                if (!contractNumber && exportGroup !== 'Batch Upload') {
+                    alert('Contract Number (CCX Sync) is required.');
                     return;
                 }
-                
+                if (!erpVendorIdCcx) {
+                    alert('ERP Vendor ID (CCX Sync) is required.');
+                    return;
+                }
+
                 // Validate ERP Vendor ID format
                 if (!isValidErpVendorId(erpVendorIdCcx)) {
                     alert('ERP Vendor ID (CCX Sync) must be 7 digits or 7 digits-B000.');
                     return;
                 }
-                
+
                 // Show loading spinner
                 if (loadingSpinner) {
                     loadingSpinner.style.display = 'flex';
                 }
-                
+
                 // Send API request
                 fetch(getApiUrl('/data-export/commit-contract-link'), {
                     method: 'POST',
@@ -226,25 +252,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (loadingSpinner) {
                         loadingSpinner.style.display = 'none';
                     }
-                    
+
                     if (data.success) {
                         // Show success message and disable inputs/button
                         alert(data.message);
                         const contractInput = row.querySelector('.contract-number');
                         const erpVendorInput = row.querySelector('.erp-vendor-id-ccx');
-                        
+
                         // Disable inputs
                         contractInput.disabled = true;
                         erpVendorInput.disabled = true;
-                        
+
                         // Apply committed styling
                         contractInput.style.backgroundColor = '#e9ecef';
                         erpVendorInput.style.backgroundColor = '#e9ecef';
-                        
+
                         // Disable commit button and update text
                         button.disabled = true;
                         button.textContent = 'Linked';
-                        
+
                         // Add success styling to row
                         row.classList.add('table-success');
                     } else {
@@ -265,12 +291,12 @@ document.addEventListener('DOMContentLoaded', function() {
         function isValidErpVendorId(value) {
             return /^[0-9]{7}(-B[0-9]{3})?$/.test(value);
         }
-        
+
         function validateErpVendorId() {
             const value = this.value.trim();
             const isValid = isValidErpVendorId(value);
             const feedback = this.nextElementSibling;
-            
+
             if (value === '') {
                 this.style.borderColor = '';
                 if (feedback && feedback.classList.contains('invalid-feedback')) {
@@ -278,7 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return;
             }
-            
+
             if (isValid) {
                 this.style.borderColor = '#28a745';
                 if (feedback && feedback.classList.contains('invalid-feedback')) {
@@ -290,7 +316,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     feedback.style.display = 'block';
                 }
             }
-            
+
             // Control the commit button
             const row = this.closest('tr');
             const commitBtn = row.querySelector('.commit-link-btn');

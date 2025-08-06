@@ -273,7 +273,7 @@
         width: 16px;
         height: 16px;
         vertical-align: middle;
-        margin-right: 8px;
+        margin-right: 12px !important;
         border-radius: 3px;
     }
     
@@ -528,7 +528,7 @@
             </div>
             <div class="highlight-explanation">
                 <div><span class="highlight-key red"></span> Red: Date conflict - The record's effective or expiration date failed validation after final date adjustment before export. Manually adjust before upload to CCX.</div>
-                <div><span class="highlight-key purple"></span> Purple: Possible duplicates - The same item may be created multiple times under different contract numbers (Create Count > 1) from different tasks. CCX will take the record, but we may need to resolve this in downstream system later</div>
+                <div><span class="highlight-key purple"></span> Purple: Possible duplicates - The same item may be created multiple times under different contract numbers (Create Count > 1) from different tasks. Manual adjustment may be needed.</div>
                 <div><span class="highlight-key yellow"></span> Yellow: Empty vendor part number - Some distributor contract come with vendor part number blank, CCX will take the record, but it will not get sent to Infor.</div>
             </div>
             <div class="card-footer bg-light"></div>
@@ -597,7 +597,7 @@
             </div>
             <div class="highlight-explanation">
                 <div><span class="highlight-key red"></span> Red: Date conflict - The record's effective or expiration date failed validation after final date adjustment before export. Manually adjust before upload to CCX.</div>
-                <div><span class="highlight-key purple"></span> Purple: Possible duplicates - The same item may be created multiple times under different contract numbers (Create Count > 1) from different tasks. CCX will take the record, but we may need to resolve this in downstream system later.</div>
+                <div><span class="highlight-key purple"></span> Purple: Possible duplicates - The same item may be created multiple times under different contract numbers (Create Count > 1) from different tasks. Manual adjustment may be needed.</div>
                 <div><span class="highlight-key yellow"></span> Yellow: Empty vendor part number - Some distributor contract come with vendor part number blank, CCX will take the record, but it will not get sent to Infor.</div>
             </div>
             <div class="card-footer bg-light"></div>
@@ -708,7 +708,9 @@
             <input type="hidden" name="redirect_to_home" value="true">
             {% endif %}
             
+            <!-- For admin and mdm users, add a parameter to redirect to history -->
             {% if current_user.role in ['admin', 'mdm'] %}
+            <input type="hidden" name="redirect_to_history" value="true">
             <button type="submit" id="complete-step-btn" class="btn btn-success">
                 Complete Step 6
             </button>
@@ -719,6 +721,15 @@
             {% endif %}
         </form>
     </div>
+
+    <!-- Error Message Container -->
+    <div id="error-message-container" class="alert alert-danger" style="display: none;">
+        <strong>Error:</strong> <span id="error-message"></span>
+    </div>
+
+    <!-- Success Message Container -->
+    <div id="success-message-container" class="alert alert-success" style="display: none;">
+        <strong>Success:</strong> <span id="success-message"></span>
 
 </div>
 
