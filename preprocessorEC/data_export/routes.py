@@ -54,7 +54,7 @@ def view_history():
         user_id = current_user.id
 
         current_completed_steps = get_completed_steps(user_id)
-        print(current_completed_steps)
+
         if 6 not in current_completed_steps:
             # automatically mark 1-5 as completed
             completed_steps = [1,2,3,4,5]

@@ -1,18 +1,639 @@
+<style>
+    .section-header {
+        background-color: #f8f9fa;
+        padding: 15px 0px;
+        border-bottom: 1px solid #dee2e6;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .section-header h5 {
+        margin: 0;
+        color: #495057;
+        font-weight: 600;
+    }
+
+    .task-header-table-container {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #e9ecef;
+    }
+
+    .task-header-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        margin-bottom: 0;
+    }
+
+    .task-header-table th {
+        background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 8px 12px;
+        text-align: left;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .task-header-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #dee2e6;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .task-header-table th:nth-child(3), .task-header-table td:nth-child(3) {
+        min-width: 280px;
+    }
+
+    .task-header-table tbody tr:hover {
+        background-color: #f0f7ff;
+    }
+
+    .task-header-table tbody tr.table-active {
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+    }
+
+    .task-header-table tbody tr[style*="cursor: pointer"] {
+        transition: background-color 0.2s ease;
+    }
+
+    .task-header-table tbody tr[style*="cursor: pointer"]:hover {
+        background-color: #e7f3ff;
+    }
+
+    .task-filter-section {
+        margin-top: 20px;
+    }
+
+    /* Input group styles */
+    .input-group {
+        display: flex;
+        flex-wrap: nowrap;
+    }
+    
+    .input-group-prepend {
+        display: flex;
+    }
+    
+    .input-group-append {
+        display: flex;
+    }
+    
+    .input-group-text {
+        display: flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        margin-bottom: 0;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        text-align: center;
+        white-space: nowrap;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem 0 0 0.25rem;
+    }
+    
+    .input-group-prepend .input-group-text {
+        border-radius: 0.25rem 0 0 0.25rem;
+    }
+    
+    .input-group-append .btn {
+        border-radius: 0 0.25rem 0.25rem 0;
+    }
+
+    /* Custom searchable select styles */
+    .custom-select-wrapper {
+        position: relative;
+        flex: 1;
+    }
+
+    .custom-select-with-search {
+        display: none; /* Hide original select */
+    }
+
+    .custom-dropdown {
+        position: relative;
+        background: white;
+        border: 1px solid #ced4da;
+        border-left: none;
+        border-radius: 0 0.25rem 0.25rem 0;
+        cursor: pointer;
+        height: 95%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .custom-dropdown-toggle {
+        padding: 0.375rem 2rem 0.375rem 0.75rem;
+        background: white;
+        border: none;
+        width: 100%;
+        text-align: left;
+        position: relative;
+        outline: none;
+        height: 100%; /* Take full height */
+        display: flex;
+        align-items: center; /* Center content vertically */
+    }
+
+    .custom-dropdown-toggle::after {
+        content: "▼";
+        position: absolute;
+        right: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+
+    .custom-dropdown-toggle.open::after {
+        content: "▲";
+    }
+
+    .custom-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ced4da;
+        border-top: none;
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+    }
+
+    .custom-dropdown-menu.show {
+        display: block;
+    }
+
+    .dropdown-search-input {
+        width: 100%;
+        padding: 0.5rem;
+        border: none;
+        border-bottom: 1px solid #dee2e6;
+        outline: none;
+        font-size: 0.9rem;
+    }
+
+    .dropdown-search-input:focus {
+        background-color: #f8f9fa;
+    }
+
+    .dropdown-option {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        border-bottom: 1px solid #f8f9fa;
+        transition: background-color 0.2s ease;
+    }
+
+    .dropdown-option:hover {
+        background-color: #f8f9fa;
+    }
+
+    .dropdown-option.selected {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .dropdown-option.hidden {
+        display: none;
+    }
+
+    .no-results {
+        padding: 0.75rem;
+        text-align: center;
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    /* Sync Details Section Styles */
+    .sync-details-section {
+        display: none;
+        margin-top: 30px;
+    }
+
+    .inspection-summary-card {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        border-left: 5px solid #3498db;
+        margin-bottom: 20px;
+    }
+
+    .summary-stats-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .summary-stat-card {
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        text-align: center;
+        border-left: 5px solid #3498db;
+    }
+
+    .summary-stat-card .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin: 5px 0;
+        text-align: center;
+        transform: translateX(-5px); /* Shift main count slightly left */
+    }
+
+    .summary-stat-card .stat-value-sub {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #495057;
+        text-align: center;
+    }
+
+    .summary-stat-card .stat-value-execute,
+    .summary-stat-card .stat-value-pending {
+        display: inline-block;
+    }
+
+    .summary-stat-card .stat-value-sub::after {
+        content: "";
+    }
+
+    .summary-stat-card .stat-value-sub .stat-value-execute::after {
+        content: " |";
+        margin-left: 4px;
+        color: #6c757d;
+    }
+
+    .summary-stat-card .stat-label {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+    }
+
+    .tp-items-card { border-left-color: #3498db; }
+    .changed-items-card { border-left-color: #f39c12; }
+    .error-items-card { border-left-color: #e74c3c; }
+
+    /* Table Styles */
+    .sync-table-container {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #e9ecef;
+        margin-bottom: 20px;
+    }
+
+    .sync-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        margin-bottom: 0;
+    }
+
+    .sync-table th {
+        background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 8px 12px;
+        text-align: left;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .sync-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #dee2e6;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sync-table tbody tr:hover {
+        background-color: #f0f7ff;
+    }
+
+    /* Completion Section Styles */
+    .completion-section {
+        display: none;
+        margin-top: 30px;
+    }
+
+    .completion-section .section-header {
+        border-radius: 8px 8px 0 0;
+    }
+
+    .completion-section .completion-buttons {
+        padding: 20px;
+        padding-top: 0;
+    }
+
+    .completion-buttons {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        padding: 20px;
+        padding-bottom: 10px;
+    }
+
+    .comment-section {
+        display: none;
+        margin: 0 20px 20px 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+    }
+
+    .action-buttons {
+        margin-top: 20px;
+        text-align: right;
+    }
+
+    /* View Sync Details button disabled state */
+    #view-sync-details-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed !important;
+        pointer-events: none;
+    }
+
+    #view-sync-details-btn:disabled:hover {
+        background-color: inherit !important;
+        border-color: inherit !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    /* Status badges */
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .status-pending { background-color: #fff3cd; color: #856404; }
+    .status-completed { background-color: #d4edda; color: #155724; }
+    .status-error { background-color: #f8d7da; color: #721c24; }
+    .status-hold { background-color: #f0f0f0; color: #6c757d; }
+
+    /* Loading spinner */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .summary-stats-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        
+        .completion-buttons {
+            flex-direction: column;
+        }
+    }
+</style>
+
 <!-- Synchronization Inspection Content -->
 <div class="step-content">
-    <p>Inspect the synchronization status.</p>
-    <div class="sync-status">
-        <div class="status-indicator success">
-            <span class="icon">✓</span>
-            <span class="text">Synchronization Complete</span>
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="mb-4">
+        <h4>Synchronization Inspection</h4>
+        <p class="text-muted">Inspect the synchronization status for exported tasks and manually mark steps as completed if needed.</p>
+    </div>
+
+    <!-- Task Header Section -->
+    <div class="task-header-section">
+        <div class="task-header-table-container">
+            <table class="task-header-table">
+                <thead>
+                    <tr>
+                        <th>Task ID</th>
+                        <th>User ID</th>
+                        <th>TP File Name</th>
+                        <th>Status</th>
+                        <th>Status2</th>
+                        <th>With Error</th>
+                    </tr>
+                </thead>
+                <tbody id="task-header-tbody">
+                    <!-- Task headers will be populated here -->
+                </tbody>
+            </table>
         </div>
-        <div class="sync-details">
-            <p><strong>Total Items:</strong> 52</p>
-            <p><strong>Successfully Synced:</strong> 52</p>
-            <p><strong>Sync Time:</strong> 2023-06-01 14:32:45</p>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <small class="text-muted" id="task-count-info">
+                Showing all tasks
+            </small>
+            <small class="text-muted">
+                Use the dropdown filter to search and select tasks for inspection
+            </small>
         </div>
-        <form method="POST" action="{{ url_for('common.process_step', step_id=7) }}">
-            <button type="submit" class="btn btn-primary">Verify and Continue</button>
-        </form>
+        <div class="task-filter-section">
+            <div class="input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text">Filter by Task</span>
+                </div>
+                <div class="custom-select-wrapper">
+                    <select id="task-filter" class="form-control custom-select-with-search">
+                        <option value="">All Tasks - Select Only 1 Task ID to Inspect</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-3 text-center">
+                <button id="view-sync-details-btn" class="btn btn-primary" disabled>
+                    View Sync Details
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Details Section -->
+    <div id="sync-details-section" class="sync-details-section">
+        <!-- Inspection Summary -->
+        <h5 class="mb-0">Inspection Summary for Task: <span id="selected-task-id"></span></h5>
+        <div class="card-body">
+            <div class="summary-stats-row">
+                <div class="summary-stat-card tp-items-card">
+                    <div class="stat-value" id="total-tp-items">0</div>
+                    <div class="stat-value-sub">
+                        <div class="stat-value-execute" id="total-tp-items-execute">0</div>
+                        <div class="stat-value-pending" id="total-tp-items-pending">0</div>
+                    </div>
+                    <div class="stat-label">Total TP Items</div>
+                </div>
+                <div class="summary-stat-card changed-items-card">
+                    <div class="stat-value" id="total-changed-items">0</div>
+                    <div class="stat-value-sub">
+                        <div class="stat-value-execute" id="total-changed-items-execute">0</div>
+                        <div class="stat-value-pending" id="total-changed-items-pending">0</div>
+                    </div>
+                    <div class="stat-label">Total Changed Items</div>
+                </div>
+                <div class="summary-stat-card error-items-card">
+                    <div class="stat-value" id="total-error-items">0</div>
+                    <div class="stat-value-sub">
+                        <div class="stat-value-execute" id="total-error-items-execute">0</div>
+                        <div class="stat-value-pending" id="total-error-items-pending">0</div>
+                    </div>
+                    <div class="stat-label">Total Error TP Items</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contracts Affected -->
+        <div class="contracts-affected-section">
+            <div class="section-header">
+                <h5 class="mb-0">Contracts Affected</h5>
+            </div>
+            <div class="sync-table-container">
+                <table class="sync-table">
+                    <thead>
+                        <tr>
+                            <th>Contract Number</th>
+                            <th>Vendor ID</th>
+                            <th>Changes Count</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="contracts-affected-tbody">
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">Placeholder - Contracts data will be displayed here</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TP Rows Sync Status -->
+        <div class="tp-rows-section">
+            <div class="section-header">
+                <h5 class="mb-0">TP Rows Sync Status</h5>
+            </div>
+            <div class="sync-table-container">
+                <table class="sync-table">
+                    <thead>
+                        <tr>
+                            <th>Item Number</th>
+                            <th>Contract Number</th>
+                            <th>Action</th>
+                            <th>Sync Status</th>
+                            <th>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tp-rows-tbody">
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">Placeholder - TP rows sync status will be displayed here</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Exported Rows Sync Status -->
+        <div class="exported-rows-section">
+            <div class="section-header">
+                <h5 class="mb-0">Exported Rows Sync Status</h5>
+            </div>
+            <div class="sync-table-container">
+                <table class="sync-table">
+                    <thead>
+                        <tr>
+                            <th>Export Group</th>
+                            <th>Contract Number</th>
+                            <th>Items Count</th>
+                            <th>Export Status</th>
+                            <th>Export Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="exported-rows-tbody">
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">Placeholder - Exported rows sync status will be displayed here</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Manual Completion Section -->
+        <div id="completion-section" class="completion-section">
+            <div class="section-header">
+                <h5 class="mb-0">Manual Step Completion</h5>
+            </div>
+            
+            <div class="completion-buttons">
+                <p class="text-muted mb-3" style="width: 100%; margin-bottom: 15px;">If you've verified the synchronization status, you can manually mark this task as completed.</p>
+                <button id="mark-ccx-btn" class="btn btn-success">
+                    Mark as Completed Sync to CCX
+                </button>
+                <button id="mark-infor-btn" class="btn btn-success">
+                    Mark as Completed Sync to Infor
+                </button>
+                <button id="go-home-btn" class="btn btn-secondary">
+                    Go Home
+                </button>
+            </div>
+
+            <!-- Comment Section (shown when errors exist) -->
+            <div id="comment-section" class="comment-section">
+                <label for="completion-comment" class="form-label">Comment (required when errors exist):</label>
+                <textarea id="completion-comment" class="form-control" rows="3" 
+                         placeholder="Please provide an explanation for marking as completed despite existing errors..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Next Step Section -->
+    <div class="action-buttons">
+        <button id="next-step-btn" class="btn btn-primary" disabled>
+            Proceed to Step 8
+        </button>
     </div>
 </div>
+
+<!-- Add JavaScript for step7 -->
+<script src="{{ url_for('static', filename='js/step7.js') }}"></script>
