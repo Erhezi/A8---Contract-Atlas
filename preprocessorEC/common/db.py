@@ -1534,7 +1534,7 @@ def get_contracts_to_link(conn):
             FROM [DM_MONTYNT\\dli2].PreprocessorExported
             WHERE TaskID IN (
                 SELECT TaskID 
-                FROM PreprocessorHeader 
+                FROM [DM_MONTYNT\\dli2].PreprocessorHeader 
                 WHERE Status2 = 'Pending'
             )
             ORDER BY [Export Group] desc, [Contract Number]
