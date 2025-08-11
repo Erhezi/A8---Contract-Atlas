@@ -217,7 +217,7 @@
     /* Sync Details Section Styles */
     .sync-details-section {
         display: none;
-        margin-top: 30px;
+        margin-top: 50px;
     }
 
     .inspection-summary-card {
@@ -250,7 +250,7 @@
         color: #2c3e50;
         margin: 5px 0;
         text-align: center;
-        transform: translateX(-5px); /* Shift main count slightly left */
+        /* transform: translateX(-4px); Shift main count slightly left */
     }
 
     .summary-stat-card .stat-value-sub {
@@ -259,9 +259,9 @@
         align-items: center;
         gap: 8px;
         margin-top: 8px;
-        font-size: 1rem;
+        font-size: 0.9rem;
         font-weight: 600;
-        color: #495057;
+        color: #59626b;
         text-align: center;
     }
 
@@ -285,8 +285,8 @@
         font-size: 0.9rem;
     }
 
-    .tp-items-card { border-left-color: #3498db; }
-    .changed-items-card { border-left-color: #f39c12; }
+    .tp-items-card { border-left-color: #9b59b6; }
+    .changed-items-card { border-left-color: #3498db; }
     .error-items-card { border-left-color: #e74c3c; }
 
     /* Table Styles */
@@ -326,6 +326,16 @@
 
     .sync-table tbody tr:hover {
         background-color: #f0f7ff;
+    }
+
+    /* Contracts Affected Table - Center align numeric columns */
+    #contracts-affected-table th:nth-child(2),
+    #contracts-affected-table th:nth-child(3),
+    #contracts-affected-table th:nth-child(4),
+    #contracts-affected-table td:nth-child(2),
+    #contracts-affected-table td:nth-child(3),
+    #contracts-affected-table td:nth-child(4) {
+        text-align: center !important;
     }
 
     /* Completion Section Styles */
@@ -432,6 +442,23 @@
             flex-direction: column;
         }
     }
+
+    /* Sync indicators (square=CCX, circle=Infor) */
+    .sync-indicators { display: inline-flex; align-items: center; gap: 6px; }
+    .sync-square, .sync-circle { display: inline-block; width: 12px; height: 12px; }
+    .sync-square { border-radius: 2px; }
+    .sync-circle { border-radius: 50%; }
+    .sync-ok { background-color: #28a745; }
+    .sync-bad { background-color: #dc3545; }
+    .sync-na { background-color: #adb5bd; }
+
+    /* Blue item-match indicators (filled = matched, hollow = no match) */
+    .sync-blue { background-color: #436699; border-color: #436699; }
+    .sync-blue-hollow { background-color: transparent; border: 2px solid #436699; }
+
+    /* Two-level header styling for TP Rows table */
+    .sync-table thead .head-group th { top: 0; }
+    .sync-table thead .head-sub th { top: 34px; background-color: #eef3f8; text-align: center; font-weight: 500; }
 </style>
 
 <!-- Synchronization Inspection Content -->
@@ -495,32 +522,38 @@
     <!-- Sync Details Section -->
     <div id="sync-details-section" class="sync-details-section">
         <!-- Inspection Summary -->
-        <h5 class="mb-0">Inspection Summary for Task: <span id="selected-task-id"></span></h5>
+        <h4 class="mb-0">Inspection Summary for Task: <span id="selected-task-id"></span></h4>
         <div class="card-body">
             <div class="summary-stats-row">
                 <div class="summary-stat-card tp-items-card">
                     <div class="stat-value" id="total-tp-items">0</div>
                     <div class="stat-value-sub">
+                        <span class="stat-value-label">(exe)</span>
                         <div class="stat-value-execute" id="total-tp-items-execute">0</div>
                         <div class="stat-value-pending" id="total-tp-items-pending">0</div>
+                        <span class="stat-value-label">(err)</span>
                     </div>
-                    <div class="stat-label">Total TP Items</div>
+                    <div class="stat-label">Total TP (To Preproess) Items</div>
                 </div>
                 <div class="summary-stat-card changed-items-card">
                     <div class="stat-value" id="total-changed-items">0</div>
                     <div class="stat-value-sub">
+                        <span class="stat-value-label">(exe)</span>
                         <div class="stat-value-execute" id="total-changed-items-execute">0</div>
                         <div class="stat-value-pending" id="total-changed-items-pending">0</div>
+                        <span class="stat-value-label">(err)</span>
                     </div>
-                    <div class="stat-label">Total Changed Items</div>
+                    <div class="stat-label">Total Items Marked for Action</div>
                 </div>
                 <div class="summary-stat-card error-items-card">
                     <div class="stat-value" id="total-error-items">0</div>
                     <div class="stat-value-sub">
+                        <span class="stat-value-label">(CCX)</span>
                         <div class="stat-value-execute" id="total-error-items-ccx">0</div>
                         <div class="stat-value-pending" id="total-error-items-tp">0</div>
+                        <span class="stat-value-label">(TP)</span>
                     </div>
-                    <div class="stat-label">Total Error Items</div>
+                    <div class="stat-label">Total Action Items with Error</div>
                 </div>
             </div>
         </div>
@@ -531,13 +564,13 @@
                 <h5 class="mb-0">Contracts Affected</h5>
             </div>
             <div class="sync-table-container">
-                <table class="sync-table">
+                <table class="sync-table" id="contracts-affected-table">
                     <thead>
                         <tr>
                             <th>Contract Number</th>
-                            <th>Vendor ID</th>
-                            <th>Changes Count</th>
-                            <th>Status</th>
+                            <th class="text-center">Committed Operations per Contract</th>
+                            <th class="text-center">Executable Changes/Operations</th>
+                            <th class="text-center">Pending execution (Errors)</th>
                         </tr>
                     </thead>
                     <tbody id="contracts-affected-tbody">
@@ -552,22 +585,46 @@
         <!-- TP Rows Sync Status -->
         <div class="tp-rows-section">
             <div class="section-header">
-                <h5 class="mb-0">TP Rows Sync Status</h5>
+                <h5 class="mb-0">TP Rows Sync Status <small class="text-muted" style="font-weight: normal;">[Square = TP vs CCX] [Circle = TP vs Infor]</small></h5>
             </div>
             <div class="sync-table-container">
-                <table class="sync-table">
+                <table class="sync-table" id="tp-rows-table">
                     <thead>
-                        <tr>
-                            <th>Item Number</th>
-                            <th>Contract Number</th>
-                            <th>Action</th>
-                            <th>Sync Status</th>
-                            <th>Last Updated</th>
+                        <tr class="head-group">
+                            <th rowspan="2">Intended Action</th>
+                            <th rowspan="2">Actual Action</th>
+                            <th rowspan="2">File Row Action</th>
+                            <th rowspan="2">Contract Number</th>
+                            <th rowspan="2">ERP Vendor ID</th>
+                            <th rowspan="2">Mfg Part Num</th>
+                            <th rowspan="2">UOM</th>
+                            <th rowspan="2">UOM (Infor)</th>
+                            <th rowspan="2">Item</th>
+                            <th rowspan="2">Item (Infor)</th>
+
+                            <th colspan="2">Item Matched</th>
+                            <th colspan="2">TP Synced (Overall)</th>
+                            <th colspan="2">QOE Sync</th>
+                            <th colspan="2">Price Sync</th>
+                            <th colspan="2">Vendor Part Num Sync</th>
+                            <th colspan="2">Effective Date Sync</th>
+                            <th colspan="2">Expiration Date Sync</th>
+                            <th colspan="2">Description Sync</th>
+                        </tr>
+                        <tr class="head-sub">
+                            <th>CCX</th><th>Infor</th>
+                            <th>CCX</th><th>Infor</th>
+                            <th>CCX</th><th>Infor</th>
+                            <th>CCX</th><th>Infor</th>
+                            <th>CCX</th><th>Infor</th>
+                            <th>CCX</th><th>Infor</th>
+                            <th>CCX</th><th>Infor</th>
+                            <th>CCX</th><th>Infor</th>
                         </tr>
                     </thead>
                     <tbody id="tp-rows-tbody">
                         <tr>
-                            <td colspan="5" class="text-center text-muted">Placeholder - TP rows sync status will be displayed here</td>
+                            <td colspan="24" class="text-center text-muted">Select a task and click View Sync Details</td>
                         </tr>
                     </tbody>
                 </table>

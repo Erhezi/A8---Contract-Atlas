@@ -67,8 +67,8 @@ document.addEventListener('DOMContentLoaded', function() {
             tr.setAttribute('data-qoe-bsl', row.QOE);
 
 
-            // Apply row shading based on DataSet and Intended Action
-            if (row.DataSet === 'TP') {
+            // Apply row shading based on Group and Intended Action
+            if (row.Group === 'Keep') {
                 if (row['Intended Action'] === 'Expire') {
                     tr.classList.add('row-expire'); // Add a class for red shading
                 } else if (row['Intended Action'] === 'Upsert') {

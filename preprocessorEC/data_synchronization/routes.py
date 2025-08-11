@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response
 from flask import current_app, stream_with_context
 from flask_login import login_required, current_user
-from ..common.db import get_db_connection, get_task_history, get_sync_percentages
+from ..common.db import get_db_connection, get_task_history, get_sync_percentages, get_inspection_summary_count, get_affected_contract_by_task, get_tp_row_sync_by_taskid
 from ..common.session import store_current_step, store_completed_steps, get_completed_steps
 
 
@@ -73,69 +73,69 @@ def get_sync_details(task_id):
                 'message': 'Could not connect to database'
             }), 500
         
-        # Get sync percentages for the task
-        success, error_msg, sync_percentages = get_sync_percentages(conn, task_id)
+        # Get inspection summary counts from the new view
+        success, error_msg, summary_data = get_inspection_summary_count(conn, task_id)
         
         if not success:
             return jsonify({
                 'success': False,
-                'message': f'Error retrieving sync percentages: {error_msg}'
+                'message': f'Error retrieving inspection summary: {error_msg}'
             }), 500
         
-        # Calculate summary statistics based on sync percentages
-        # These are approximations based on the percentage data
-        estimated_total_tp = 100  # Base number for percentage calculations
-        
+        # Prepare summary statistics using the view data
         summary = {
-            'totalTPItems': estimated_total_tp,
-            'totalChangedItems': int(estimated_total_tp * (sync_percentages.get('maxSync', 0) / 100)) if sync_percentages else 0,
-            'totalErrorItems': int(estimated_total_tp * (1 - (sync_percentages.get('ccxTpSync', 0) / 100))) if sync_percentages else 0
+            'totalTPItems': summary_data.get('totalTPLines', 'N/A'),
+            'totalTPItemsExecute': summary_data.get('totalExecutableTPLines', 'N/A'),
+            'totalTPItemsPending': 'NA' if summary_data.get('totalTPLines') == 'N/A' or summary_data.get('totalExecutableTPLines') == 'N/A' else (
+                summary_data.get('totalTPLines', 0) - summary_data.get('totalExecutableTPLines', 0) if 
+                isinstance(summary_data.get('totalTPLines'), int) and isinstance(summary_data.get('totalExecutableTPLines'), int) else 'N/A'
+            ),
+            'totalChangedItems': summary_data.get('totalExportedChangeLines', 'N/A'),
+            'totalChangedItemsExecute': summary_data.get('totalExecutableExportedChangeLines', 'N/A'),
+            'totalChangedItemsPending': 'NA' if summary_data.get('totalExportedChangeLines') == 'N/A' or summary_data.get('totalExecutableExportedChangeLines') == 'N/A' else (
+                summary_data.get('totalExportedChangeLines', 0) - summary_data.get('totalExecutableExportedChangeLines', 0) if 
+                isinstance(summary_data.get('totalExportedChangeLines'), int) and isinstance(summary_data.get('totalExecutableExportedChangeLines'), int) else 'N/A'
+            ),
+            'totalErrorItems': summary_data.get('totalErrorCount', 'N/A'),
+            'totalErrorItemsCCX': summary_data.get('totalCCXErrorCount', 'N/A'),
+            'totalErrorItemsTP': summary_data.get('totalTPErrorCount', 'N/A')
         }
         
+    # Get affected contracts data
+        success_contracts, error_msg_contracts, contracts_data = get_affected_contract_by_task(conn, task_id)
+        
+        if not success_contracts:
+            # If contracts data fails, continue with empty list but log the issue
+            contracts_data = []
+            current_app.logger.warning(f'Could not retrieve contracts data for task {task_id}: {error_msg_contracts}')
+        
+        # Get TP rows sync data
+        success_tp, error_msg_tp, tp_rows = get_tp_row_sync_by_taskid(conn, task_id)
+        if not success_tp:
+            tp_rows = []
+            current_app.logger.warning(f'Could not retrieve TP rows sync data for task {task_id}: {error_msg_tp}')
+
+        print(tp_rows[:3]) # Debugging line to check TP rows data
+
         sync_details = {
             'taskId': task_id,
             'summary': summary,
-            'syncPercentages': sync_percentages or {},
-            'contractsAffected': [
-                # Placeholder data - could be enhanced with actual contract queries
-                {
-                    'contractNumber': 'Contract data available in detailed views',
-                    'vendorId': 'See export history for details',
-                    'changesCount': summary['totalChangedItems'],
-                    'status': 'Synced' if sync_percentages and sync_percentages.get('ccxTpSync', 0) > 90 else 'Partial'
-                }
-            ],
-            'tpRowsStatus': [
-                # Placeholder data with sync percentage info
-                {
-                    'itemNumber': 'TP Items',
-                    'contractNumber': 'CCX Sync',
-                    'action': 'Various',
-                    'syncStatus': f"{sync_percentages.get('ccxTpSync', 0):.1f}%" if sync_percentages else '0%',
-                    'lastUpdated': 'Real-time'
-                },
-                {
-                    'itemNumber': 'TP Items',
-                    'contractNumber': 'Infor Sync',
-                    'action': 'Various',
-                    'syncStatus': f"{sync_percentages.get('inforTpSync', 0):.1f}%" if sync_percentages else '0%',
-                    'lastUpdated': 'Real-time'
-                }
-            ],
+            'contractsAffected': contracts_data,
+            'tpRowsStatus': tp_rows,
             'exportedRowsStatus': [
                 # Placeholder data with export sync info
                 {
                     'exportGroup': 'CCX Export',
                     'contractNumber': 'Multiple',
-                    'itemsCount': summary['totalChangedItems'],
-                    'exportStatus': f"{sync_percentages.get('ccxChangesSync', 0):.1f}%" if sync_percentages and sync_percentages.get('ccxChangesSync') is not None else 'N/A',
+                    'itemsCount': summary['totalChangedItems'] if summary['totalChangedItems'] != 'N/A' else 0,
+                    'exportStatus': 'N/A',
                     'exportDate': 'Latest export'
                 },
                 {
                     'exportGroup': 'Infor Export',
                     'contractNumber': 'Multiple',
-                    'itemsCount': summary['totalChangedItems'],
-                    'exportStatus': f"{sync_percentages.get('inforChangesSync', 0):.1f}%" if sync_percentages and sync_percentages.get('inforChangesSync') is not None else 'N/A',
+                    'itemsCount': summary['totalChangedItems'] if summary['totalChangedItems'] != 'N/A' else 0,
+                    'exportStatus':  'N/A',
                     'exportDate': 'Latest export'
                 }
             ]

@@ -4,6 +4,7 @@ from flask import current_app
 import pandas as pd
 from ..common.utils import reduce_mfg_part_num
 
+
 def get_db_connection():
     """Get a connection from the SQLAlchemy pool"""
     try:
@@ -1779,7 +1780,7 @@ def get_task_errors(conn, task_id):
         FROM [DM_MONTYNT\\dli2].PreprocessorProcessedRaw
         WHERE TaskID = ?
           AND [File Row Action] = 'Pending'
-          AND [DataSet] = 'TP'
+          AND [Group] = 'Keep'
 
         UNION ALL
 
@@ -2109,3 +2110,201 @@ def get_sync_percentages(conn, task_id):
         error_msg = f"Error getting sync percentages: {str(e)}"
         current_app.logger.error(error_msg) if 'current_app' in globals() else print(error_msg)
         return False, error_msg, None
+
+
+def get_inspection_summary_count(conn, task_id):
+    """
+    Get inspection summary counts for a specific task from the sync inspection state view
+    
+    Args:
+        conn: Database connection
+        task_id: ID of the task to get inspection summary for
+        
+    Returns:
+        Tuple of (success, error_message, summary_dict)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        query = """
+        SELECT 
+            TaskID,
+            Total_TP_Lines,
+            Total_Executable_TP_Lines,
+            Total_Error_TP_Lines,
+            Total_Exported_Change_Lines,
+            Total_Executable_Exported_Change_Lines,
+            Total_Error_Exported_Change_Lines,
+            Total_Error_Count,
+            Total_TP_Error_Count,
+            Total_CCX_Error_Count
+        FROM [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspectionStat
+        WHERE TaskID = ?
+        ORDER BY Total_TP_Lines desc, Total_Exported_Change_Lines desc
+        """
+        
+        cursor.execute(query, (task_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return False, f"No inspection data found for TaskID: {task_id}", None
+        
+        # Convert to dictionary with proper null handling
+        summary = {
+            'taskId': row[0],
+            'totalTPLines': row[1] if row[1] is not None else 'N/A',
+            'totalExecutableTPLines': row[2] if row[2] is not None else 'N/A',
+            'totalErrorTPLines': row[3] if row[3] is not None else 'N/A',
+            'totalExportedChangeLines': row[4] if row[4] is not None else 'N/A',
+            'totalExecutableExportedChangeLines': row[5] if row[5] is not None else 'N/A',
+            'totalErrorExportedChangeLines': row[6] if row[6] is not None else 'N/A',
+            'totalErrorCount': row[7] if row[7] is not None else 'N/A',
+            'totalTPErrorCount': row[8] if row[8] is not None else 'N/A',
+            'totalCCXErrorCount': row[9] if row[9] is not None else 'N/A'
+        }
+        
+        return True, None, summary
+        
+    except Exception as e:
+        error_msg = f"Error getting inspection summary: {str(e)}"
+        current_app.logger.error(error_msg) if 'current_app' in globals() else print(error_msg)
+        return False, error_msg, None
+
+
+def get_affected_contract_by_task(conn, task_id):
+    """
+    Get affected contracts by task ID with operations count
+    
+    Args:
+        conn: Database connection
+        task_id: ID of the task to get affected contracts for
+        
+    Returns:
+        Tuple of (success, error_message, contracts_list)
+    """
+    try:
+        cursor = conn.cursor()
+        
+        query = """
+        SELECT 
+            taskID, 
+            [Contract Number], 
+            count(1) as Total_committed_operations,
+            sum(case when [File Row Action] = 'Execute' then 1 else 0 End) as Executable_operations, 
+            sum(case when [File Row Action] = 'Pending' then 1 else 0 End) as Non_executable_operations
+        FROM [DM_MONTYNT\\dli2].PreprocessorCommitLine
+        WHERE [Actual Action] not in ('Create then Expire (Expire)', 'Update (Existing)')
+            AND taskID = ?
+        GROUP BY taskID, [Contract Number]
+        ORDER BY [Contract Number]
+        """
+        
+        cursor.execute(query, (task_id,))
+        rows = cursor.fetchall()
+        
+        contracts = []
+        for row in rows:
+            contract = {
+                'taskId': row[0],
+                'contractNumber': row[1] if row[1] is not None else 'N/A',
+                'totalCommittedOperations': row[2] if row[2] is not None else 0,
+                'executableOperations': row[3] if row[3] is not None else 0,
+                'nonExecutableOperations': row[4] if row[4] is not None else 0
+            }
+            contracts.append(contract)
+        
+        return True, None, contracts
+        
+    except Exception as e:
+        error_msg = f"Error getting affected contracts: {str(e)}"
+        current_app.logger.error(error_msg) if 'current_app' in globals() else print(error_msg)
+        return False, error_msg, None
+    
+
+def get_tp_row_sync_by_taskid(conn, task_id):
+    """Return TP row sync details (TP vs CCX and TP vs Infor comparisons) for a task.
+
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+
+    Returns:
+        Tuple[bool, str|None, list|None]: (success, error_message, rows)
+    """
+    try:
+        cursor = conn.cursor()
+        query = """
+        SELECT 
+            ccx_tp.TaskID, 
+            ccx_tp.PKID, 
+            ccx_tp.[Intended Action], 
+            ccx_tp.[File Row Action],
+            ccx_tp.[Actual Action], 
+            ccx_tp.[ERP Vendor ID], 
+            ccx_tp.[Contract Number],
+            ccx_tp.[Mfg Part Num], 
+            ccx_tp.[UOM], 
+            UOM_INFOR,
+            Item as Item_TP,
+            Item_Infor,
+            ccx_tp.Item_Matching_Flag AS Item_Matching_Flag_CCX, 
+            infor_tp.Item_Matching_Flag AS Item_Matching_Flag_Infor,
+            ccx_tp.Synced AS TP_CCX_Synced, 
+            infor_tp.Synced AS TP_Infor_Synced,
+            ccx_tp.QOE AS QOE_TP, 
+            QOE_CCX, 
+            QOE_Infor,
+            ccx_tp.[Contract Price] AS Price_TP, 
+            PRICE AS Price_CCX, 
+            BaseCost AS Price_Infor,
+            ccx_tp.[Vendor Part Num] AS VendorPartNum_TP, 
+            VENDOR_PART_NUMBER AS VendorPartNum_CCX, 
+            VendorItem AS VendorPartNum_Infor,
+            ccx_tp.[Effective Date] AS EffectiveDate_TP, 
+            ITEM_PRICE_START_DATE AS EffectiveDate_CCX, 
+            EffectiveDate AS EffectiveDate_Infor,
+            ccx_tp.[Expiration Date] AS ExpirationDate_TP, 
+            ITEM_PRICE_END_DATE AS ExpirationDate_CCX, 
+            ExpirationDate AS ExpirationDate_Infor,
+            ccx_tp.[Description] AS Description_TP, 
+            PART_DESCRIPTION AS Description_CCX, 
+            ItemDescription AS Description_Infor,
+            CCX_LAST_REFRESH, 
+            infor_record_update,
+
+            CASE WHEN ccx_tp.QOE = QOE_CCX THEN 1 ELSE 0 END AS Match_QOE_TP_CCX,
+            CASE WHEN ccx_tp.[Contract Price] = PRICE THEN 1 ELSE 0 END AS Match_Price_TP_CCX,
+            CASE WHEN ccx_tp.[Vendor Part Num] COLLATE Latin1_General_CS_AS = VENDOR_PART_NUMBER COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_CCX,
+            CASE WHEN ccx_tp.[Effective Date] = ITEM_PRICE_START_DATE THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_CCX,
+            CASE WHEN ccx_tp.[Expiration Date] = ITEM_PRICE_END_DATE THEN 1 ELSE 0 END AS Match_ExpirationDate_TP_CCX,
+            CASE WHEN ccx_tp.[Description] COLLATE Latin1_General_CS_AS = PART_DESCRIPTION COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_Description_TP_CCX,
+
+            CASE WHEN ccx_tp.QOE = QOE_Infor THEN 1 ELSE 0 END AS Match_QOE_TP_Infor,
+            CASE WHEN ccx_tp.[Contract Price] = BaseCost THEN 1 ELSE 0 END AS Match_Price_TP_Infor,
+            CASE WHEN ccx_tp.[Vendor Part Num] COLLATE Latin1_General_CS_AS = VendorItem COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_Infor,
+            CASE WHEN ccx_tp.[Effective Date] = EffectiveDate THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_Infor,
+            CASE WHEN ccx_tp.[Expiration Date] = ExpirationDate THEN 1 ELSE 0 END AS Match_ExpirationDate_TP_Infor,
+            -1 AS Match_Description_TP_Infor
+
+        FROM [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspectionTP AS ccx_tp
+        JOIN [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspectionTP2 AS infor_tp
+            ON ccx_tp.TaskID = infor_tp.TaskID
+           AND ccx_tp.PKID = infor_tp.PKID
+        WHERE ccx_tp.TaskID = ?
+        ORDER BY ccx_tp.PKID
+        """
+        cursor.execute(query, (task_id,))
+        rows = cursor.fetchall()
+        columns = [c[0] for c in cursor.description]
+        out = []
+        for row in rows:
+            cleaned = [fix_encoding(v) for v in row]
+            out.append(dict(zip(columns, cleaned)))
+        return True, None, out
+    except Exception as e:
+        msg = f"Error getting TP rows sync for {task_id}: {str(e)}"
+        try:
+            current_app.logger.error(msg)
+        except Exception:
+            print(msg)
+        return False, msg, None

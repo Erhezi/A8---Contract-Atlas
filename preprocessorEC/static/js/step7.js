@@ -310,50 +310,15 @@ function hideLoading() {
     loadingSpinner.style.display = 'none';
 }
 
-function showError(message) {
-    // Create and show error alert
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
-    alertDiv.innerHTML = `
-        <strong>Error:</strong> ${message}
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-        </button>
-    `;
-    
-    // Insert at the beginning of step-content
-    const stepContent = document.querySelector('.step-content');
-    stepContent.insertBefore(alertDiv, stepContent.firstChild);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 5000);
-}
 
-function showSuccess(message) {
-    // Create and show success alert
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'alert alert-success alert-dismissible fade show';
-    alertDiv.innerHTML = `
-        <strong>Success:</strong> ${message}
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-        </button>
-    `;
-    
-    // Insert at the beginning of step-content
-    const stepContent = document.querySelector('.step-content');
-    stepContent.insertBefore(alertDiv, stepContent.firstChild);
-    
-    // Auto-remove after 3 seconds
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.remove();
-        }
-    }, 3000);
+function showAlert(type, message, timeout = 5000) {
+    // Use the global alert function from layout.html
+    if (window && typeof window.showGlobalAlert === 'function') {
+        window.showGlobalAlert(type, message, timeout);
+    } else {
+        // Fallback (dev only)
+        console[type === 'error' ? 'error' : 'log'](message);
+    }
 }
 
 async function loadTaskHeaders() {
@@ -373,7 +338,7 @@ async function loadTaskHeaders() {
         
     } catch (error) {
         console.error('Error loading task headers:', error);
-        showError('Failed to load task headers: ' + error.message);
+        showAlert('error', 'Failed to load task headers: ' + error.message);
     } finally {
         hideLoading();
     }
@@ -454,7 +419,7 @@ function populateTaskFilter(tasks) {
         const option = document.createElement('div');
         option.className = 'dropdown-option';
         option.dataset.taskId = task.TaskID;
-        option.textContent = `${task.TaskID} - ${truncateText(task.TPFileName, 50)}`;
+        option.textContent = `${task.TaskID} - ${task.UserID} - ${truncateText(task.TPFileName, 50)}`;
         
         option.addEventListener('click', function() {
             selectTask(task.TaskID, this.textContent);
@@ -506,7 +471,7 @@ async function loadSyncDetails(taskId) {
         
     } catch (error) {
         console.error('Error loading sync details:', error);
-        showError('Failed to load sync details: ' + error.message);
+        showAlert('error', 'Failed to load sync details: ' + error.message);
     } finally {
         hideLoading();
     }
@@ -516,13 +481,22 @@ function renderSyncDetails(syncData) {
     // Update selected task ID
     selectedTaskIdSpan.textContent = syncData.taskId;
     
-    // Update summary statistics
+    // Update summary statistics with new data structure
     document.getElementById('total-tp-items').textContent = syncData.summary.totalTPItems;
-    document.getElementById('total-changed-items').textContent = syncData.summary.totalChangedItems;
-    document.getElementById('total-error-items').textContent = syncData.summary.totalErrorItems;
+    document.getElementById('total-tp-items-execute').textContent = syncData.summary.totalTPItemsExecute;
+    document.getElementById('total-tp-items-pending').textContent = syncData.summary.totalTPItemsPending;
     
-    // Check if there are errors
-    hasErrors = syncData.summary.totalErrorItems > 0;
+    document.getElementById('total-changed-items').textContent = syncData.summary.totalChangedItems;
+    document.getElementById('total-changed-items-execute').textContent = syncData.summary.totalChangedItemsExecute;
+    document.getElementById('total-changed-items-pending').textContent = syncData.summary.totalChangedItemsPending;
+    
+    document.getElementById('total-error-items').textContent = syncData.summary.totalErrorItems;
+    document.getElementById('total-error-items-ccx').textContent = syncData.summary.totalErrorItemsCCX;
+    document.getElementById('total-error-items-tp').textContent = syncData.summary.totalErrorItemsTP;
+    
+    // Check if there are errors (handle 'NA' values)
+    const errorCount = syncData.summary.totalErrorItems;
+    hasErrors = errorCount !== 'NA' && errorCount > 0;
     
     // Render contracts affected table
     renderContractsAffected(syncData.contractsAffected);
@@ -556,13 +530,12 @@ function renderContractsAffected(contracts) {
     
     contracts.forEach(contract => {
         const row = document.createElement('tr');
-        const statusBadge = getStatusBadge(contract.status);
         
         row.innerHTML = `
-            <td>${contract.contractNumber}</td>
-            <td>${contract.vendorId}</td>
-            <td class="text-center">${contract.changesCount}</td>
-            <td>${statusBadge}</td>
+            <td title="${contract.contractNumber || 'N/A'}">${truncateText(contract.contractNumber || 'N/A', 20)}</td>
+            <td class="text-center">${contract.totalCommittedOperations || 0}</td>
+            <td class="text-center">${contract.executableOperations || 0}</td>
+            <td class="text-center">${contract.nonExecutableOperations || 0}</td>
         `;
         
         tbody.appendChild(row);
@@ -571,31 +544,83 @@ function renderContractsAffected(contracts) {
 
 function renderTPRowsStatus(tpRows) {
     const tbody = document.getElementById('tp-rows-tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
-    
-    if (tpRows.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center text-muted">No TP rows to display</td>
-            </tr>
-        `;
+
+    if (!tpRows || tpRows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="24" class="text-center text-muted">No TP rows found for this task</td></tr>`;
         return;
     }
-    
-    tpRows.forEach(row => {
-        const tr = document.createElement('tr');
-        const statusBadge = getStatusBadge(row.syncStatus);
-        
-        tr.innerHTML = `
-            <td>${row.itemNumber}</td>
-            <td>${row.contractNumber}</td>
-            <td>${row.action}</td>
-            <td>${statusBadge}</td>
-            <td>${formatDateTime(row.lastUpdated)}</td>
-        `;
-        
-        tbody.appendChild(tr);
-    });
+
+    const toCell = (v) => (v === null || v === undefined || v === '' ? '' : v);
+    const isPositive = (v) => {
+        if (v === null || v === undefined) return null;
+        if (typeof v === 'number') return v !== 0 ? 1 : 0;
+        const s = String(v).trim().toLowerCase();
+        // positives
+        if ([
+            "1",
+            "matched",
+            "synced"
+        ].includes(s)) return 1;
+        // negatives
+        if ([
+            "0",
+            "no match",
+            "not synced"
+        ].includes(s)) return 0;
+        return null; // unknown
+    };
+    const shapeIndicator = (shape, value, title = '') => {
+        const status = isPositive(value);
+        const cls = status === 1 ? 'sync-ok' : (status === 0 ? 'sync-bad' : 'sync-na');
+        const shapeCls = shape === 'circle' ? 'sync-circle' : 'sync-square';
+        return `<span class="${shapeCls} ${cls}" title="${title}"></span>`;
+    };
+    const blueMatchIndicator = (shape, value, title = '') => {
+        // value: Matched/No Match/etc.; filled blue for matched, hollow blue for no match; gray for unknown
+        const status = isPositive(value);
+        const shapeCls = shape === 'circle' ? 'sync-circle' : 'sync-square';
+        if (status === 1) return `<span class="${shapeCls} sync-blue" title="${title}"></span>`;
+        if (status === 0) return `<span class="${shapeCls} sync-blue-hollow" title="${title}"></span>`;
+        return `<span class="${shapeCls} sync-na" title="${title}"></span>`;
+    };
+    const indicatorCell = (shape, value, title = '') => {
+        return shapeIndicator(shape, value, title);
+    };
+
+    const rowsHtml = tpRows.map(r => `
+        <tr>
+            <td>${toCell(r['Intended Action'])}</td>
+            <td>${toCell(r['Actual Action'])}</td>
+            <td>${toCell(r['File Row Action'])}</td>
+            <td>${toCell(r['Contract Number'])}</td>
+            <td>${toCell(r['ERP Vendor ID'])}</td>
+            <td title="${toCell(r['Mfg Part Num'])}">${toCell(r['Mfg Part Num'])}</td>
+            <td>${toCell(r['UOM'])}</td>
+            <td>${toCell(r['UOM_INFOR'])}</td>
+            <td>${toCell(r['Item_TP'])}</td>
+            <td>${toCell(r['Item_Infor'])}</td>
+            <td>${blueMatchIndicator('square', r['Item_Matching_Flag_CCX'], 'Item Matched: TP vs CCX')}</td>
+            <td>${blueMatchIndicator('circle', r['Item_Matching_Flag_Infor'], 'Item Matched: TP vs Infor')}</td>
+            <td>${indicatorCell('square', r['TP_CCX_Synced'], 'TP Synced (Overall): TP vs CCX')}</td>
+            <td>${indicatorCell('circle', r['TP_Infor_Synced'], 'TP Synced (Overall): TP vs Infor')}</td>
+            <td>${indicatorCell('square', r['Match_QOE_TP_CCX'], 'QOE: TP vs CCX')}</td>
+            <td>${indicatorCell('circle', r['Match_QOE_TP_Infor'], 'QOE: TP vs Infor')}</td>
+            <td>${indicatorCell('square', r['Match_Price_TP_CCX'], 'Price: TP vs CCX')}</td>
+            <td>${indicatorCell('circle', r['Match_Price_TP_Infor'], 'Price: TP vs Infor')}</td>
+            <td>${indicatorCell('square', r['Match_VendorPartNum_TP_CCX'], 'Vendor Part Num: TP vs CCX')}</td>
+            <td>${indicatorCell('circle', r['Match_VendorPartNum_TP_Infor'], 'Vendor Part Num: TP vs Infor')}</td>
+            <td>${indicatorCell('square', r['Match_EffectiveDate_TP_CCX'], 'Effective Date: TP vs CCX')}</td>
+            <td>${indicatorCell('circle', r['Match_EffectiveDate_TP_Infor'], 'Effective Date: TP vs Infor')}</td>
+            <td>${indicatorCell('square', r['Match_ExpirationDate_TP_CCX'], 'Expiration Date: TP vs CCX')}</td>
+            <td>${indicatorCell('circle', r['Match_ExpirationDate_TP_Infor'], 'Expiration Date: TP vs Infor')}</td>
+            <td>${indicatorCell('square', r['Match_Description_TP_CCX'], 'Description: TP vs CCX')}</td>
+            <td>${indicatorCell('circle', r['Match_Description_TP_Infor'], 'Description: TP vs Infor')}</td>
+        </tr>
+    `).join('');
+
+    tbody.innerHTML = rowsHtml;
 }
 
 function renderExportedRowsStatus(exportedRows) {
@@ -651,7 +676,7 @@ function updateCommentSection() {
 async function markStepCompleted(completionType) {
     // Validate comment if errors exist
     if (hasErrors && !completionComment.value.trim()) {
-        showError('A comment is required when errors exist.');
+        alert('A comment to explain the reason to mark as complete is required when errors exist.');
         completionComment.focus();
         return;
     }
@@ -686,11 +711,11 @@ async function markStepCompleted(completionType) {
         markCcxBtn.disabled = true;
         markInforBtn.disabled = true;
         
-        showSuccess(`Step completed for ${completionType} sync`);
+        showAlert('success', `Step completed for ${completionType} sync`);
         
     } catch (error) {
         console.error('Error marking step as completed:', error);
-        showError('Failed to mark step as completed: ' + error.message);
+        alert('Failed to mark step as completed: ' + error.message);
     } finally {
         hideLoading();
     }
@@ -698,7 +723,7 @@ async function markStepCompleted(completionType) {
 
 async function proceedToNextStep() {
     if (!stepCompleted) {
-        showError('Please mark the step as completed before proceeding.');
+        alert('Please mark the step as completed before proceeding.');
         return;
     }
     
@@ -707,7 +732,7 @@ async function proceedToNextStep() {
         window.location.href = '/data-synchronization/next-step';
     } catch (error) {
         console.error('Error proceeding to next step:', error);
-        showError('Failed to proceed to next step: ' + error.message);
+        showAlert('error', 'Failed to proceed to next step: ' + error.message);
         hideLoading();
     }
 }
