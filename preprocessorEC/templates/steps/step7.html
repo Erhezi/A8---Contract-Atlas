@@ -290,6 +290,21 @@
     .error-items-card { border-left-color: #e74c3c; }
 
     /* Table Styles */
+    :root {
+        /* Global knobs you can tweak */
+        --sync-table-font-size: 0.78rem; /* overall table text size */
+        --sync-indicator-size: 12px;      /* default indicator size */
+        --sync-indicator-size-large: 18px;/* larger size for Item Match + TP Synced */
+        --sync-col-indicator-width: 48px; /* default indicator col width */
+        --sync-col-large-indicator-width: 52px; /* wider for first two indicator groups */
+        --tp-subhead-top: 40px; /* sticky offset for the second header row (adjust if header wraps more) */
+        /* vivid and pale colors */
+        --sync-ok-color: #28a745;
+        --sync-bad-color: #dc3545;
+        --sync-ok-pale-color: #6ed482;
+        --sync-bad-pale-color: #f3666f;
+    }
+
     .sync-table-container {
         max-height: 300px;
         overflow-y: auto;
@@ -300,7 +315,7 @@
     .sync-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 0.85rem;
+        font-size: var(--sync-table-font-size);
         margin-bottom: 0;
     }
 
@@ -313,7 +328,11 @@
         text-align: left;
         border-bottom: 2px solid #dee2e6;
         font-weight: 600;
-        white-space: nowrap;
+        /* Allow headers to wrap onto multiple lines */
+        white-space: normal;
+        word-break: break-word;
+        hyphens: auto;
+        line-height: 1.2;
     }
 
     .sync-table td {
@@ -445,7 +464,7 @@
 
     /* Sync indicators (square=CCX, circle=Infor) */
     .sync-indicators { display: inline-flex; align-items: center; gap: 6px; }
-    .sync-square, .sync-circle { display: inline-block; width: 12px; height: 12px; }
+    .sync-square, .sync-circle { display: inline-block; width: var(--sync-indicator-size); height: var(--sync-indicator-size); }
     .sync-square { border-radius: 2px; }
     .sync-circle { border-radius: 50%; }
     .sync-ok { background-color: #28a745; }
@@ -456,9 +475,82 @@
     .sync-blue { background-color: #436699; border-color: #436699; }
     .sync-blue-hollow { background-color: transparent; border: 2px solid #436699; }
 
+    /* Make sub-comparison indicators (cols 15–26) pale; keep Item Matched (11–12) blue and TP Synced (13–14) vivid */
+    #tp-rows-table td:nth-child(n+15):nth-child(-n+26) .sync-ok { background-color: var(--sync-ok-pale-color) !important; }
+    #tp-rows-table td:nth-child(n+15):nth-child(-n+26) .sync-bad { background-color: var(--sync-bad-pale-color) !important; }
+
     /* Two-level header styling for TP Rows table */
-    .sync-table thead .head-group th { top: 0; }
-    .sync-table thead .head-sub th { top: 34px; background-color: #eef3f8; text-align: center; font-weight: 500; }
+    .sync-table thead .head-group th { top: 0; z-index: 20; }
+    .sync-table thead .head-sub th {
+        /* Already sticky, keep this */
+        top: 44px !important;
+        z-index: 21;
+        background-color: #eef3f8;
+        /* Center text */
+        text-align: center;
+    }
+
+
+    #tp-rows-table td:nth-child(n+11) { text-align: center; }
+    #tp-rows-table td .sync-square, #tp-rows-table td .sync-circle { vertical-align: middle; }
+
+    /* Larger indicators for Item Matched (cols 11-12) and TP Synced (cols 13-14) */
+    #tp-rows-table td:nth-child(11) .sync-square,
+    #tp-rows-table td:nth-child(11) .sync-circle,
+    #tp-rows-table td:nth-child(12) .sync-square,
+    #tp-rows-table td:nth-child(12) .sync-circle,
+    #tp-rows-table td:nth-child(13) .sync-square,
+    #tp-rows-table td:nth-child(13) .sync-circle,
+    #tp-rows-table td:nth-child(14) .sync-square,
+    #tp-rows-table td:nth-child(14) .sync-circle { width: var(--sync-indicator-size-large); height: var(--sync-indicator-size-large); }
+
+    #tp-rows-table {
+        table-layout: fixed;
+    }
+
+    /* Column width controls via <colgroup> (defaults; override these vars as needed) */
+    #tp-rows-table { 
+        --w-intended-action: 65px;
+        --w-actual-action: 80px;
+        --w-file-row-action: 70px;
+        --w-contract-number: 100px;
+        --w-erp-vendor-id: 80px;
+        --w-mfg-part-num: 100px;
+        --w-uom: 60px;
+        --w-uom-infor: 60px;
+        --w-item: 80px;
+        --w-item-infor: 80px;
+    }
+    #tp-rows-table col.col-intended-action { width: var(--w-intended-action); }
+    #tp-rows-table col.col-actual-action { width: var(--w-actual-action); }
+    #tp-rows-table col.col-file-row-action { width: var(--w-file-row-action); }
+    #tp-rows-table col.col-contract-number { width: var(--w-contract-number); }
+    #tp-rows-table col.col-erp-vendor-id { width: var(--w-erp-vendor-id); }
+    #tp-rows-table col.col-mfg-part-num { width: var(--w-mfg-part-num); }
+    #tp-rows-table col.col-uom { width: var(--w-uom); }
+    #tp-rows-table col.col-uom-infor { width: var(--w-uom-infor); }
+    #tp-rows-table col.col-item { width: var(--w-item); }
+    #tp-rows-table col.col-item-infor { width: var(--w-item-infor); }
+    #tp-rows-table col.col-indicator-large { width: var(--sync-col-large-indicator-width); }
+    #tp-rows-table col.col-indicator { width: var(--sync-col-indicator-width); }
+
+    .legend .sync-square, .legend .sync-circle {
+        width: 10px; height: 10px; display: inline-block; margin-right: 6px; vertical-align: -1px;
+    }
+
+    /* Exported rows table adjustable widths */
+    #exported-rows-table {
+        --w-export-group: 180px;
+        --w-contract-number: 150px;
+        --w-items-count: 120px;
+        --w-export-status: 140px;
+        --w-export-date: 180px;
+    }
+    #exported-rows-table col.col-export-group { width: var(--w-export-group); }
+    #exported-rows-table col.col-contract-number { width: var(--w-contract-number); }
+    #exported-rows-table col.col-items-count { width: var(--w-items-count); }
+    #exported-rows-table col.col-export-status { width: var(--w-export-status); }
+    #exported-rows-table col.col-export-date { width: var(--w-export-date); }
 </style>
 
 <!-- Synchronization Inspection Content -->
@@ -585,10 +677,48 @@
         <!-- TP Rows Sync Status -->
         <div class="tp-rows-section">
             <div class="section-header">
-                <h5 class="mb-0">TP Rows Sync Status <small class="text-muted" style="font-weight: normal;">[Square = TP vs CCX] [Circle = TP vs Infor]</small></h5>
+                <h5 class="mb-0">
+                    TP Rows Sync Status &nbsp; &nbsp;
+                    <small class="text-muted legend" style="font-weight: normal;">
+                        <span class="sync-square sync-na"></span> Square = TP vs CCX
+                        &nbsp;&nbsp;
+                        <span class="sync-circle sync-na"></span> Circle = TP vs Infor
+                    </small>
+                </h5>
             </div>
             <div class="sync-table-container">
                 <table class="sync-table" id="tp-rows-table">
+                    <colgroup>
+                        <!-- 10 descriptive columns -->
+                        <col class="col-intended-action" />
+                        <col class="col-actual-action" />
+                        <col class="col-file-row-action" />
+                        <col class="col-contract-number" />
+                        <col class="col-erp-vendor-id" />
+                        <col class="col-mfg-part-num" />
+                        <col class="col-uom" />
+                        <col class="col-uom-infor" />
+                        <col class="col-item" />
+                        <col class="col-item-infor" />
+                        <!-- 16 indicator columns (first 4 wider/larger) -->
+                        <col class="col-indicator-large" />
+                        <col class="col-indicator-large" />
+                        <col class="col-indicator-large" />
+                        <col class="col-indicator-large" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                    </colgroup>
                     <thead>
                         <tr class="head-group">
                             <th rowspan="2">Intended Action</th>
@@ -598,33 +728,33 @@
                             <th rowspan="2">ERP Vendor ID</th>
                             <th rowspan="2">Mfg Part Num</th>
                             <th rowspan="2">UOM</th>
-                            <th rowspan="2">UOM (Infor)</th>
-                            <th rowspan="2">Item</th>
-                            <th rowspan="2">Item (Infor)</th>
+                            <th rowspan="2">UOM (EDI)</th>
+                            <th rowspan="2">Item (TP)</th>
+                            <th rowspan="2">Ite (Infor)</th>
 
                             <th colspan="2">Item Matched</th>
                             <th colspan="2">TP Synced (Overall)</th>
-                            <th colspan="2">QOE Sync</th>
-                            <th colspan="2">Price Sync</th>
-                            <th colspan="2">Vendor Part Num Sync</th>
-                            <th colspan="2">Effective Date Sync</th>
-                            <th colspan="2">Expiration Date Sync</th>
-                            <th colspan="2">Description Sync</th>
+                            <th colspan="2">QOE</th>
+                            <th colspan="2">Price</th>
+                            <th colspan="2">Vendor Part Num</th>
+                            <th colspan="2">Effective Date</th>
+                            <th colspan="2">Expiration Date</th>
+                            <th colspan="2">Description</th>
                         </tr>
                         <tr class="head-sub">
-                            <th>CCX</th><th>Infor</th>
-                            <th>CCX</th><th>Infor</th>
-                            <th>CCX</th><th>Infor</th>
-                            <th>CCX</th><th>Infor</th>
-                            <th>CCX</th><th>Infor</th>
-                            <th>CCX</th><th>Infor</th>
-                            <th>CCX</th><th>Infor</th>
-                            <th>CCX</th><th>Infor</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
                         </tr>
                     </thead>
-                    <tbody id="tp-rows-tbody">
+            <tbody id="tp-rows-tbody">
                         <tr>
-                            <td colspan="24" class="text-center text-muted">Select a task and click View Sync Details</td>
+                <td colspan="26" class="text-center text-muted">Select a task and click View Sync Details</td>
                         </tr>
                     </tbody>
                 </table>
@@ -637,7 +767,14 @@
                 <h5 class="mb-0">Exported Rows Sync Status</h5>
             </div>
             <div class="sync-table-container">
-                <table class="sync-table">
+                <table class="sync-table" id="exported-rows-table">
+                    <colgroup>
+                        <col class="col-export-group" />
+                        <col class="col-contract-number" />
+                        <col class="col-items-count" />
+                        <col class="col-export-status" />
+                        <col class="col-export-date" />
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>Export Group</th>

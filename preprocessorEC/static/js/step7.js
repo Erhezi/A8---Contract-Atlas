@@ -35,7 +35,10 @@ document.addEventListener('DOMContentLoaded', function() {
     createCustomDropdown();
     loadTaskHeaders();
     setupEventListeners();
+    updateTpSubheadTop();
 });
+
+window.addEventListener('resize', updateTpSubheadTop);
 
 function createCustomDropdown() {
     const wrapper = document.querySelector('.custom-select-wrapper');
@@ -477,6 +480,15 @@ async function loadSyncDetails(taskId) {
     }
 }
 
+function updateTpSubheadTop() {
+    const table = document.getElementById('tp-rows-table');
+    if (!table) return;
+    const groupRow = table.querySelector('thead .head-group');
+    if (!groupRow) return;
+    const h = groupRow.getBoundingClientRect().height;
+    table.style.setProperty('--tp-subhead-top', `${Math.ceil(h)}px`);
+}
+
 function renderSyncDetails(syncData) {
     // Update selected task ID
     selectedTaskIdSpan.textContent = syncData.taskId;
@@ -548,14 +560,16 @@ function renderTPRowsStatus(tpRows) {
     tbody.innerHTML = '';
 
     if (!tpRows || tpRows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="24" class="text-center text-muted">No TP rows found for this task</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="26" class="text-center text-muted">No TP rows found for this task</td></tr>`;
+        // update sticky offset in case header height changed due to wrapping
+        updateTpSubheadTop();
         return;
     }
 
     const toCell = (v) => (v === null || v === undefined || v === '' ? '' : v);
     const isPositive = (v) => {
-        if (v === null || v === undefined) return null;
-        if (typeof v === 'number') return v !== 0 ? 1 : 0;
+        if (v === null || v === undefined || v === -1) return null;
+        if (typeof v === 'number') return v > 0 ? 1 : 0;
         const s = String(v).trim().toLowerCase();
         // positives
         if ([
@@ -621,6 +635,9 @@ function renderTPRowsStatus(tpRows) {
     `).join('');
 
     tbody.innerHTML = rowsHtml;
+
+    // recalc sticky offset after content paints
+    requestAnimationFrame(updateTpSubheadTop);
 }
 
 function renderExportedRowsStatus(exportedRows) {

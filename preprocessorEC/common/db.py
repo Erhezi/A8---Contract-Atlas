@@ -2291,7 +2291,8 @@ def get_tp_row_sync_by_taskid(conn, task_id):
             ON ccx_tp.TaskID = infor_tp.TaskID
            AND ccx_tp.PKID = infor_tp.PKID
         WHERE ccx_tp.TaskID = ?
-        ORDER BY ccx_tp.PKID
+        ORDER BY TP_CCX_Synced, TP_Infor_Synced, ccx_tp.[File Row Action] desc, Item_Matching_Flag_CCX desc, Item_Matching_Flag_Infor desc,
+            ccx_tp.PKID
         """
         cursor.execute(query, (task_id,))
         rows = cursor.fetchall()
