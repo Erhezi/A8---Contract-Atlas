@@ -1,3 +1,8 @@
+/*step6*/
+/**
+ * Step 6: Data Export JavaScript
+ * Handles data preview, export functionality, and pagination for batch and single tables.
+ */
 document.addEventListener('DOMContentLoaded', function() {
     // Cache DOM elements
     const previewBtn = document.getElementById('preview-btn');

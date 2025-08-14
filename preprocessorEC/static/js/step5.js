@@ -1,3 +1,16 @@
+/*step5*/
+/** * Step 5: Change Simulation JavaScript
+ * Handles change simulation, data change table rendering,
+ * network graph display, and change statistics modal.
+ * Includes functionality for viewing changes,
+ * finalizing changes, and exporting validation reports.
+ * Also manages click events for row selection
+ * and reference table display.
+ * Includes utility functions for sorting,
+ * highlighting differences,
+ * and showing alerts.
+ * Relies on Plotly for graph rendering
+ */
 document.addEventListener('DOMContentLoaded', function() {
 
     // Ensure modal is completely hidden with inline style as a backup

@@ -436,7 +436,7 @@
                                             data-task-id="{{ task.TaskID }}"
                                             data-status="{{ task.Status }}"
                                             {% if task.Status not in ['Pending', 'Hold'] or (current_user.role == 'sourcing' and task.UserID != current_user.id) %} disabled {% endif %}>
-                                        {% if task.Status == 'Hold' %}UH{% else %}H{% endif %}
+                                            {% if task.Status == 'Hold' %}UH{% else %}H{% endif %}
                                     </button>
                                     </form>
                                 </td>
@@ -474,7 +474,7 @@
                             <th>Contract Number (CCX Sync)</th>
                             <th>ERP Vendor ID (CCX Sync)</th>
                             <th>Exported By</th>
-                            <th>Action</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>

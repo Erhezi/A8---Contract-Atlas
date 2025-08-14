@@ -383,11 +383,16 @@
 
     .comment-section {
         display: none;
-        margin: 0 20px 20px 20px;
+        margin: 0 0 20px 20px;
         padding: 15px;
         background-color: #f8f9fa;
         border-radius: 5px;
         border: 1px solid #ddd;
+    }
+
+    #completion-comment {
+        width: 98%;
+        margin-top: 5px;
     }
 
     .action-buttons {
@@ -510,9 +515,9 @@
 
     /* Column width controls via <colgroup> (defaults; override these vars as needed) */
     #tp-rows-table { 
-        --w-intended-action: 65px;
-        --w-actual-action: 80px;
-        --w-file-row-action: 70px;
+        --w-intended-action: 90px;
+        --w-actual-action: 85px;
+        --w-file-row-action: 65px;
         --w-contract-number: 100px;
         --w-erp-vendor-id: 80px;
         --w-mfg-part-num: 100px;
@@ -538,19 +543,84 @@
         width: 10px; height: 10px; display: inline-block; margin-right: 6px; vertical-align: -1px;
     }
 
-    /* Exported rows table adjustable widths */
-    #exported-rows-table {
-        --w-export-group: 180px;
-        --w-contract-number: 150px;
-        --w-items-count: 120px;
-        --w-export-status: 140px;
-        --w-export-date: 180px;
+    /* Toggle button active styles */
+    .btn-group.btn-group-sm .btn.active {
+        background-color: #495057 !important;
+        color: #fff !important;
+        border-color: #495057 !important;
     }
-    #exported-rows-table col.col-export-group { width: var(--w-export-group); }
+    .btn-group.btn-group-sm .btn:not(.active) {
+        background-color: #e9ecef;
+        color: #495057;
+        border-color: #ced4da;
+    }
+    .btn-group.btn-group-sm .btn:not(.active):hover {
+        background-color: #dee2e6;
+        color: #212529;
+    }
+
+    /* Right-align counts in TP header */
+    .tp-rows-header-counts {
+        margin-left: 59px;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    /* Right-align counts in Exported header */
+    .exported-rows-header-counts {
+        margin-left: 23px;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    /* Exported rows table adjustable widths */
+    #exported-rows-table td:nth-child(n+11) { text-align: center; }
+    #exported-rows-table td .sync-square, #exported-rows-table td .sync-circle { vertical-align: middle; }
+
+    /* Make sub-comparison indicators (cols 15–26) pale for exported rows too */
+    #exported-rows-table td:nth-child(n+15):nth-child(-n+26) .sync-ok { background-color: var(--sync-ok-pale-color) !important; }
+    #exported-rows-table td:nth-child(n+15):nth-child(-n+26) .sync-bad { background-color: var(--sync-bad-pale-color) !important; }
+
+    /* Larger indicators for Item Matched (cols 11-12) and TP Synced (cols 13-14) in exported rows too */
+    #exported-rows-table td:nth-child(11) .sync-square,
+    #exported-rows-table td:nth-child(11) .sync-circle,
+    #exported-rows-table td:nth-child(12) .sync-square,
+    #exported-rows-table td:nth-child(12) .sync-circle,
+    #exported-rows-table td:nth-child(13) .sync-square,
+    #exported-rows-table td:nth-child(13) .sync-circle,
+    #exported-rows-table td:nth-child(14) .sync-square,
+    #exported-rows-table td:nth-child(14) .sync-circle { width: var(--sync-indicator-size-large); height: var(--sync-indicator-size-large); }
+    
+
+    #exported-rows-table {
+        table-layout: fixed;
+    }
+
+    /* Column width controls via <colgroup> (defaults; override these vars as needed) */
+    #exported-rows-table { 
+        --w-exported-date: 90px;
+        --w-actual-action: 85px;
+        --w-final-action: 65px;
+        --w-contract-number: 100px;
+        --w-erp-vendor-id: 80px;
+        --w-mfg-part-num: 100px;
+        --w-uom: 60px;
+        --w-uom-infor: 60px;
+        --w-item: 80px;
+        --w-item-infor: 80px;
+    }
+    #exported-rows-table col.col-exported-date { width: var(--w-exported-date); }
+    #exported-rows-table col.col-actual-action { width: var(--w-actual-action); }
+    #exported-rows-table col.col-final-action { width: var(--w-final-action); }
     #exported-rows-table col.col-contract-number { width: var(--w-contract-number); }
-    #exported-rows-table col.col-items-count { width: var(--w-items-count); }
-    #exported-rows-table col.col-export-status { width: var(--w-export-status); }
-    #exported-rows-table col.col-export-date { width: var(--w-export-date); }
+    #exported-rows-table col.col-erp-vendor-id { width: var(--w-erp-vendor-id); }
+    #exported-rows-table col.col-mfg-part-num { width: var(--w-mfg-part-num); }
+    #exported-rows-table col.col-uom { width: var(--w-uom); }
+    #exported-rows-table col.col-uom-infor { width: var(--w-uom-infor); }
+    #exported-rows-table col.col-item { width: var(--w-item); }
+    #exported-rows-table col.col-item-infor { width: var(--w-item-infor); }
+    #exported-rows-table col.col-indicator-large { width: var(--sync-col-large-indicator-width); }
+    #exported-rows-table col.col-indicator { width: var(--sync-col-indicator-width); }
 </style>
 
 <!-- Synchronization Inspection Content -->
@@ -625,7 +695,7 @@
                         <div class="stat-value-pending" id="total-tp-items-pending">0</div>
                         <span class="stat-value-label">(err)</span>
                     </div>
-                    <div class="stat-label">Total TP (To Preproess) Items</div>
+                    <div class="stat-label">Total TP (To Preprocess) Items</div>
                 </div>
                 <div class="summary-stat-card changed-items-card">
                     <div class="stat-value" id="total-changed-items">0</div>
@@ -677,13 +747,26 @@
         <!-- TP Rows Sync Status -->
         <div class="tp-rows-section">
             <div class="section-header">
-                <h5 class="mb-0">
-                    TP Rows Sync Status &nbsp; &nbsp;
-                    <small class="text-muted legend" style="font-weight: normal;">
-                        <span class="sync-square sync-na"></span> Square = TP vs CCX
-                        &nbsp;&nbsp;
-                        <span class="sync-circle sync-na"></span> Circle = TP vs Infor
-                    </small>
+                <h5 class="mb-0 d-flex align-items-center justify-content-between">
+                    <span>
+                        TP Rows Sync Status &nbsp; &nbsp;
+                        <small class="text-muted legend" style="font-weight: normal;">
+                            <span class="sync-square sync-na"></span> Square = TP vs CCX
+                            &nbsp;&nbsp;
+                            <span class="sync-circle sync-na"></span> Circle = TP vs Infor
+                            &nbsp;&nbsp;
+                        </small>
+                    </span>
+                    <span class="btn-group btn-group-sm" role="group" aria-label="Toggle TP rows view">
+                        <button id="tp-view-unsynced-btn" type="button" class="btn btn-outline-primary active">Unsynced</button>
+                        <button id="tp-view-synced-btn" type="button" class="btn btn-outline-primary">Synced</button>
+                        <button id="tp-view-rollup-btn" type="button" class="btn btn-outline-primary">Rollup</button>
+                    </span>
+                    <span class="tp-rows-header-counts">
+                        <span id="tp-rows-count" class="text-primary">0</span> <span> Records </span>
+                        <span class="text-muted"> (Unsynced: <span id="tp-rows-unsynced-count">0</span>)</span>
+                        <span class="text-muted"> (Synced: <span id="tp-rows-synced-count">0</span>)</span>
+                    </span>
                 </h5>
             </div>
             <div class="sync-table-container">
@@ -730,7 +813,7 @@
                             <th rowspan="2">UOM</th>
                             <th rowspan="2">UOM (EDI)</th>
                             <th rowspan="2">Item (TP)</th>
-                            <th rowspan="2">Ite (Infor)</th>
+                            <th rowspan="2">Item (Infor)</th>
 
                             <th colspan="2">Item Matched</th>
                             <th colspan="2">TP Synced (Overall)</th>
@@ -752,9 +835,28 @@
                             <th>C</th><th>I</th>
                         </tr>
                     </thead>
-            <tbody id="tp-rows-tbody">
+                    <tbody id="tp-rows-tbody">
                         <tr>
-                <td colspan="26" class="text-center text-muted">Select a task and click View Sync Details</td>
+                            <td colspan="26" class="text-center text-muted">Select a task and click View Sync Details</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <!-- TP Rows Rollup table (hidden by default) -->
+                <table class="sync-table" id="tp-rows-table-rollup" style="display:none; margin-top:12px;">
+                    <thead>
+                        <tr>
+                            <th>Intended Action</th>
+                            <th>File Row Action</th>
+                            <th class="text-center">Total Rows</th>
+                            <th class="text-center">CCX Item Matched</th>
+                            <th class="text-center">Infor Item Matched</th>
+                            <th class="text-center">CCX TP Synced</th>
+                            <th class="text-center">Infor TP Synced</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tp-rows-rollup-tbody">
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">Rollup view will appear after loading sync details</td>
                         </tr>
                     </tbody>
                 </table>
@@ -764,29 +866,115 @@
         <!-- Exported Rows Sync Status -->
         <div class="exported-rows-section">
             <div class="section-header">
-                <h5 class="mb-0">Exported Rows Sync Status</h5>
+                <h5 class="mb-0 d-flex align-items-center justify-content-between">
+                    <span>Exported Rows Sync Status &nbsp; &nbsp;
+                    <small class="text-muted legend" style="font-weight: normal;">
+                            <span class="sync-square sync-na"></span> Square = TP vs CCX
+                            &nbsp;&nbsp;
+                            <span class="sync-circle sync-na"></span> Circle = TP vs Infor
+                            &nbsp;&nbsp;
+                        </small>
+                    </span>
+                    <span class="btn-group btn-group-sm" role="group" aria-label="Toggle Exported rows view">
+                        <button id="exported-view-unsynced-btn" type="button" class="btn btn-outline-primary active">Unsynced</button>
+                        <button id="exported-view-synced-btn" type="button" class="btn btn-outline-primary">Synced</button>
+                        <button id="exported-view-rollup-btn" type="button" class="btn btn-outline-primary">Rollup</button>
+                    </span>
+                    <span class="exported-rows-header-counts">
+                        <span id="exported-rows-count" class="text-primary">0</span> <span> Records </span>
+                        <span class="text-muted"> (Unsynced: <span id="exported-rows-unsynced-count">0</span>)</span>
+                        <span class="text-muted"> (Synced: <span id="exported-rows-synced-count">0</span>)</span>
+                    </span>
+                </h5>
             </div>
             <div class="sync-table-container">
                 <table class="sync-table" id="exported-rows-table">
                     <colgroup>
-                        <col class="col-export-group" />
+                        <!-- 10 descriptive columns -->
+                        <col class="col-exported-date" />
+                        <col class="col-actual-action" />
+                        <col class="col-final-action" />
                         <col class="col-contract-number" />
-                        <col class="col-items-count" />
-                        <col class="col-export-status" />
-                        <col class="col-export-date" />
+                        <col class="col-erp-vendor-id" />
+                        <col class="col-mfg-part-num" />
+                        <col class="col-uom" />
+                        <col class="col-uom-infor" />
+                        <col class="col-item" />
+                        <col class="col-item-infor" />
+                        <!-- 16 indicator columns (first 4 wider/larger) -->
+                        <col class="col-indicator-large" />
+                        <col class="col-indicator-large" />
+                        <col class="col-indicator-large" />
+                        <col class="col-indicator-large" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
+                        <col class="col-indicator" />
                     </colgroup>
                     <thead>
-                        <tr>
-                            <th>Export Group</th>
-                            <th>Contract Number</th>
-                            <th>Items Count</th>
-                            <th>Export Status</th>
-                            <th>Export Date</th>
+                        <tr class="head-group">
+                            <th rowspan="2">Exported Date</th>
+                            <th rowspan="2">Actual Action</th>
+                            <th rowspan="2">Final Action</th>
+                            <th rowspan="2">Contract Number</th>
+                            <th rowspan="2">ERP Vendor ID</th>
+                            <th rowspan="2">Mfg Part Num</th>
+                            <th rowspan="2">UOM</th>
+                            <th rowspan="2">UOM (EDI)</th>
+                            <th rowspan="2">Item (TP)</th>
+                            <th rowspan="2">Item (Infor)</th>
+
+                            <th colspan="2">Item Matched</th>
+                            <th colspan="2">TP Synced (Overall)</th>
+                            <th colspan="2">QOE</th>
+                            <th colspan="2">Price</th>
+                            <th colspan="2">Vendor Part Num</th>
+                            <th colspan="2">Effective Date</th>
+                            <th colspan="2">Expiration Date</th>
+                            <th colspan="2">Description</th>
+                        </tr>
+                        <tr class="head-sub">
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
+                            <th>C</th><th>I</th>
                         </tr>
                     </thead>
-                    <tbody id="exported-rows-tbody">
+            <tbody id="exported-rows-tbody">
                         <tr>
-                            <td colspan="5" class="text-center text-muted">Placeholder - Exported rows sync status will be displayed here</td>
+                <td colspan="26" class="text-center text-muted">Select a task and click View Sync Details</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <!-- Rollup table (hidden by default) -->
+                <table class="sync-table" id="exported-rows-table-rollup" style="display:none; margin-top:12px;">
+                    <thead>
+                        <tr>
+                            <th>Actual Action</th>
+                            <th>Final Action</th>
+                            <th class="text-center">Total Rows</th>
+                            <th class="text-center">CCX Item Matched</th>
+                            <th class="text-center">Infor Item Matched</th>
+                            <th class="text-center">CCX TP Synced</th>
+                            <th class="text-center">Infor TP Synced</th>
+                        </tr>
+                    </thead>
+                    <tbody id="exported-rows-rollup-tbody">
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">Rollup view will appear after loading sync details</td>
                         </tr>
                     </tbody>
                 </table>
@@ -800,7 +988,9 @@
             </div>
             
             <div class="completion-buttons">
-                <p class="text-muted mb-3" style="width: 100%; margin-bottom: 15px;">If you've verified the synchronization status, you can manually mark this task as completed.</p>
+                <p class="text-muted mb-3" style="width: 100%; margin-bottom: 15px;">
+                    Manually mark this task as synchronized if you have reviewed all the unsync/pending/error records and think you are satisfied.
+                </p>
                 <button id="mark-ccx-btn" class="btn btn-success">
                     Mark as Completed Sync to CCX
                 </button>
@@ -808,7 +998,7 @@
                     Mark as Completed Sync to Infor
                 </button>
                 <button id="go-home-btn" class="btn btn-secondary">
-                    Go Home
+                    Do nothing, go Home
                 </button>
             </div>
 

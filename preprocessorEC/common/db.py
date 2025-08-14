@@ -2309,3 +2309,99 @@ def get_tp_row_sync_by_taskid(conn, task_id):
         except Exception:
             print(msg)
         return False, msg, None
+
+
+def get_exported_row_sync_by_taskid(conn, task_id):
+    """
+    Return Exported Rows sync details for a task.
+
+    Uses the query provided, substituting:
+      - [Exported Date] (from try_convert(date, ExportedDT))
+      - [Final Action] (IIF([Final Rank]=1,'Execute','Masked'))
+
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+
+    Returns:
+        Tuple[bool, str|None, list|None]: (success, error_message, rows)
+    """
+    try:
+        cursor = conn.cursor()
+        query = """
+        SELECT 
+            ccx_tp.TaskID, 
+            ccx_tp.PKID, 
+            try_convert(date, ccx_tp.[ExportedDT]) as [Exported Date], --replace [Intended Action]
+            IIF(ccx_tp.[Final Rank] = 1, 'Execute', 'Masked') as [Final Action], -- replace [File Row Action]
+            ccx_tp.[Actual Action], 
+            ccx_tp.[ERP Vendor ID (CCX Sync)] AS [ERP Vendor ID], 
+            ccx_tp.[Contract Number],
+            ccx_tp.[Mfg Part Num], 
+            ccx_tp.[UOM], 
+            UOM_INFOR,
+            Item, Item_Infor,
+            ccx_tp.Item_Matching_Flag AS Item_Matching_Flag_CCX, 
+            infor_tp.Item_Matching_Flag AS Item_Matching_Flag_Infor,
+            ccx_tp.Synced AS TP_CCX_Synced, 
+            infor_tp.Synced AS TP_Infor_Synced,
+            ccx_tp.QOE AS QOE_TP, 
+            QOE_CCX, 
+            QOE_Infor,
+            ccx_tp.[Contract Price] AS Price_TP, 
+            PRICE AS Price_CCX, 
+            BaseCost AS Price_Infor,
+            ccx_tp.[Vendor Part Num] AS VendorPartNum_TP, 
+            VENDOR_PART_NUMBER AS VendorPartNum_CCX, 
+            VendorItem AS VendorPartNum_Infor,
+            ccx_tp.[Effective Date] AS EffectiveDate_TP, 
+            ITEM_PRICE_START_DATE AS EffectiveDate_CCX, 
+            EffectiveDate AS EffectiveDate_Infor,
+            ccx_tp.[Expiration Date] AS ExpirationDate_TP, 
+            ITEM_PRICE_END_DATE AS ExpirationDate_CCX, 
+            ExpirationDate AS ExpirationDate_Infor,
+            ccx_tp.[Description] AS Description_TP, 
+            PART_DESCRIPTION AS Description_CCX, 
+            ItemDescription AS Description_Infor,
+            CCX_LAST_REFRESH, 
+            infor_record_update,
+
+            -- Comparisons TP vs CCX
+            CASE WHEN ccx_tp.QOE = QOE_CCX THEN 1 ELSE 0 END AS Match_QOE_TP_CCX,
+            CASE WHEN ccx_tp.[Contract Price] = PRICE THEN 1 ELSE 0 END AS Match_Price_TP_CCX,
+            CASE WHEN ccx_tp.[Vendor Part Num] COLLATE Latin1_General_CS_AS = VENDOR_PART_NUMBER COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_CCX,
+            CASE WHEN ccx_tp.[Effective Date] = ITEM_PRICE_START_DATE THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_CCX,
+            CASE WHEN ccx_tp.[Expiration Date] = ITEM_PRICE_END_DATE THEN 1 ELSE 0 END AS Match_ExpirationDate_TP_CCX,
+            CASE WHEN ccx_tp.[Description] COLLATE Latin1_General_CS_AS = PART_DESCRIPTION COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_Description_TP_CCX,
+
+            -- Comparisons TP vs Infor
+            CASE WHEN ccx_tp.QOE = QOE_Infor THEN 1 ELSE 0 END AS Match_QOE_TP_Infor,
+            CASE WHEN ccx_tp.[Contract Price] = BaseCost THEN 1 ELSE 0 END AS Match_Price_TP_Infor,
+            CASE WHEN ccx_tp.[Vendor Part Num] COLLATE Latin1_General_CS_AS = VendorItem COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_Infor,
+            CASE WHEN ccx_tp.[Effective Date] = EffectiveDate THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_Infor,
+            CASE WHEN ccx_tp.[Expiration Date] = ExpirationDate THEN 1 ELSE 0 END AS Match_ExpirationDate_TP_Infor,
+            -1 Match_Description_TP_Infor
+
+        FROM [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspection AS ccx_tp
+        JOIN [DM_MONTYNT\\dli2].vw_PreprocessorSyncInspection2 AS infor_tp
+            ON ccx_tp.TaskID = infor_tp.TaskID
+           AND ccx_tp.PKID = infor_tp.PKID
+        WHERE ccx_tp.TaskID = ?
+        ORDER BY TP_CCX_Synced, TP_Infor_Synced, Item_Matching_Flag_CCX desc, Item_Matching_Flag_Infor desc,
+        ccx_tp.PKID
+        """
+        cursor.execute(query, (task_id,))
+        rows = cursor.fetchall()
+        columns = [c[0] for c in cursor.description]
+        out = []
+        for row in rows:
+            cleaned = [fix_encoding(v) for v in row]
+            out.append(dict(zip(columns, cleaned)))
+        return True, None, out
+    except Exception as e:
+        msg = f"Error getting exported rows sync for {task_id}: {str(e)}"
+        try:
+            current_app.logger.error(msg)
+        except Exception:
+            print(msg)
+        return False, msg, None

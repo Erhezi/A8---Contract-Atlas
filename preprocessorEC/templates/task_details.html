@@ -403,6 +403,16 @@
         cursor: not-allowed;
     }
 
+    /* Disabled Go Sync Inspection button styling */
+    #go-sync-inspection-btn.disabled-sync {
+        cursor: not-allowed !important;
+        opacity: 0.5;
+    }
+    
+    #go-sync-inspection-btn.disabled-sync:hover {
+        opacity: 0.5;
+    }
+
     /* Add style for the sync status section */
     .sync-status {
         margin-top: 50px;
@@ -466,7 +476,7 @@
     <div class="info-row">
         <div class="info-item">
             <div class="info-label">Status (CCX):</div>
-            <div>
+            <div id="status-ccx-value">
                 {% if task.Status == 'Completed' %}
                     <span class="info-value-success">Completed</span>
                 {% elif task.Status == 'Exported' %}
@@ -484,7 +494,7 @@
         </div>
         <div class="info-item">
             <div class="info-label">Status (Infor):</div>
-            <div>
+            <div id="status-infor-value">
                 {% if task.Status2 == 'Completed' %}
                     <span class="info-value-success">Completed</span>
                 {% elif task.Status2 == 'Pending' %}
@@ -536,7 +546,7 @@
     
     <div class="task-actions">
         <a href="{{ url_for('data_export.view_history') }}" class="btn btn-secondary">Back to History</a>
-        <a href="{{ url_for('common.goto_step', step_id=7) }}" class="btn btn-primary">Go Sync Inspection</a>
+        <a href="{{ url_for('common.goto_step', step_id=7) }}" class="btn btn-primary" id="go-sync-inspection-btn">Go Sync Inspection</a>
     </div>
 
     <!-- Section to display Sync status for all exported rows -->

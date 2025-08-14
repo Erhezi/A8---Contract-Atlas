@@ -1,3 +1,12 @@
+/*step3*/
+/** * Step 3: Deduplication Policy and Resolution JavaScript
+ * Handles deduplication policy selection, custom policy options,
+ * drag-and-drop priority ranking,
+ * deduplication resolution application,
+ * and results display.
+ * Also includes filtering, manual adjustments, and saving selections.
+ * Supports both custom and manual resolution modes.
+ */
 document.addEventListener('DOMContentLoaded', function() {
     const resolutionStrategy = document.getElementById('resolution_strategy');
     const customPolicyOptions = document.getElementById('custom_policy_options');

@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response
 from flask import current_app, stream_with_context
 from flask_login import login_required, current_user
-from ..common.db import get_db_connection, get_task_history, get_sync_percentages, get_inspection_summary_count, get_affected_contract_by_task, get_tp_row_sync_by_taskid
+from ..common.db import get_db_connection, get_task_history, get_sync_percentages, get_inspection_summary_count, get_affected_contract_by_task, get_tp_row_sync_by_taskid, get_exported_row_sync_by_taskid
 from ..common.session import store_current_step, store_completed_steps, get_completed_steps
 
 
@@ -114,31 +114,27 @@ def get_sync_details(task_id):
         if not success_tp:
             tp_rows = []
             current_app.logger.warning(f'Could not retrieve TP rows sync data for task {task_id}: {error_msg_tp}')
-
-        print(tp_rows[:3]) # Debugging line to check TP rows data
-
+    
+        
+        # Exported rows (real data)
+        success_exp, error_msg_exp, exported_rows = get_exported_row_sync_by_taskid(conn, task_id)
+        if not success_exp:
+            exported_rows = []
+            current_app.logger.warning(f'Could not retrieve Exported rows sync data for task {task_id}: {error_msg_exp}')
+        
+        print(f"Retrieved {len(exported_rows)} exported rows for task {task_id}")
+        if exported_rows:
+            print("Sample exported row:", exported_rows[0])
+        else:
+            print("No exported rows data available")
+        # shape exported rows to match frontend renderer if needed
+        # Frontend can consume either the detailed dataset or aggregated; we'll pass detailed list
         sync_details = {
             'taskId': task_id,
             'summary': summary,
             'contractsAffected': contracts_data,
             'tpRowsStatus': tp_rows,
-            'exportedRowsStatus': [
-                # Placeholder data with export sync info
-                {
-                    'exportGroup': 'CCX Export',
-                    'contractNumber': 'Multiple',
-                    'itemsCount': summary['totalChangedItems'] if summary['totalChangedItems'] != 'N/A' else 0,
-                    'exportStatus': 'N/A',
-                    'exportDate': 'Latest export'
-                },
-                {
-                    'exportGroup': 'Infor Export',
-                    'contractNumber': 'Multiple',
-                    'itemsCount': summary['totalChangedItems'] if summary['totalChangedItems'] != 'N/A' else 0,
-                    'exportStatus':  'N/A',
-                    'exportDate': 'Latest export'
-                }
-            ]
+            'exportedRowsStatus': exported_rows
         }
         
         return jsonify({

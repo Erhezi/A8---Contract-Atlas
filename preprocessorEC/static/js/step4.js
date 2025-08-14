@@ -1,3 +1,10 @@
+/*step4*/
+/** * Step 4: Infor Contract Lines Matching JavaScript
+ * Handles Infor Contract Lines matching, item comparison,
+ * confidence level selection, and item master matching.
+ * Also includes filtering, sorting, and saving false positive selections.
+ * Handles both Step 4.1 and Step 4.2 functionalities.
+ */
 document.addEventListener('DOMContentLoaded', function() {
     // Elements for Step 4.1
     const startInforCLMatchingBtn = document.getElementById('start-infor-cl-matching-btn');
