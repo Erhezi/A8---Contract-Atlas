@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response
 from flask import current_app, stream_with_context
 from flask_login import login_required, current_user
-from ..common.db import get_db_connection, get_task_history, get_sync_percentages, get_inspection_summary_count, get_affected_contract_by_task, get_tp_row_sync_by_taskid, get_exported_row_sync_by_taskid
+from ..common.db import get_db_connection, get_task_history, get_inspection_summary_count, get_affected_contract_by_task, get_tp_row_sync_by_taskid, get_exported_row_sync_by_taskid
 from ..common.session import store_current_step, store_completed_steps, get_completed_steps
 
 

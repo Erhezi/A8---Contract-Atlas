@@ -42,6 +42,15 @@ let searchInput = null;
 document.addEventListener('DOMContentLoaded', function() {
     createCustomDropdown();
     loadTaskHeaders();
+
+    //check if a taskID is passed in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const taskIdFromUrl = urlParams.get('task_id');
+    if (taskIdFromUrl) {
+        console.log('Task ID from URL:', taskIdFromUrl);
+        selectTask(taskIdFromUrl, `Task ID: ${taskIdFromUrl}`);
+    }
+
     setupEventListeners();
     updateTpSubheadTop();
     updateExportedSubheadTop();
@@ -65,6 +74,25 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('resize', updateTpSubheadTop);
 window.addEventListener('resize', updateExportedSubheadTop);
 
+// Completion buttons
+markCcxBtn.addEventListener('click', function() {
+    markStepCompleted('CCX');
+});
+
+markInforBtn.addEventListener('click', function() {
+    markStepCompleted('Infor');
+});
+
+// Go home button
+goHomeBtn.addEventListener('click', function() {
+    window.location.href = '/common/home';
+});
+
+// Next step button
+nextStepBtn.addEventListener('click', function() {
+    proceedToNextStep();
+});
+
 function createCustomDropdown() {
     const wrapper = document.querySelector('.custom-select-wrapper');
     
@@ -74,7 +102,7 @@ function createCustomDropdown() {
     
     dropdownToggle = document.createElement('button');
     dropdownToggle.className = 'custom-dropdown-toggle';
-    dropdownToggle.textContent = 'All Tasks - Select Task ID to Inspect';
+    dropdownToggle.textContent = 'All Tasks - Select Task ID to Inspect (only exported tasks will be shown)';
     dropdownToggle.type = 'button';
     
     dropdownMenu = document.createElement('div');
@@ -211,7 +239,7 @@ function filterDropdownOptions() {
 
 function selectTask(taskId, taskText) {
     selectedTaskId = taskId;
-    dropdownToggle.textContent = taskText || 'All Tasks - Select Task ID to Inspect';
+    dropdownToggle.textContent = taskText || 'All Tasks - Select Task ID to Inspect (only exported tasks will be shown)';
     
     // Update button state
     viewSyncDetailsBtn.disabled = !taskId;
@@ -232,103 +260,6 @@ function selectTask(taskId, taskText) {
     closeDropdown();
 }
 
-    // Completion buttons
-    markCcxBtn.addEventListener('click', function() {
-        markStepCompleted('CCX');
-    });
-
-    markInforBtn.addEventListener('click', function() {
-        markStepCompleted('Infor');
-    });
-
-    // Go home button
-    goHomeBtn.addEventListener('click', function() {
-        window.location.href = '/common/home';
-    });
-
-    // Next step button
-    nextStepBtn.addEventListener('click', function() {
-        proceedToNextStep();
-    });
-
-
-function toggleDropdown() {
-    const isOpen = dropdownMenu.classList.contains('show');
-    
-    if (isOpen) {
-        closeDropdown();
-    } else {
-        openDropdown();
-    }
-}
-
-function openDropdown() {
-    dropdownMenu.classList.add('show');
-    dropdownToggle.classList.add('open');
-    searchInput.focus();
-}
-
-function closeDropdown() {
-    dropdownMenu.classList.remove('show');
-    dropdownToggle.classList.remove('open');
-    searchInput.value = '';
-    filterDropdownOptions(); // Reset filter
-}
-
-function filterDropdownOptions() {
-    const searchTerm = searchInput.value.toLowerCase();
-    const options = dropdownMenu.querySelectorAll('.dropdown-option');
-    let visibleCount = 0;
-    
-    options.forEach(option => {
-        const text = option.textContent.toLowerCase();
-        const shouldShow = text.includes(searchTerm);
-        
-        if (shouldShow) {
-            option.classList.remove('hidden');
-            visibleCount++;
-        } else {
-            option.classList.add('hidden');
-        }
-    });
-    
-    // Show/hide no results message
-    let noResultsMsg = dropdownMenu.querySelector('.no-results');
-    if (visibleCount === 0 && searchTerm && options.length > 0) {
-        if (!noResultsMsg) {
-            noResultsMsg = document.createElement('div');
-            noResultsMsg.className = 'no-results';
-            noResultsMsg.textContent = 'No tasks match your search';
-            dropdownMenu.appendChild(noResultsMsg);
-        }
-        noResultsMsg.style.display = 'block';
-    } else if (noResultsMsg) {
-        noResultsMsg.style.display = 'none';
-    }
-}
-
-function selectTask(taskId, taskText) {
-    selectedTaskId = taskId;
-    dropdownToggle.textContent = taskText || 'All Tasks - Select Task ID to Inspect';
-    
-    // Update button state
-    viewSyncDetailsBtn.disabled = !taskId;
-    
-    // Update selected state in dropdown
-    const options = dropdownMenu.querySelectorAll('.dropdown-option');
-    options.forEach(option => {
-        if (option.dataset.taskId === taskId) {
-            option.classList.add('selected');
-        } else {
-            option.classList.remove('selected');
-        }
-    });
-    
-    // Re-render table to show only selected task or all tasks
-    renderTaskHeaders(currentTasks);
-    
-    closeDropdown();
-}
 
 function showLoading() {
     loadingSpinner.style.display = 'flex';
@@ -436,9 +367,9 @@ function populateTaskFilter(tasks) {
     const allTasksOption = document.createElement('div');
     allTasksOption.className = 'dropdown-option';
     allTasksOption.dataset.taskId = '';
-    allTasksOption.textContent = 'All Tasks - Show All';
+    allTasksOption.textContent = 'All Tasks - Show All Available to Inspect';
     allTasksOption.addEventListener('click', function() {
-        selectTask('', 'All Tasks - Select Task ID to Inspect');
+        selectTask('', 'All Tasks - Select Task ID to Inspect (only exported tasks will be shown)');
     });
     dropdownMenu.appendChild(allTasksOption);
     
@@ -584,7 +515,12 @@ function renderSyncDetails(syncData) {
 // Show/hide the comment box when errors exist
 function updateCommentSection() {
     if (!commentSection) return;
-    commentSection.style.display = hasErrors ? 'block' : 'none';
+    // Get unsynced counts from both tables
+    const tpUnsyncedCount = parseInt(document.getElementById('tp-rows-unsynced-count')?.textContent || '0', 10);
+    const exportedUnsyncedCount = parseInt(document.getElementById('exported-rows-unsynced-count')?.textContent || '0', 10);
+
+    // Show the comment section if there are errors or unsynced rows in either table
+    commentSection.style.display = hasErrors || tpUnsyncedCount > 0 || exportedUnsyncedCount > 0 ? 'block' : 'none';
 }
 
 // Update TP header counts (total, unsynced, synced)
@@ -820,11 +756,6 @@ function renderTPRowsRollup(tpRows) {
     tbody.innerHTML = html || '<tr><td colspan="7" class="text-center text-muted">No rollup results</td></tr>';
 }
 
-// Show/hide the comment box when errors exist
-function updateCommentSection() {
-    if (!commentSection) return;
-    commentSection.style.display = hasErrors ? 'block' : 'none';
-}
 
 function renderExportedRowsStatus(exportedRows) {
     const tbody = document.getElementById('exported-rows-tbody');

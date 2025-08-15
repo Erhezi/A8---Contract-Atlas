@@ -1045,7 +1045,7 @@ def apply_deduplication_policy(comparison_results, policy, custom_fields=None, s
     # make QOE in stacked_df as integer
     stacked_df['QOE'] = pd.to_numeric(stacked_df['QOE'], errors='coerce').astype('Int64')
     # make sure the join key columns are in the same format
-    stacked_df['Mfg Part Num'] = stacked_df['Mfg Part Num'].astype(str).str.strip().str.upper()
+    stacked_df['Mfg Part Num'] = stacked_df['Mfg Part Num'].astype(str).str.strip() # important, no uppercase for non-TP dataset, we need to identify differences here
     stacked_df['Contract Number'] = stacked_df['Contract Number'].astype(str).str.strip().str.upper()
     stacked_df['File Row'] = stacked_df['File Row'].astype(int) 
 
@@ -1190,11 +1190,11 @@ def three_way_contract_line_matching(comparison_results,
     all_items_df['upload_ea_price'] = all_items_df['Contract_Price'].astype(float) / all_items_df['QOE'].astype(int)
 
     # make sure the join key columns are in the same format
-    all_items_df['mfg_part_num_infor'] = all_items_df['mfg_part_num_infor'].astype(str).str.strip().str.upper()
+    all_items_df['mfg_part_num_infor'] = all_items_df['mfg_part_num_infor'].astype(str).str.strip().str.upper() #technically Infor should have this automatically upper cased
     all_items_df['contract_number_infor'] = all_items_df['contract_number_infor'].astype(str).str.strip().str.upper()
     all_items_df['File_Row'] = all_items_df['File_Row'].astype(int)
 
-    ccx_df['Mfg Part Num'] = ccx_df['Mfg Part Num'].astype(str).str.strip().str.upper()
+    ccx_df['Mfg Part Num'] = ccx_df['Mfg Part Num'].astype(str).str.strip().str.upper() #make upper case to aid join
     ccx_df['Contract Number'] = ccx_df['Contract Number'].astype(str).str.strip().str.upper()
     ccx_df['File Row'] = ccx_df['File Row'].astype(int)
 
@@ -1282,6 +1282,9 @@ def make_infor_upload_stack(merged_df):
     
     Returns:
         DataFrame with stacked Infor CL data
+
+    Note: 
+        the function is not being used, we just keep it in case we need it in the future
     """
      
     infor_cl_data, upload_cl_data = [], []

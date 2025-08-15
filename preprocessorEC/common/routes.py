@@ -125,10 +125,17 @@ def dashboard():
             # Render a minimal error page or redirect to a safe location
             return render_template('error.html', error_message="Workflow steps not configured."), 500
 
+    # get task_id from query parameters if available for step 7
+    if current_step_obj['id'] == 7:
+        task_id = request.args.get('task_id', None)
+    else:
+        task_id = None
+    
     return render_template('dashboard.html',
                            current_step=current_step_obj,
                            steps=all_steps,
-                           completed_steps=completed_steps) # Pass completed steps to template
+                           completed_steps=completed_steps,
+                           task_id = task_id) # Pass parameters to front end
 
 
 @common_bp.route('/goto-step/<int:step_id>', methods=['GET'])
@@ -138,6 +145,7 @@ def goto_step(step_id):
     user_id = current_user.id
     completed_steps = get_completed_steps(user_id)
     current_step_id = get_current_step_from_session(user_id)
+    task_id = request.args.get('task_id', None)
 
     if step_id == 7:
         completed_steps = [1, 2, 3, 4, 5, 6]
@@ -145,8 +153,11 @@ def goto_step(step_id):
         store_current_step(user_id, 7)  # Set current step to 7
         session.modified = True
         flash("Navigated to Sync Inspection.", 'info')
+        # If task_id is provided, store it in the session
+        if task_id:
+            return redirect(url_for('common.dashboard', task_id = task_id))
         return redirect(url_for('common.dashboard'))
-    
+                
     if step_id == 6:
         completed_steps = [1, 2, 3, 4, 5]
         store_completed_steps(user_id, completed_steps)

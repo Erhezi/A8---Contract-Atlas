@@ -8,16 +8,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const ccxEl = document.getElementById('status-ccx-value');
         const inforEl = document.getElementById('status-infor-value');
 
-        console.log('CCX Element:', ccxEl.textContent);
-        console.log('Infor Element:', inforEl.textContent);
-
         if(!ccxEl || !inforEl) return; // if not present, skip
         const ccxStatus = (ccxEl.textContent || '').trim();
         const inforStatus = (inforEl.textContent || '').trim();
-        // const allowedCcx = ['Exported','Completed'];
+        const allowedCcx = ['Exported','Completed'];
         // Rule: if CCX status NOT in ['Exported','Completed'] AND Infor status is Completed -> disable
-        // Rule update: if both status are completed -> disable
-        if(ccxStatus === 'Completed' || inforStatus === 'Completed'){
+        if(!allowedCcx.includes(ccxStatus) || inforStatus === 'Completed'){
             btn.classList.add('disabled-sync');
             btn.setAttribute('aria-disabled','true');
             btn.addEventListener('click', function(e){ e.preventDefault(); });
