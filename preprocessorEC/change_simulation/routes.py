@@ -214,7 +214,7 @@ def show_changes():
             'fixed_pos': master_pos_serializable,
             'changes_to_show': changes_to_show_df.to_dict(orient='records'),
             'reference_for_expire_rows': reference_for_expire_rows.to_dict(orient='records') if not reference_for_expire_rows.empty else [],
-            'contract_line_count': contract_line_count_df.to_dict(orient='records')
+            'contract_line_count': contract_line_count_df.to_dict(orient='records'),
         }
         store_change_simulation_results(user_id, simulation_results)
         
@@ -284,6 +284,7 @@ def update_expire_selections():
         
         # Create lookup dictionaries with enhanced composite key for faster matching
         update_lookup = {}
+        update_lookup_mute_tp = {}
         for selection in expire_selections:
             # Create an enhanced composite key with UOM added
             key = (
@@ -323,7 +324,7 @@ def update_expire_selections():
                 )
                 if key in update_lookup:
                     item['Do Not Expire'] = update_lookup[key]
-        
+
         # Save updated data back to session
         simulation_results['changes_to_show'] = changes_to_show
         simulation_results['all_changes'] = all_changes

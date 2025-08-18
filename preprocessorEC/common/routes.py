@@ -130,7 +130,8 @@ def dashboard():
         task_id = request.args.get('task_id', None)
     else:
         task_id = None
-    
+
+
     return render_template('dashboard.html',
                            current_step=current_step_obj,
                            steps=all_steps,
@@ -148,7 +149,7 @@ def goto_step(step_id):
     task_id = request.args.get('task_id', None)
 
     if step_id == 7:
-        completed_steps = [1, 2, 3, 4, 5, 6]
+        completed_steps = [6]
         store_completed_steps(user_id, completed_steps)
         store_current_step(user_id, 7)  # Set current step to 7
         session.modified = True
@@ -159,7 +160,7 @@ def goto_step(step_id):
         return redirect(url_for('common.dashboard'))
                 
     if step_id == 6:
-        completed_steps = [1, 2, 3, 4, 5]
+        completed_steps = []
         store_completed_steps(user_id, completed_steps)
         store_current_step(user_id, 6)  # Set current step to 6
         session.modified = True
@@ -278,7 +279,7 @@ def process_step(step_id):
     
     # Validate if user can process this step (should be the current step)
     current_step_id = get_current_step_from_session(user_id)
-    if step_id != current_step_id:
+    if (step_id != current_step_id) and (current_step_id not in [6, 7, 8]):
         flash(f"Cannot process Step {step_id}. Current step is {current_step_id}.", 'warning')
         return redirect(url_for('common.dashboard'))
 

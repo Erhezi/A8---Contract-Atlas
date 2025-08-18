@@ -872,9 +872,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         eventSource.onmessage = function(event) {
             try {
-                console.log("Raw event data:", event.data);
+                //console.log("Raw event data:", event.data);
                 const data = JSON.parse(event.data);
-                console.log("Parsed progress data:", data);
+                //console.log("Parsed progress data:", data);
                 
                 // Update progress indicators
                 progressBar.style.width = data.progress + '%';

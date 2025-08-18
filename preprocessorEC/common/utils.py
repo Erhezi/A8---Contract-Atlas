@@ -1644,7 +1644,9 @@ def change_simulation_stage1(validated_df, stacked_df):
     
     return df_cross
 
-def actual_action_on_update_row(row, update_action_mode = None):
+def actual_action_on_update_row(row, 
+                                suffixes = ('_keep', '_drop'),
+                                update_action_mode = None):
     fields_to_compare = ['Mfg Part Num', 'Vendor Part Num',
                         'Buyer Part Num', 'Description', 'Contract Price',
                         'UOM', 'QOE', 'Effective Date', 'Expiration Date',
@@ -1653,8 +1655,8 @@ def actual_action_on_update_row(row, update_action_mode = None):
     comparison_results = []
     for field in fields_to_compare:
         if field != 'Buyer Part Num':
-            field_keep = field + '_keep'
-            field_drop = field + '_drop'
+            field_keep = field + suffixes[0]
+            field_drop = field + suffixes[1]
             if field != 'ERP Vendor ID':
                 res = row[field_keep] == row[field_drop]
             else:
@@ -1768,6 +1770,13 @@ def final_data_helper(row, group = 'keep',
 
 
 def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new'):
+    """
+    the main function that compute the actual action we should taken for each contract line
+    Args:
+        validated_df: DataFrame with validated data
+        stacked_df: DataFrame with stacked data
+        update_action_mode: str, either 'legacy' or 'new', to determine the action logic on update rows
+    """
     upsert_file_row = set(validated_df[validated_df['Intended Action'] == 'Upsert']['File Row'])
     stacked_df['Contract Number'] = stacked_df['Contract Number'].astype(str).str.strip().str.upper()
     keep_df = stacked_df[stacked_df['Keep'] == True].copy()
@@ -1789,7 +1798,9 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
         update_rows = set()
         expire_rows = set()
         for i, row in df_m.iterrows():
-            a_action, q_check = actual_action_on_update_row(row, update_action_mode = update_action_mode) #we can choose different action mode here
+            a_action, q_check = actual_action_on_update_row(row, 
+                                                            suffixes = ('_keep', '_drop'),
+                                                            update_action_mode = update_action_mode) #we can choose different action mode here
             if row['Intended Action'] == 'Upsert':
                 if row['Dataset_keep'] == 'TP':
                     if row['Contract Number_keep'] == row['Contract Number_drop']:
@@ -2241,7 +2252,7 @@ def compute_changes_to_show(data_change_show_df, merged_df, analyzed_df):
                                                                                 'Expire then Create (Expire)',
                                                                                 'Expire then Create (Create)',
                                                                                 'Expire'])].copy()
-
+    
     # add column to let user forgive the expiration of the item by mark 'Do Not Expire' as true (default to False)
     # for anything that are not set up as 'Expire CCX' under primary action, we will set it to nan
     changes_simulation_result_df['Do Not Expire'] = None
@@ -2258,12 +2269,18 @@ def compute_changes_to_show(data_change_show_df, merged_df, analyzed_df):
     reference_for_expire_rows_upsert = base_im_df[(base_im_df['File Row'].isin(file_rows_to_expire)) & 
                                            (base_im_df['Group'] == 'Keep') &
                                            (base_im_df['Intended Action'] == 'Upsert')].copy()
+    reference_for_expire_rows_upsert_tp_mute = base_im_df[(base_im_df['File Row'].isin(file_rows_to_expire)) &
+                                                          (base_im_df['Group'] == 'Drop') &
+                                                          (base_im_df['Intended Action'] == 'Upsert') &
+                                                          (base_im_df['Primary Action'] == 'Mute TP')].copy()
     reference_for_expire_rows_expire = base_im_df[(base_im_df['File Row'].isin(file_rows_to_expire)) &
                                                   (base_im_df['Group'] == 'Drop') &
                                                   (base_im_df['Intended Action'] == 'Expire') &
                                                   (base_im_df['Primary Action'] != 'Expire CCX')].copy()
     
-    reference_for_expire_rows = pd.concat([reference_for_expire_rows_upsert, reference_for_expire_rows_expire], ignore_index=True)
+    reference_for_expire_rows = pd.concat([reference_for_expire_rows_upsert, 
+                                           reference_for_expire_rows_upsert_tp_mute,
+                                           reference_for_expire_rows_expire,], ignore_index=True)
 
     changes_simulation_result_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'changes_simulation_result_df.xlsx'), index=False)
     reference_for_expire_rows.to_excel(os.path.join(current_app.root_path, 'temp_files', 'reference_for_expire_rows.xlsx'), index=False)
@@ -2445,7 +2462,7 @@ def safe_to_retain_row_helper(row):
         'Effective Date': row['Effective Date_expck'],
         'Expiration Date': row['Expiration Date (before action)_expck'],  # this will get changed back to the 'before action' value
         'ERP Vendor ID': row['ERP Vendor ID_expck'],
-        'Actual Action': 'No Change',  # should all be no change
+        'Actual Action': 'No Change' if row['Primary Action_expck'] == 'Expire CCX' else row['Actual Action_expck'],  # should all be no change if primary action != 'Expire CCX'
         'Quick Check': row['Quick Check_expck'],  # will think about this
         'Primary Action': 'Update',  # should all be No Change for actual action, so primary action is Update
         'Group': 'Keep2',  # should all be keep2
@@ -2493,6 +2510,150 @@ def safe_to_expire_action_row_helper(row):
         'UOM (Original)': row['UOM_ref']
     }
 
+def replace_with_tp_mute_row_helper(row, 
+                                    a_action_mute = 'Update (New)', 
+                                    a_action_keep2 = 'Update (Existing)'):
+    mute = {
+        'File Row': row['File Row'],
+        'Dataset': row['Dataset_mute'],
+        'Contract Number': row['Contract Number'],
+        'Mfg Part Num': row['Mfg Part Num_mute'],
+        'Vendor Part Num': row['Vendor Part Num_mute'],
+        'Buyer Part Num': row['Buyer Part Num_mute'],
+        'Description': row['Description_mute'],
+        'Contract Price': row['Contract Price_mute'],
+        'UOM': row['UOM_mute'],
+        'QOE': row['QOE_mute'],
+        'Effective Date': row['Effective Date_mute'],
+        'Expiration Date': row['Expiration Date_mute'],
+        'ERP Vendor ID': row['ERP Vendor ID_mute'],
+        'Actual Action': a_action_mute,  # should all be update
+        'Quick Check': row['Quick Check_mute'],  # will keep the initial quick check result compare to inital keep row
+        'Primary Action': 'Expire CCX (Updated by TP)',  # keep the original action here
+        'Group': 'Keep2',  # should be keep2
+        'Intended Action': row['Intended Action_mute'],  # should be Upsert
+        'Expiration Date (before action)': row['Expiration Date (before action)_mute'],
+        'Effective Date (before action)': row['Effective Date (before action)_mute'],
+        'Item': row['Item_mute'],
+        'Item_fr': row['Item_fr_mute'],
+        'Do Not Expire': True,  # inherit from CCX keep2 row descision
+        'Mfg Part Num (Original)': row['Mfg Part Num_mute'],
+        'UOM (Original)': row['UOM_mute'],
+        }
+    keep2 = {
+        'File Row': row['File Row'],
+        'Dataset': row['Dataset_keep2'],
+        'Contract Number': row['Contract Number'],
+        'Mfg Part Num': row['Mfg Part Num_keep2'],
+        'Vendor Part Num': row['Vendor Part Num_keep2'],
+        'Buyer Part Num': row['Buyer Part Num_keep2'],
+        'Description': row['Description_keep2'],
+        'Contract Price': row['Contract Price_keep2'],
+        'UOM': row['UOM_keep2'],
+        'QOE': row['QOE_keep2'],
+        'Effective Date': row['Effective Date_keep2'],
+        'Expiration Date': row['Expiration Date_keep2'],
+        'ERP Vendor ID': row['ERP Vendor ID_keep2'],
+        'Actual Action': a_action_keep2,  # should all be update
+        'Quick Check': row['Quick Check_keep2'],  # will keep the initial quick check result compare to inital keep row
+        'Primary Action': 'Expire CCX (Mute CCX)',  # it belong to special group
+        'Group': 'Drop',  # should be drop since we will drop the row now
+        'Intended Action': row['Intended Action_keep2'],  # should be Upsert
+        'Expiration Date (before action)': row['Expiration Date (before action)_keep2'],
+        'Effective Date (before action)': row['Effective Date (before action)_keep2'],
+        'Item': row['Item_keep2'],
+        'Item_fr': row['Item_fr_keep2'],
+        'Do Not Expire': True,  # inherit from CCX keep2 row descision
+        'Mfg Part Num (Original)': row['Mfg Part Num_keep2'],
+        'UOM (Original)': row['UOM_keep2'],
+    }
+    return mute, keep2
+
+
+def replace_changes_to_show_with_tp_mute_rows(changes_to_show_df, reference_for_expire_rows, update_action_mode = 'new'):
+    """
+    Replace the rows in changes_to_show_df with modified rows based on do not expire flag
+    if the flag is set to True and the if the item is from item that has TP and CCX copy
+    Args:
+        changes_to_show_df: DataFrame with changes to be applied, the one with item and expire marked
+        mute_tp_df: DataFrame that previously being muted on TP set, if we want to retain its CCX counterpart, we need to keep the update(new) version of it
+    Returns:
+        modified_changes_to_show_df: DataFrame with modified rows based on do not expire flag
+    """
+    mute_tp_df = reference_for_expire_rows[reference_for_expire_rows['Primary Action'] == 'Mute TP'].copy()
+    
+    if mute_tp_df.empty or changes_to_show_df[changes_to_show_df['Do Not Expire'] == True].empty:
+        print("I am here - no mute TP or no do not expire items") # debug
+        return changes_to_show_df, reference_for_expire_rows[reference_for_expire_rows['Primary Action'] != 'Mute TP'].copy()
+
+    
+    # if we have mute TP we will need to replace the changes_to_show_df's correponding rows with the mute TP rows
+    # this basically means we will have to determine the operation to perform between TP mute and CCX keep using previous logic
+    # in another word, now all the TP mute rows will be treated as upsert
+    ccx_keep2_df_need_replace = changes_to_show_df[(changes_to_show_df['Primary Action'] == 'Expire CCX') &
+                                                    (changes_to_show_df['Intended Action'] == 'Upsert') &
+                                                    (changes_to_show_df['Do Not Expire'] == True)].copy()
+    
+    replace_ccx_with_tp_mute_df = mute_tp_df.merge(ccx_keep2_df_need_replace,
+                                                    on = ['File Row',
+                                                          'Contract Number'],
+                                                    how = 'inner',
+                                                    suffixes = ('_mute', '_keep2'))
+    
+    replace_ccx_with_tp_mute_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'replace_ccx_with_tp_mute_df.xlsx'), index=False) #debug
+    data_replaced = []
+    for i, row in replace_ccx_with_tp_mute_df.iterrows():
+        actual_action, quick_check = actual_action_on_update_row(row,
+                                                                 suffixes = ('_mute', '_keep2'),
+                                                                 update_action_mode = update_action_mode)
+        if actual_action == 'Update (New)':
+            # non-key field update between TP and CCX, replace the CCX row with TP mute row
+            # and change the action accordingly
+            mute, keep2 = replace_with_tp_mute_row_helper(row,
+                                                    a_action_mute = 'Update (New)',
+                                                    a_action_keep2 = 'Update (Existing)')
+            data_replaced.append(mute)
+            data_replaced.append(keep2)
+        elif actual_action == 'Expire then Create (Create)':
+            mute, keep2 = replace_with_tp_mute_row_helper(row,
+                                                    a_action_mute = 'Expire then Create (Create)',
+                                                    a_action_keep2 = 'Expire then Create (Expire)')
+            data_replaced.append(mute)
+            data_replaced.append(keep2)
+        else:
+            # then we end up with 'No Change'
+            # in this case mute will keep as mute, keep2 will get retained without any modification
+            pass
+
+    # create DataFrame from the data_replaced and data_remove
+    # create dataframe from the data_replaced
+    mute_df = pd.DataFrame(data_replaced)
+
+    # now we will drop the irrelevant rows from changes_to_show_df and add the replaced rows
+    if not mute_df.empty:
+        replace_to_remove = mute_df[['File Row', 'Contract Number', 'Dataset']].copy()
+        replace_to_remove.loc[:, 'To Remove'] = 'Remove'
+        replace_to_remove = replace_to_remove.drop_duplicates(subset=['File Row', 'Contract Number', 'Dataset'], keep='first')
+        changes_to_show_df['To Remove'] = changes_to_show_df.apply(lambda x: 'Remove' if ((x['File Row'], x['Contract Number'], x['Dataset']) in 
+                                                                                        set(zip(replace_to_remove['File Row'], 
+                                                                                                replace_to_remove['Contract Number'], 
+                                                                                                replace_to_remove['Dataset']))) else 'Keep', axis=1)
+        changes_to_show_df = changes_to_show_df[changes_to_show_df['To Remove'] != 'Remove'].copy()
+        # changes_to_show_df.drop(columns=['To Remove'], inplace=True)
+
+        changes_to_show_df_with_replaced_rows = pd.concat([changes_to_show_df, mute_df], ignore_index=True)
+
+        changes_to_show_df_with_replaced_rows.to_excel(os.path.join(current_app.root_path, 'temp_files', 'changes_to_show_df_with_replaced_rows.xlsx'), index=False) #debug
+
+        # now we will also need to drop the mute TP rows from reference_for_expire_rows
+        reference_for_expire_rows = reference_for_expire_rows[reference_for_expire_rows['Primary Action'] != 'Mute TP'].copy()
+
+        return changes_to_show_df_with_replaced_rows, reference_for_expire_rows
+    
+    else:
+        return changes_to_show_df, reference_for_expire_rows[reference_for_expire_rows['Primary Action'] != 'Mute TP'].copy()
+
+
 def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, update_action_mode = 'new'):
     """
     Validate the final do not expire items
@@ -2517,8 +2678,15 @@ def final_expire_item_validation(changes_to_show_df, reference_for_expire_rows, 
         reference_for_expire_rows['Item'] = reference_for_expire_rows['Item'].astype(str).str.strip()
     if 'Quick Check' in changes_to_show_df.columns:
         changes_to_show_df['Quick Check'] = changes_to_show_df['Quick Check'].astype(str).str.strip()
+
+    # replace CCX with TP mute rows if there is mute TP rows exists
+    changes_to_show_df, reference_for_expire_rows = replace_changes_to_show_with_tp_mute_rows(changes_to_show_df, 
+                                                                                            reference_for_expire_rows, 
+                                                                                            update_action_mode = update_action_mode)
     
-    expire_ccx_items = changes_to_show_df[(changes_to_show_df['Primary Action'] == 'Expire CCX')].copy()
+    expire_ccx_items = changes_to_show_df[(changes_to_show_df['Primary Action'].isin(['Expire CCX',
+                                                                                      'Expire CCX (Updated by TP)',
+                                                                                      'Expire CCX (Mute CCX)']))].copy()
     
     if expire_ccx_items.empty:
         dummy_final_validation_df = pd.DataFrame(columns=[
@@ -2833,6 +3001,18 @@ def final_commit(all_changes_df,
 
 
     else:
+        # all_changes_df at this moment has no knowledge of mute tp replacement
+        # we need to first integrate this type of changes into all_changes_df
+        if not more_changes_to_append_df.empty:
+            replace_to_remove = more_changes_to_append_df[['File Row', 'Contract Number', 'Dataset']].copy()
+            replace_to_remove.loc[:, 'To Remove'] = 'Remove'
+            replace_to_remove = replace_to_remove.drop_duplicates(subset=['File Row', 'Contract Number', 'Dataset'], keep='first')
+            all_changes_df['To Remove'] = all_changes_df.apply(lambda x: 'Remove' if ((x['File Row'], x['Contract Number'], x['Dataset']) in 
+                                                                        set(zip(replace_to_remove['File Row'], 
+                                                                                replace_to_remove['Contract Number'],
+                                                                                replace_to_remove['Dataset']))) else 'Keep', axis=1)
+            all_changes_df = all_changes_df[all_changes_df['To Remove'] != 'Remove'].copy()
+
         # merge the all_changes_df to final_validation_df to get more information
         x_all_changes_df = pd.concat([all_changes_df, more_changes_to_append_df], ignore_index=True)
         x_changes_to_show_df = pd.concat([changes_to_show_df, more_changes_to_append_df], ignore_index=True)
@@ -2865,15 +3045,20 @@ def final_commit(all_changes_df,
         xx_changes_to_show_df = x_changes_to_show_df.merge(final_validation_df[join_key + ['Validation Flag', 'Final Row Action']],
                                                         on = join_key,
                                                             how = 'left')
+
+        xx_all_changes_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'xx_all_changes_df.xlsx'), index=False) #debug
+        xx_changes_to_show_df.to_excel(os.path.join(current_app.root_path, 'temp_files', 'xx_changes_to_show_df.xlsx'), index=False) #debug
         
         # remove the 'Do Not Expire' == True items if they don't have error
         final_all_changes_df = xx_all_changes_df[(xx_all_changes_df['Do Not Expire'] == False) |
                                             ((xx_all_changes_df['Do Not Expire'] == True) &
                                             (xx_all_changes_df['Final Row Action'] == 'Pending'))].copy()
+        final_all_changes_df.drop(columns = ['To Remove'], errors='ignore', inplace=True)
         
         final_changes_to_show_df = xx_changes_to_show_df[(xx_changes_to_show_df['Do Not Expire'] == False) |
                                                     ((xx_changes_to_show_df['Do Not Expire'] == True) & 
                                                         (xx_changes_to_show_df['Final Row Action'] == 'Pending'))].copy()
+        final_changes_to_show_df.drop(columns = ['To Remove'], errors='ignore', inplace=True)
 
         # take care of intended action == 'Expire'
         # for them, their final descision of actual action should be 'No Change' if they are not going to be executed

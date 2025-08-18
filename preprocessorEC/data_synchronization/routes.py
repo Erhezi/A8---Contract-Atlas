@@ -1,7 +1,16 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, Response
 from flask import current_app, stream_with_context
 from flask_login import login_required, current_user
-from ..common.db import get_db_connection, get_task_history, get_inspection_summary_count, get_affected_contract_by_task, get_tp_row_sync_by_taskid, get_exported_row_sync_by_taskid
+from ..common.db import (
+    get_db_connection,
+    get_task_history,
+    get_inspection_summary_count,
+    get_affected_contract_by_task,
+    get_tp_row_sync_by_taskid,
+    get_exported_row_sync_by_taskid,
+    mark_completed_by_task_id,
+    add_completion_comment_by_task_id
+)
 from ..common.session import store_current_step, store_completed_steps, get_completed_steps
 
 
@@ -122,13 +131,7 @@ def get_sync_details(task_id):
             exported_rows = []
             current_app.logger.warning(f'Could not retrieve Exported rows sync data for task {task_id}: {error_msg_exp}')
         
-        print(f"Retrieved {len(exported_rows)} exported rows for task {task_id}")
-        if exported_rows:
-            print("Sample exported row:", exported_rows[0])
-        else:
-            print("No exported rows data available")
-        # shape exported rows to match frontend renderer if needed
-        # Frontend can consume either the detailed dataset or aggregated; we'll pass detailed list
+
         sync_details = {
             'taskId': task_id,
             'summary': summary,
@@ -157,85 +160,49 @@ def get_sync_details(task_id):
 def mark_step_completed():
     """Mark synchronization step as completed manually"""
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({
-                'success': False,
-                'message': 'No data provided'
-            }), 400
-        
-        task_id = data.get('taskId')
-        completion_type = data.get('completionType')  # 'CCX' or 'Infor'
-        comment = data.get('comment', '')
-        
-        if not task_id or not completion_type:
-            return jsonify({
-                'success': False,
-                'message': 'Missing required fields'
-            }), 400
-        
-        # Validate completion type
-        if completion_type not in ['CCX', 'Infor']:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid completion type'
-            }), 400
-        
-        try:
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({
-                    'success': False,
-                    'message': 'Database connection failed'
-                }), 500
-            
-            # Here you would implement the actual database update
-            # For now, we'll just simulate a successful update
-            
-            # Update step completion status for current user
-            user_id = current_user.id
-            completed_steps = get_completed_steps(user_id)
-            if 7 not in completed_steps:
-                completed_steps.append(7)
-                store_completed_steps(user_id, completed_steps)
-                store_current_step(user_id, 7)
-                session.modified = True
-            
-            return jsonify({
-                'success': True,
-                'message': f'Task {task_id} marked as completed for {completion_type} sync'
-            })
-            
-        finally:
-            if 'conn' in locals():
-                conn.close()
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'An error occurred: {str(e)}'
-        }), 500
+        json_data = request.get_json(force=True) or {}
+        task_id = json_data.get('task_id') or json_data.get('taskId')
+        comment = (json_data.get('comment') or '').strip()
+        preset = json_data.get('preset')
 
+        if not task_id:
+            return jsonify({'success': False, 'message': 'task_id is required'}), 400
 
-@data_synchronization_bp.route('/next-step')
-@login_required
-def proceed_to_next_step():
-    """Proceed to Step 8 after completing synchronization inspection"""
-    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'success': False, 'message': 'Could not connect to database'}), 500
+
         user_id = current_user.id
-        
-        # Mark step 7 as completed and advance to step 8
-        completed_steps = get_completed_steps(user_id)
-        if 7 not in completed_steps:
-            completed_steps.append(7)
-        
-        store_completed_steps(user_id, completed_steps)
-        store_current_step(user_id, 8)
-        session.modified = True
-        
-        flash('Synchronization inspection completed. Proceeding to Step 8.', 'success')
-        return redirect(url_for('common.workflow', step=8))
-        
+
+        # Mark completed
+        try:
+            success_complete = False
+            msg_complete = ''
+            result_complete = mark_completed_by_task_id(conn, task_id, user_id)
+            # Support both (success, msg) or dict style returns
+            if isinstance(result_complete, tuple):
+                success_complete, msg_complete = result_complete[0], (result_complete[1] if len(result_complete) > 1 else '')
+            elif isinstance(result_complete, dict):
+                success_complete = result_complete.get('success', False)
+                msg_complete = result_complete.get('message', '')
+            else:
+                success_complete = bool(result_complete)
+            if not success_complete:
+                return jsonify({'success': False, 'message': f'Unable to mark completed: {msg_complete}'}), 500
+
+            # Optional comment persistence
+            if comment:
+                try:
+                    result_comment = add_completion_comment_by_task_id(conn, task_id, comment)
+                    if isinstance(result_comment, tuple) and result_comment and result_comment[0] is False:
+                        current_app.logger.warning(f"Comment save failed for task {task_id}: {result_comment[1] if len(result_comment)>1 else ''}")
+                except Exception as ce:
+                    current_app.logger.warning(f"Error saving completion comment for task {task_id}: {ce}")
+
+            return jsonify({'success': True, 'message': 'Task marked as completed', 'task_id': task_id, 'preset': preset})
+        finally:
+            conn.close()
+
     except Exception as e:
-        flash(f'Error proceeding to next step: {str(e)}', 'danger')
-        return redirect(url_for('common.workflow', step=7))
+        current_app.logger.exception('Error marking step completed')
+        return jsonify({'success': False, 'message': str(e)}), 500

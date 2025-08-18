@@ -614,7 +614,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        console.log('Keep selections to send:', keepSelections); // Debug log
         console.log('Current policy:', currentPolicy); // Debug policy
         
         // Send to server

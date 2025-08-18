@@ -368,8 +368,7 @@
     }
 
     .completion-section .completion-buttons {
-        padding: 20px;
-        padding-top: 0;
+        padding: 0 0 0 0;
     }
 
     .completion-buttons {
@@ -383,8 +382,8 @@
 
     .comment-section {
         display: none;
-        margin: 0 0 20px 20px;
-        padding: 15px;
+        margin: -15px 0 0 0;
+        padding: 15px 15px 0 15px;
         background-color: #f8f9fa;
         border-radius: 5px;
         border: 1px solid #ddd;
@@ -393,8 +392,24 @@
     #completion-comment {
         width: 98%;
         margin-top: 5px;
+        height: 110px;
     }
 
+    #preset-comment-select {
+        margin-top: 5px;
+    }
+
+    /* Validation border styles */
+    .border-danger {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+    }
+
+    .border-success {
+        border-color: #28a745 !important;
+        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
+    }
+    
     .action-buttons {
         margin-top: 20px;
         text-align: right;
@@ -982,39 +997,47 @@
         </div>
 
         <!-- Manual Completion Section -->
-        <div id="completion-section" class="completion-section">
-            <div class="section-header">
+        <div id="completion-section" class="completion-section" style="display:none;">
+            <div class="section-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Manual Step Completion</h5>
             </div>
-            
-            <div class="completion-buttons">
-                <p class="text-muted mb-3" style="width: 100%; margin-bottom: 15px;">
-                    Manually mark this task as synchronized if you have reviewed all the unsync/pending/error records and think you are satisfied.
+            <div class="completion-buttons pt-3">
+                <p class="text-muted mb-2" style="width:100%;">
+                    Review unsynced/pending/error records. If satisfied, you may manually mark this task as synchronized to complete it.
                 </p>
-                <button id="mark-ccx-btn" class="btn btn-success">
-                    Mark as Completed Sync to CCX
-                </button>
-                <button id="mark-infor-btn" class="btn btn-success">
-                    Mark as Completed Sync to Infor
-                </button>
-                <button id="go-home-btn" class="btn btn-secondary">
-                    Do nothing, go Home
-                </button>
-            </div>
-
-            <!-- Comment Section (shown when errors exist) -->
-            <div id="comment-section" class="comment-section">
-                <label for="completion-comment" class="form-label">Comment (required when errors exist):</label>
-                <textarea id="completion-comment" class="form-control" rows="3" 
-                         placeholder="Please provide an explanation for marking as completed despite existing errors..."></textarea>
+                <div id="comment-section" class="comment-section" style="display:none; width:100%;">
+                    <div class="form-group mb-2">
+                        <label for="preset-comment-select" class="font-weight-bold">Select a preset comment (reason) for completion on &lt;100% syncrhonization or on error</label>
+                        <select id="preset-comment-select" class="form-control form-control-sm">
+                            <option value="" selected disabled>Select a preset reason...</option>
+                            <option value="A">A: Only vendor number is differ between TP (upload to preprocess) record and Infor record, BCAT issue not related to normal synchronization.</option>
+                            <option value="B">B: GPO contract item that can only be manually force to synchronize between TP (upload to preprocess) record and Infor record, bypass the check bewtween TP and CCX.</option>
+                            <option value="C">C: All TP (upload to preprocess) records are in sync to CCX and Infor, I don't care the other affected contract records.</option>
+                            <option value="D">D: Other - (put in your own words why in the comment box below).</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-2">
+                        <label for="completion-comment" class="form-label font-weight-bold">Completion Comment</label>
+                        <textarea id="completion-comment" class="form-control form-control-sm" rows="5" placeholder="Provide justification for manual completion..." maxlength="1000"></textarea>
+                        <small class="form-text text-muted" id="comment-help">Select preset A/B/C to auto-fill comment. If selecting D, minimum 20 characters required.</small>
+                        <div id="comment-error" class="text-danger small mt-1" style="display:none;"></div>
+                    </div>
+                </div>
+                <div class="w-100 d-flex gap-2 flex-wrap">
+                    <button id="mark-infor-btn" type="button" class="btn btn-sm btn-primary" disabled>Mark Task Completed (Infor Synchronization Checked)</button>
+                    <a id="go-back-to-history-btn" class="btn btn-sm btn-secondary" href="{{ url_for('data_export.view_history') }}">
+                        Do Nothing, Go Back to History
+                    </a>
+                </div>
+                <input type="hidden" id="current-user-id" value="{{ current_user.id if current_user.is_authenticated else '' }}" />
             </div>
         </div>
     </div>
 
     <!-- Next Step Section -->
     <div class="action-buttons">
-        <button id="next-step-btn" class="btn btn-primary" disabled>
-            Proceed to Step 8
+        <button id="next-step-btn" class="btn btn-secondary" disabled>
+            Complete Step 7
         </button>
     </div>
 </div>

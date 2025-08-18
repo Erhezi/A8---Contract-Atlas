@@ -2405,3 +2405,56 @@ def get_exported_row_sync_by_taskid(conn, task_id):
         except Exception:
             print(msg)
         return False, msg, None
+    
+
+def mark_completed_by_task_id(conn, task_id, user_id):
+    """ Mark a task as completed in the database.
+    update table preprocessorHeader on Status2 = 'Completed' and UpdateDT = GETDATE() and completedBy = user_id
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+        user_id: ID of the user performing the action
+    Returns:
+        Tuple[bool, str|None]: (success, error_message)
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
+            SET Status2 = 'Completed', UpdateDT = GETDATE(), CompletedBy = ?
+            WHERE TaskID = ? AND Status2 != 'Completed'
+        """, (user_id, task_id))
+        if cursor.rowcount == 0:
+            return False, "Task not found or already completed."
+        conn.commit()
+        return True, ""
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"Error marking task {task_id} as completed: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+
+def add_completion_comment_by_task_id(conn, task_id, comment):
+    """ Add a completion comment to a task in the database.
+    insert into table PreprocessorCompletionComment with TaskID = task_id, [Completion Comment] = comment, CreateDT = GETDATE()
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+        comment: Comment to be added
+    Returns:
+        Tuple[bool, str|None]: (success, error_message)
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO [DM_MONTYNT\\dli2].PreprocessorCompletionComment (TaskID, [Completion Comment], CreateDT)
+            VALUES (?, ?, GETDATE())
+        """, (task_id, comment))
+        conn.commit()
+        return True, ""
+    except Exception as e:
+        conn.rollback()
+        error_msg = f"Error adding completion comment for task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg

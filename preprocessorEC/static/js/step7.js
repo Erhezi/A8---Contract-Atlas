@@ -25,12 +25,13 @@ const viewSyncDetailsBtn = document.getElementById('view-sync-details-btn');
 const syncDetailsSection = document.getElementById('sync-details-section');
 const selectedTaskIdSpan = document.getElementById('selected-task-id');
 const completionSection = document.getElementById('completion-section');
-const markCcxBtn = document.getElementById('mark-ccx-btn');
 const markInforBtn = document.getElementById('mark-infor-btn');
-const goHomeBtn = document.getElementById('go-home-btn');
 const commentSection = document.getElementById('comment-section');
 const completionComment = document.getElementById('completion-comment');
 const nextStepBtn = document.getElementById('next-step-btn');
+const presetSelect = document.getElementById('preset-comment-select');
+const commentError = document.getElementById('comment-error');
+const currentUserIdInput = document.getElementById('current-user-id');
 
 // Custom dropdown elements (will be created dynamically)
 let customDropdown = null;
@@ -74,24 +75,25 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('resize', updateTpSubheadTop);
 window.addEventListener('resize', updateExportedSubheadTop);
 
-// Completion buttons
-markCcxBtn.addEventListener('click', function() {
-    markStepCompleted('CCX');
-});
-
-markInforBtn.addEventListener('click', function() {
-    markStepCompleted('Infor');
-});
-
-// Go home button
-goHomeBtn.addEventListener('click', function() {
-    window.location.href = '/common/home';
-});
-
-// Next step button
-nextStepBtn.addEventListener('click', function() {
-    proceedToNextStep();
-});
+// Attach completion & preset events safely
+if (markInforBtn) {
+    markInforBtn.addEventListener('click', () => {
+        if (!selectedTaskId) {
+            showAlert('warning', 'Select a task first.');
+            return;
+        }
+        markTaskCompleted(selectedTaskId);
+    });
+}
+if (nextStepBtn) {
+    nextStepBtn.addEventListener('click', () => proceedToNextStep());
+}
+if (presetSelect) {
+    presetSelect.addEventListener('change', handlePresetChange);
+}
+if (completionComment) {
+    completionComment.addEventListener('input', validateCommentLive);
+}
 
 function createCustomDropdown() {
     const wrapper = document.querySelector('.custom-select-wrapper');
@@ -160,20 +162,6 @@ function setupEventListeners() {
         if (selectedTaskId) {
             loadSyncDetails(selectedTaskId);
         }
-    });
-
-    // Completion buttons
-    markCcxBtn.addEventListener('click', function() {
-        markStepCompleted('CCX');
-    });
-
-    markInforBtn.addEventListener('click', function() {
-        markStepCompleted('Infor');
-    });
-
-    // Go home button
-    goHomeBtn.addEventListener('click', function() {
-        window.location.href = '/common/home';
     });
 
     // Next step button
@@ -415,6 +403,15 @@ function truncateText(text, maxLength) {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
+function translateActualAction(action) {
+    if (!action) return '';
+    const actionStr = String(action).trim().toLowerCase();
+    if (actionStr === 'expire then create (create)') {
+        return 'ETC (Create)';
+    }
+    return String(action); // Return original value for all other cases
+}
+
 async function loadSyncDetails(taskId) {
     try {
         showLoading();
@@ -510,6 +507,8 @@ function renderSyncDetails(syncData) {
     
     // Update comment section visibility based on errors
     updateCommentSection();
+    // Enable completion button now that data loaded
+    if (markInforBtn) markInforBtn.disabled = false;
 }
 
 // Show/hide the comment box when errors exist
@@ -521,6 +520,134 @@ function updateCommentSection() {
 
     // Show the comment section if there are errors or unsynced rows in either table
     commentSection.style.display = hasErrors || tpUnsyncedCount > 0 || exportedUnsyncedCount > 0 ? 'block' : 'none';
+    // Revalidate when visibility changes
+    validateCommentLive();
+}
+
+
+function isCommentRequired() {
+    return commentSection && commentSection.style.display !== 'none';
+}
+
+function handlePresetChange() {
+    if (!presetSelect) return;
+    const v = presetSelect.value;
+    let text = '';
+    switch (v) {
+        case 'A':
+            text = 'Only vendor part number is differ between TP (upload to preprocess) record and Infor record, point to BCAT update issue not related to normal synchronization.';
+            break;
+        case 'B':
+            text = 'GPO contract item that can only be manually synchronize between TP (upload to preprocess) record and Infor record, bypass the check bewtween TP and CCX.';
+            break;
+        case 'C':
+            text = 'All TP (upload to preprocess) records are in full sync with CCX and Infor, I will ignore the errors and non-synced records that are not directly related to my TP set of records.';
+            break;
+        case 'D':
+            text = '';
+            if (completionComment) {
+                completionComment.placeholder = '(Enter your reason to manually complete the task here ...)';
+            }
+        default:
+            text = '';
+    }
+    if (completionComment && v !== 'D') {
+        completionComment.value = text;
+    } else if (completionComment && v === 'D' && completionComment.value.trim().length < 1) {
+        completionComment.value = '';
+    }
+    validateCommentLive();
+}
+
+function validateCommentLive() {
+    const required = isCommentRequired();
+    
+    // Reset styles
+    if (presetSelect) {
+        presetSelect.classList.remove('border-danger', 'border-success');
+    }
+    if (completionComment) {
+        completionComment.classList.remove('border-danger', 'border-success');
+    }
+    if (commentError) {
+        commentError.style.display = 'none';
+        commentError.textContent = '';
+    }
+    
+    if (!required) {
+        // If not required, mark as valid (green) when filled
+        if (presetSelect && presetSelect.value) {
+            presetSelect.classList.add('border-success');
+        }
+        if (completionComment && completionComment.value.trim()) {
+            completionComment.classList.add('border-success');
+        }
+        return true;
+    }
+    
+    const preset = presetSelect ? presetSelect.value : '';
+    const txt = completionComment ? completionComment.value.trim() : '';
+    
+    // Validate preset selection
+    if (!preset) {
+        if (presetSelect) presetSelect.classList.add('border-danger');
+        return false;
+    } else {
+        if (presetSelect) presetSelect.classList.add('border-success');
+    }
+    
+    // Validate comment based on preset
+    if (preset === 'D' && txt.length < 20) {
+        if (completionComment) completionComment.classList.add('border-danger');
+        return false;
+    } else if (['A','B','C'].includes(preset) && txt.length === 0) {
+        if (completionComment) completionComment.classList.add('border-danger');
+        return false;
+    } else if (txt.length > 0 || ['A','B','C'].includes(preset)) {
+        if (completionComment) completionComment.classList.add('border-success');
+    }
+    
+    return true;
+}
+
+async function markTaskCompleted(taskId) {
+    if (!taskId) {
+        showAlert('warning', 'No task selected.');
+        return;
+    }
+    const needComment = isCommentRequired();
+    if (needComment && !validateCommentLive()) {
+        showAlert('danger', 'Fix validation issues before submitting.');
+        return;
+    }
+    const payload = {
+        task_id: taskId,
+        user_id: currentUserIdInput ? currentUserIdInput.value : null,
+        preset: presetSelect ? presetSelect.value : null,
+        comment: completionComment ? completionComment.value.trim() : ''
+    };
+    if (needComment && (!payload.preset || !payload.comment)) {
+        showAlert('warning', 'Preset and comment required.');
+        return;
+    }
+    if (markInforBtn) markInforBtn.disabled = true;
+    try {
+        const resp = await fetch('/data-synchronization/mark-completed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) throw new Error(data.message || 'Failed to mark completed');
+        showAlert('success', 'Task marked completed.');
+        // Refresh list to show updated status
+        await loadTaskHeaders();
+        if (completionComment) completionComment.disabled = true;
+        if (presetSelect) presetSelect.disabled = true;
+    } catch (e) {
+        showAlert('error', e.message);
+        if (markInforBtn) markInforBtn.disabled = false;
+    }
 }
 
 // Update TP header counts (total, unsynced, synced)
@@ -662,7 +789,7 @@ function renderTPRowsStatus(tpRows) {
         return `
         <tr>
             <td title="${toCell(r['Intended Action'])}">${toCell(r['Intended Action'])}</td>
-            <td title="${toCell(r['Actual Action'])}">${toCell(r['Actual Action'])}</td>
+            <td title="${toCell(r['Actual Action'])}">${translateActualAction(r['Actual Action'])}</td>
             <td title="${toCell(r['File Row Action'])}">${toCell(r['File Row Action'])}</td>
             <td title="${toCell(r['Contract Number'])}">${toCell(r['Contract Number'])}</td>
             <td title="${toCell(r['ERP Vendor ID'])}">${toCell(r['ERP Vendor ID'])}</td>
@@ -847,7 +974,7 @@ function renderExportedRowsStatus(exportedRows) {
         return `
         <tr>
             <td title="${formatDate(r['Exported Date'])}">${formatDate(r['Exported Date'])}</td>
-            <td title="${toCell(r['Actual Action'])}">${toCell(r['Actual Action'])}</td>
+            <td title="${toCell(r['Actual Action'])}">${translateActualAction(r['Actual Action'])}</td>
             <td title="${toCell(r['Final Action'])}">${toCell(r['Final Action'])}</td>
             <td title="${toCell(r['Contract Number'])}">${toCell(r['Contract Number'])}</td>
             <td title="${toCell(r['ERP Vendor ID'])}">${toCell(r['ERP Vendor ID'])}</td>

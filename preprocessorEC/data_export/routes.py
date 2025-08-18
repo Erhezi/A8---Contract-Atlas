@@ -53,34 +53,35 @@ def view_history():
         # Get user ID and role
         user_id = current_user.id
 
-        current_completed_steps = get_completed_steps(user_id)
+        # current_completed_steps = get_completed_steps(user_id)
 
-        if 6 not in current_completed_steps:
-            # automatically mark 1-5 as completed
-            completed_steps = [1,2,3,4,5]
-            store_completed_steps(user_id, completed_steps)
-            store_current_step(user_id, 6)  # Set current step to 6 (Export Changes)
-            session.modified = True
-        else:
-            completed_steps = [1,2,3,4,5,6]
-            store_completed_steps(user_id, completed_steps)
-            store_current_step(user_id, 6)  
-            session.modified = True
+        # if 6 not in current_completed_steps:
+        #     # automatically mark 1-5 as completed
+        #     completed_steps = [1,2,3,4,5]
+        #     store_completed_steps(user_id, completed_steps)
+        #     store_current_step(user_id, 6)  # Set current step to 6 (Export Changes)
+        #     session.modified = True
+        # else:
+        #     completed_steps = [1,2,3,4,5,6]
+        #     store_completed_steps(user_id, completed_steps)
+        #     store_current_step(user_id, 6)  
+        #     session.modified = True
+
         
-        # Define the workflow steps for the sidebar
-        workflow_steps = [
-            {"id": 1, "name": "File Pre-Checking"},
-            {"id": 2, "name": "Duplication Overview"},
-            {"id": 3, "name": "Resolve Duplications"},
-            {"id": 4, "name": "Item Master Matching"},
-            {"id": 5, "name": "Change Simulation"},
-            {"id": 6, "name": "Export Changes"},
-            {"id": 7, "name": "Sync Inspection"},
-            {"id": 8, "name": "Completion"}
-        ]
+        # # Define the workflow steps for the sidebar
+        # workflow_steps = [
+        #     {"id": 1, "name": "File Pre-Checking"},
+        #     {"id": 2, "name": "Duplication Overview"},
+        #     {"id": 3, "name": "Resolve Duplications"},
+        #     {"id": 4, "name": "Item Master Matching"},
+        #     {"id": 5, "name": "Change Simulation"},
+        #     {"id": 6, "name": "Export Changes"},
+        #     {"id": 7, "name": "Sync Inspection"},
+        #     {"id": 8, "name": "Completion"}
+        # ]
         
-        # Set the current step object (not just ID)
-        current_step = {"id": 6, "name": "Export Changes"}
+        # # Set the current step object (not just ID)
+        # current_step = {"id": 6, "name": "Export Changes"}
         
         # Fetch task history (list all but delete tasks need to be limited by task owner if user is sourcing)
         success, msg, tasks = get_task_history(conn, user_id=user_id, user_role="general") #hard-coded dummy user role to read all tasks
@@ -99,9 +100,7 @@ def view_history():
         # Render history template with tasks and workflow information
         return render_template('history.html', 
                               tasks=tasks, 
-                              workflow_steps=workflow_steps,
-                              current_step=current_step,
-                              completed_steps=completed_steps,
+                              current_step = None,
                               contract_linking_data=contract_linking_data)
     
     except Exception as e:
@@ -292,6 +291,7 @@ def view_task(task_id):
         # Render task details template
         return render_template('task_details.html', 
                                task=task,
+                               current_step = None,
                                has_edit_permission=has_edit_permission)
     except Exception as e:
         flash(f"Error retrieving task details: {str(e)}", "danger")
