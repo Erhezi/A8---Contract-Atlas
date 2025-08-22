@@ -798,7 +798,6 @@ def export_data():
         request_data = request.get_json()
         skip_gpo = request_data.get('skip_gpo', False)
         export_format = request_data.get('export_format', 'excel')  # Default to Excel
-        export_extention = export_format.lower() if export_format == 'csv' else 'xlsx'
         
         # Get database connection
         conn = get_db_connection()
@@ -821,6 +820,7 @@ def export_data():
         
         # Convert to DataFrame
         df = pd.DataFrame(export_data)
+        print(df.dtypes) #debug to check data types -- price we need to convert to numbers in excel
         
         # Filter by Final Rank = 1
         if 'Final Rank' in df.columns:

@@ -59,10 +59,10 @@ def get_file_headers(file_path):
     return []
 
 def reduce_mfg_part_num(mfg_part_num):
-    """Simplify manufacturer part number by removing dashes and leading zeros and make things upper cased"""
+    """Simplify manufacturer part number by removing dashes/dots and leading zeros and make things upper cased"""
     if pd.isnull(mfg_part_num) or mfg_part_num.strip() == '':
         return np.nan
-    mfg_part_num = mfg_part_num.strip().replace('-', '').strip()
+    mfg_part_num = mfg_part_num.strip().replace('-', '').replace('.','').strip()
     if mfg_part_num.isdigit():
         return str(int(mfg_part_num))
     return mfg_part_num.upper()

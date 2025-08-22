@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initContractLinking();
     initHoldTaskButtons();
+    makeHistoryTableSortable();
 
     // Navigate to Export Function (Step 6)
     if (goToExportBtn) {
@@ -102,6 +103,62 @@ document.addEventListener('DOMContentLoaded', function() {
             
             row.style.display = match ? '' : 'none';
         });
+    }
+
+    function makeHistoryTableSortable() {
+        const table = document.getElementById('task-history-table');
+        if (!table) return;
+
+        const thead = table.querySelector('thead');
+        const tbody = table.querySelector('tbody');
+        const headers = Array.from(thead.querySelectorAll('th'));
+
+        headers.forEach((th, index) => {
+            th.classList.add('sortable');
+            const indicator = document.createElement('span');
+            indicator.className = 'sort-indicator';
+            indicator.textContent = '';
+            th.appendChild(indicator);
+
+            th.addEventListener('click', function () {
+                const currentDir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+                //clear sort direction for all headers
+                headers.forEach(h => { delete h.dataset.sortDir; h.querySelector('.sort-indicator').textContent = ''; });
+                th.dataset.sortDir = currentDir;
+                th.querySelector('.sort-indicator').textContent = currentDir === 'asc' ? '▲' : '▼';
+
+                // perform sorting
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                rows.sort((a, b) => compareTableRows(a, b, index, currentDir === 'asc'));
+                // reappend sorted rows
+                rows.forEach(row => tbody.appendChild(row));
+            });
+        });
+    }
+
+    function compareTableRows(rowA, rowB, colIndex,asc = true) {
+        const cellA = (rowA.cells[colIndex] ? rowA.cells[colIndex].textContent.trim() : '').toLowerCase();
+        const cellB = (rowB.cells[colIndex] ? rowB.cells[colIndex].textContent.trim() : '').toLowerCase();
+
+        // datetime
+        const dateA = parseDateString(cellA);
+        const dateB = parseDateString(cellB);
+        if (dateA && dateB) {
+            return asc ? dateA - dateB : dateB - dateA;
+        }
+        
+        // string (alsways fall back to string comparison)
+        return asc ? cellA.localeCompare(cellB, undefined, { numeric: true, sensitivity: 'base' }) :
+                     cellB.localeCompare(cellA, undefined, { numeric: true, sensitivity: 'base' });
+    }
+
+    function parseDateString(s) {
+        // accept format like '2023-10-05 14:30:00'
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+        if (m) {
+            return new Date(m[1], m[2] - 1, m[3], m[4], m[5], m[6]).getTime();
+        }
+        return null;
     }
 
     function initContractLinking() {

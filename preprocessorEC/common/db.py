@@ -1158,9 +1158,9 @@ def commit_wrike(task_id, user_id, conn, wrike_task_id=None):
         return False, error_msg
 
 
-def delete_existing_commit(user_id, task_id, conn):
+def delete_existing_commit(user_role, task_id, conn):
     """
-    Delete existing commit lines for a given task ID and user ID
+    Delete existing commit task for a given task ID (Admin only function)
     
     Args:
         user_id: ID of the user performing the delete
@@ -1171,6 +1171,11 @@ def delete_existing_commit(user_id, task_id, conn):
         Tuple of (success, error_message)
     """
     try:
+        if user_role != 'admin':
+            error_msg = "Only admin users can delete existing commits"
+            current_app.logger.error(error_msg)
+            return False, error_msg
+        
         cursor = conn.cursor()
         
         # Delete existing commit for the given task ID
@@ -1180,13 +1185,17 @@ def delete_existing_commit(user_id, task_id, conn):
                       'PreprocessorHeader',
                       'PreprocessorWrike',
                       'PreprocessorExported',
-                      'PreprocessorContractClose']:
+                      'PreprocessorContractLink',
+                      'PreprocessorContractClose',
+                      'PreprocessorCompletionComment',
+                      'PreprocessorErrorEdit',
+                      'PreprocessorExported']:
         
             delete_sql = f"""
                 DELETE FROM [DM_MONTYNT\\dli2].{table}
-                WHERE TaskID = ? AND UserID = ?
+                WHERE TaskID = ?
             """
-            cursor.execute(delete_sql, (task_id, user_id))
+            cursor.execute(delete_sql, (task_id,))
             conn.commit()  # Commit after each delete to ensure changes are saved
         
         return True, ""
@@ -1194,6 +1203,122 @@ def delete_existing_commit(user_id, task_id, conn):
     except Exception as e:
         conn.rollback()  # Rollback in case of error
         error_msg = f"Error deleting existing commited result for {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+def clear_deleted_tasks(user_role, task_ids, conn):
+    """
+    Clear deleted tasks for a given list of task IDs (Admin only function)
+    
+    Args:
+        user_role: Role of the user performing the clear
+        task_ids: List of unique identifiers for the tasks
+        conn: Database connection
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    try:
+        if user_role != 'admin':
+            error_msg = "Only admin users can clear deleted tasks"
+            current_app.logger.error(error_msg)
+            return False, error_msg
+        
+        cursor = conn.cursor()
+        
+        # Delete tasks from PreprocessorHeader and related tables
+        for task_id in task_ids:
+            delete_sql = """
+                DELETE FROM [DM_MONTYNT\\dli2].PreprocessorHeader
+                WHERE TaskID = ? and Status = 'Deleted'
+            """
+            cursor.execute(delete_sql, (task_id,))
+            
+            # Clear related tables
+            for table in ['PreprocessorWrike', 
+                          'PreprocessorProcessedRaw', 
+                          'PreprocessorCommitLine',
+                          'PreprocessorContractLineCount',
+                          'PreprocessorExported',
+                          'PreprocessorContractLink',
+                          'PreprocessorContractClose',
+                          'PreprocessorCompletionComment',
+                          'PreprocessorErrorEdit']:
+                clear_sql = f"""
+                    DELETE FROM [DM_MONTYNT\\dli2].{table}
+                    WHERE TaskID = ?
+                """
+                cursor.execute(clear_sql, (task_id,))
+        
+        conn.commit()  # Commit the transactions
+        
+        return True, ""
+        
+    except Exception as e:
+        conn.rollback()  # Rollback in case of error
+        error_msg = f"Error clearing deleted tasks: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg
+
+
+def repending_existing_exported(user_role, task_id, conn):
+    """
+    Repend existing exported task for a given task ID (Admin only function)
+    
+    Args:
+        user_id: ID of the user performing the repending
+        task_id: Unique identifier for the task
+        conn: Database connection
+        
+    Returns:
+        Tuple of (success, error_message)
+    """
+    try:
+        if user_role != 'admin':
+            error_msg = "Only admin users can reinstall pending for existing exported task"
+            current_app.logger.error(error_msg)
+            return False, error_msg
+        
+        cursor = conn.cursor()
+        
+        # Update status to 'Pending' for the given task ID in PreprocessorHeader if the current status is 'Exported'
+        check_sql = """
+            SELECT Status FROM [DM_MONTYNT\\dli2].PreprocessorHeader
+            WHERE TaskID = ?
+        """
+        cursor.execute(check_sql, (task_id,))
+        row = cursor.fetchone()
+        if not row or row[0] != 'Exported':
+            error_msg = f"Task {task_id} is not in 'Exported' status, cannot reset to 'pending'."
+            current_app.logger.error(error_msg)
+            return False, error_msg
+        
+        update_sql = """
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
+            SET Status = 'Pending', UpdateDT = GETDATE()
+            WHERE TaskID = ?
+        """
+        cursor.execute(update_sql, (task_id,))
+
+        # clear exported table for the task, we have a few tables to clear
+        for table in ['PreprocessorContractLink',
+                      'PreprocessorExported',
+                      'PreprocessorCompletionComment',
+                      'PreprocessorErrorEdit']:
+            clear_sql = f"""
+                DELETE FROM [DM_MONTYNT\\dli2].{table}
+                WHERE TaskID = ?
+            """
+            cursor.execute(clear_sql, (task_id,))
+
+
+        conn.commit()  # Commit the transactions
+        
+        return True, ""
+        
+    except Exception as e:
+        conn.rollback()  # Rollback in case of error
+        error_msg = f"Error repending existing exported result for {task_id}: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
     

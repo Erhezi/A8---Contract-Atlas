@@ -149,12 +149,6 @@
         font-weight: bold;
     }
 
-    .editing {
-        background-color: #fffce8;
-        border: 1px solid #ffc107;
-        padding: 2px 5px;
-    }
-
     .task-errors-table-container {
         overflow-x: auto;
         overflow-y: auto;
@@ -319,10 +313,15 @@
         z-index: 1;
     }
 
+    .task-errors-table td.editable.editing,
     .task-errors-table .editing {
-        background-color: #fffce8;
-        border: 1px solid #ffc107;
+        background-color: transparent !important;
+        border: 2px solid #ffc107;
         padding: 2px 5px;
+    }
+
+    .task-errors-table td.editable.editing:focus {
+        background-color: #f0ebd0 !important;
     }
 
     /* Button styling within table */

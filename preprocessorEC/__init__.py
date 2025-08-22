@@ -120,6 +120,7 @@ def create_app(config_name=None, test_config=None):
     app.register_blueprint(change_simulation_bp, url_prefix=f'{url_prefix}/change-simulation')
     app.register_blueprint(data_export_bp, url_prefix=f'{url_prefix}/data-export')
     app.register_blueprint(data_synchronization_bp, url_prefix=f'{url_prefix}/data-synchronization')
+    app.register_blueprint(admin_blueprint, url_prefix=f'{url_prefix}/admin')
 
     # Initialize model management
     # Initialize app config with model status
