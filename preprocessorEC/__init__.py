@@ -107,6 +107,7 @@ def create_app(config_name=None, test_config=None):
     from .change_simulation.routes import change_simulation_bp
     from .data_export.routes import data_export_bp
     from .data_synchronization.routes import data_synchronization_bp
+    from .admin import admin_blueprint
 
     #add url prefix
     url_prefix = app.config.get('URL_PREFIX', '')

@@ -1,0 +1,343 @@
+{% extends 'layout.html' %}
+{% block title %}Admin Task Management{% endblock %}
+
+{% block extra_styles %}
+<style>
+    /* Loading spinner styles */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+    
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { 
+            transform: rotate(0deg); 
+        }
+        100% { 
+            transform: rotate(360deg); 
+        }
+    }
+
+    /* Compact table styles */
+    .compact-table {
+        font-size: 0.75rem;
+    }
+    
+    .compact-table th,
+    .compact-table td {
+        padding: 0.4rem 0.5rem;
+        vertical-align: middle;
+        text-align: center;
+    }
+    
+    .compact-table .btn-sm {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.75rem;
+    }
+    
+    /* Wrike ID column - make it wider */
+    .compact-table th:nth-child(3),
+    .compact-table td:nth-child(3) {
+        min-width: 70px;
+        max-width: 100px;
+    }
+
+    /* Actions column - make it wider */
+    .compact-table th:nth-child(10),
+    .compact-table td:nth-child(10) {
+        min-width: 120px;
+        max-width: 150px;
+    }
+    
+    /* Truncate long filenames */
+    .filename-cell {
+        max-width: 220px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: text;
+    }
+    
+    /* Unify badge text size with other content */
+    .compact-table .badge {
+        font-size: 0.75rem;
+        padding: 0.2em 0.6em;
+        font-weight: 500;
+    }
+    
+    /* Minimize date columns */
+    .compact-table td:nth-child(8),
+    .compact-table td:nth-child(9) {
+        font-size: 0.7rem;
+        white-space: wrap;
+    }
+    
+    /* Add subtle hover effect to rows */
+    .compact-table tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+
+    /* Status badge styles matching history.html */
+    .bg-danger {
+        color: #fff;
+        background-color: #dc3545;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-warning {
+        color: #212529;
+        background-color: #ffc107;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-success {
+        color: #fff;
+        background-color: #28a745;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-secondary {
+        color: #fff;
+        background-color: #6c757d;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-progress {
+        color: #fff;
+        background-color: #17a2b8;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .bg-progress-light {
+        color: #fff;
+        background-color: #7fb7f0;
+        padding: 0.4em 0.6em;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+    }
+    
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    
+    table.admin-table {
+        font-size: 0.75rem;
+    }
+    
+    table.admin-table th,
+    table.admin-table td {
+        vertical-align: middle;
+        text-align: center;
+        padding: 0.4rem 0.5rem;
+    }
+    
+    th.sortable {
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+        padding-right: 18px; /* Space for sort icon */
+    }
+    
+    th.sortable .sort-indicator {
+        position: absolute;
+        right: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.7rem;
+        color: #999;
+        opacity: 0.7;
+    }
+    
+    .action-btn {
+        border: none;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 0.7rem;
+        cursor: pointer;
+        font-weight: 600;
+        margin: 1px;
+    }
+    
+    .btn-delete {
+        background: #dc3545;
+        color: #fff;
+    }
+    
+    .btn-repend {
+        background: #7fb7f0;
+        color: #fff;
+    }
+    
+    .btn-refresh {
+        background: #3498db;
+        color: #fff;
+    }
+    
+    .btn-clear-selected {
+        background: #6c757d;
+        color: #fff;
+    }
+    
+    .btn-delete:disabled,
+    .btn-repend:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .controls-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .search-wrapper {
+        display: flex;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+        height: 36px;
+        margin-bottom: 0px;
+    }
+    
+    .search-input {
+        padding: 8px 12px;
+        border: none;
+        width: 300px;
+    }
+    
+    .search-type-select {
+        padding: 8px;
+        border: none;
+        border-right: 1px solid #ddd;
+        background-color: #f5f5f5;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+    
+    .clear-search-btn {
+        background: #f5f5f5;
+        border: none;
+        border-left: 1px solid #ddd;
+        padding: 0 12px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        color: #666;
+        transition: all 0.2s;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        min-width: 60px;
+    }
+    
+    .clear-search-btn:hover {
+        background: #e0e0e0;
+        color: #333;
+    }
+    
+    .row-deleted {
+        opacity: 0.65;
+    }
+
+    /* Admin-specific button styles */
+    .btn-primary {
+        color: #fff;
+        background-color: #3498db;
+        border: None;
+        padding: 10px 20px;
+        font-weight: bold;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn-secondary {
+        color: #fff;
+        background-color: #6c757d;
+        border: None;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1>Admin Task Management</h1>
+  <div class="controls-bar">
+      <div class="search-wrapper">
+          <select id="admin-search-type" class="search-type-select">
+              <option value="all">All</option>
+              <option value="task_id">Task ID</option>
+              <option value="filename">Filename</option>
+              <option value="with_error">With Error</option>
+              <option value="status_ccx">Status (CCX)</option>
+              <option value="status_infor">Status (Infor)</option>
+              <option value="wrike_id">Wrike ID</option>
+              <option value="user">User</option>
+          </select>
+          <input type="text" id="admin-search" class="search-input" placeholder="Search tasks..." />
+          <button id="clear-admin-search-btn" class="clear-search-btn">Clear</button>
+      </div>
+      <button id="refresh-btn" class="action-btn btn-refresh">Refresh</button>
+      <button id="clear-selected-btn" class="action-btn btn-clear-selected" disabled>Clear Selected Deleted</button>
+  </div>
+  <div class="table-responsive">
+    <table id="admin-task-table" class="table table-striped table-hover compact-table admin-table">
+      <thead>
+        <tr>
+          <th class="sortable" data-key="task_id">Task ID <span class="sort-indicator"></span></th>
+          <th class="sortable" data-key="user_name">User <span class="sort-indicator"></span></th>
+          <th class="sortable" data-key="wrike_task_id">Wrike ID <span class="sort-indicator"></span></th>
+          <th class="sortable" data-key="filename">Filename <span class="sort-indicator"></span></th>
+          <th class="sortable" data-key="with_error">With Error <span class="sort-indicator"></span></th>
+          <th class="sortable" data-key="status_ccx">Status (CCX) <span class="sort-indicator"></span></th>
+          <th class="sortable" data-key="status_infor">Status (Infor) <span class="sort-indicator"></span></th>
+          <th class="sortable" data-key="created_at">Created <span class="sort-indicator"></span></th>
+          <th class="sortable" data-key="updated_at">Updated <span class="sort-indicator"></span></th>
+          <th>Actions</th>
+          <th>Clear</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div id="admin-loading" class="loading-overlay"><div class="spinner"></div></div>
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}

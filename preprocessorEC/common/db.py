@@ -1261,7 +1261,7 @@ def clear_deleted_tasks(user_role, task_ids, conn):
         return False, error_msg
 
 
-def repending_existing_exported(user_role, task_id, conn):
+def repending_existing_exported_task(user_role, task_id, conn):
     """
     Repend existing exported task for a given task ID (Admin only function)
     
@@ -1339,7 +1339,7 @@ def get_task_history(conn, user_id = None, user_role = None):
         cursor = conn.cursor()
         
         # Build the query based on user role
-        if user_role == 'admin' or user_role == 'mdm' or user_role == "general":
+        if user_role == 'mdm' or user_role == "general":
             query = """
                 SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
                        CustomDirection, CustomFields, SimulationMode,
@@ -1349,6 +1349,17 @@ def get_task_history(conn, user_id = None, user_role = None):
                 LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
                 ON h.TaskID = w.TaskID
                 WHERE Status <> 'Deleted'
+                ORDER BY UpdateDT DESC, createDT DESC, WrikeID
+            """
+        elif user_role == 'admin':
+            query = """
+                SELECT h.TaskID, h.UserID, w.WrikeID, TPFileName, PreCheckMode, DedupMode,
+                       CustomDirection, CustomFields, SimulationMode,
+                       Status, Status2, WithError, CompletedBy, ExportedBy,
+                       h.CreateDT, h.UpdateDT
+                FROM [DM_MONTYNT\\dli2].PreprocessorHeader [h]
+                LEFT JOIN [DM_MONTYNT\\dli2].PreprocessorWrike [w]
+                ON h.TaskID = w.TaskID
                 ORDER BY UpdateDT DESC, createDT DESC, WrikeID
             """
         else:
