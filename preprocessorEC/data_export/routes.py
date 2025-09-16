@@ -820,7 +820,11 @@ def export_data():
         
         # Convert to DataFrame
         df = pd.DataFrame(export_data)
-        print(df.dtypes) #debug to check data types -- price we need to convert to numbers in excel
+
+        # convert price column to numeric to ensure correct reporting in excel
+        # it should be made into the correct money format (to cents) in excel, so it should round to 2 decimal places
+        df['Contract Price'] = pd.to_numeric(df['Contract Price'], errors='coerce')
+        df['Contract Price'] = df['Contract Price'].round(2)
         
         # Filter by Final Rank = 1
         if 'Final Rank' in df.columns:

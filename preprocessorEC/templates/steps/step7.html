@@ -389,6 +389,35 @@
         border: 1px solid #ddd;
     }
 
+    /* Visual state when task has been manually completed */
+    .completion-section.completed-state {
+        position: relative;
+        opacity: 0.55;
+    }
+    .completion-section.completed-state::after {
+        content: 'Task Completed';
+        position: absolute;
+        top: 8px;
+        right: 12px;
+        background: #28a745;
+        color: #fff;
+        padding: 3px 10px;
+        font-size: 0.65rem;
+        letter-spacing: .5px;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,.15);
+    }
+    .completion-section.completed-state .btn,
+    .completion-section.completed-state select,
+    .completion-section.completed-state textarea {
+        pointer-events: none !important;
+        cursor: not-allowed !important;
+    }
+    .completion-section.completed-state .btn-primary {
+        background: #6c757d !important;
+        border-color: #6c757d !important;
+    }
+
     #completion-comment {
         width: 98%;
         margin-top: 5px;
@@ -1010,16 +1039,17 @@
                         <label for="preset-comment-select" class="font-weight-bold">Select a preset comment (reason) for completion on &lt;100% syncrhonization or on error</label>
                         <select id="preset-comment-select" class="form-control form-control-sm">
                             <option value="" selected disabled>Select a preset reason...</option>
-                            <option value="A">A: Only vendor number is differ between TP (upload to preprocess) record and Infor record, BCAT issue not related to normal synchronization.</option>
-                            <option value="B">B: GPO contract item that can only be manually force to synchronize between TP (upload to preprocess) record and Infor record, bypass the check bewtween TP and CCX.</option>
-                            <option value="C">C: All TP (upload to preprocess) records are in sync to CCX and Infor, I don't care the other affected contract records.</option>
-                            <option value="D">D: Other - (put in your own words why in the comment box below).</option>
+                            <option value="A">A: Only vendor number is differ between TP (upload to preprocess) and Infor records, BCAT issue not related to normal synchronization.</option>
+                            <option value="B">B: GPO contract items that can only be manually forced to synchronize between TP (upload to preprocess) and Infor records, bypass the check bewtween TP and CCX.</option>
+                            <option value="C">C: All TP (upload to preprocess) records are in sync to CCX and Infor, I do not care the other affected contract records.</option>
+                            <option value="D">D: Only effective date is differ between TP (upload to preprocess) and CCX/Infor records, not expected to affect any downstream process.</option>
+                            <option value="E">E: Other - (put in your own words why in the comment box below).</option>
                         </select>
                     </div>
                     <div class="form-group mb-2">
                         <label for="completion-comment" class="form-label font-weight-bold">Completion Comment</label>
                         <textarea id="completion-comment" class="form-control form-control-sm" rows="5" placeholder="Provide justification for manual completion..." maxlength="1000"></textarea>
-                        <small class="form-text text-muted" id="comment-help">Select preset A/B/C to auto-fill comment. If selecting D, minimum 20 characters required.</small>
+                        <small class="form-text text-muted" id="comment-help">Select preset A/B/C/D to auto-fill comment. If selecting E, minimum 20 characters required.</small>
                         <div id="comment-error" class="text-danger small mt-1" style="display:none;"></div>
                     </div>
                 </div>
@@ -1036,9 +1066,11 @@
 
     <!-- Next Step Section -->
     <div class="action-buttons">
-        <button id="next-step-btn" class="btn btn-secondary" disabled>
-            Complete Step 7
-        </button>
+        <form id="complete-step-form" method="POST" action="{{ url_for('common.process_step', step_id=7) }}" style="display:none;">
+            <button id="complete-step-btn" type="submit" class="btn btn-success" disabled>
+                Complete Step 7
+            </button>
+        </form>
     </div>
 </div>
 

@@ -494,7 +494,7 @@ def process_step(step_id):
             # Step 7: Synchronization Inspection completion check
             # Add checks relevant to step 7
             success = True
-            flash("Step 6 marked as completed.", "success")
+            flash("Step 7 marked as completed.", "success")
 
         elif step_id == 8:
             # Step 8: Completion - Always successful if reached

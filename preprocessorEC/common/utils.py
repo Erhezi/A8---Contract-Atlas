@@ -181,14 +181,15 @@ def prepare_dataframe(df, column_mapping):
     
     # Add error columns
     error_df['Error-Missing Field'] = ''
+    error_df['Error-Invalid Source Contract Type'] = ''
+    error_df['Error-Invalid Intended Action'] = ''
+    error_df['Error-Invalid Vendor'] = ''
     error_df['Error-Invalid Date'] = ''
     error_df['Error-Invalid Price'] = ''
     error_df['Error-Invalid QOE'] = ''
     error_df['Error-Invalid UOM'] = ''
     error_df['Error-EA QOE NOT 1'] = ''
-    error_df['Error-Invalid Vendor'] = '' 
-    error_df['Error-Invalid Source Contract Type'] = ''
-    error_df['Error-Invalid Intended Action'] = ''
+    error_df['Warning-check QOE'] = '' 
     error_df['Warning-Potential Duplicates'] = ''
     error_df['Has Error'] = False
     
@@ -387,12 +388,19 @@ def validate_uom(error_df):
     
     return error_df
 
-def validate_uom_qoe_compatibility(error_df):
+def validate_uom_qoe_compatibility1(error_df):
     """Validate UOM-QOE compatibility (EA units must have QOE=1)"""
     error_df.loc[(error_df['UOM'] == 'EA') & (error_df['QOE_Parsed'] != 1), 'Error-EA QOE NOT 1'] = 'QOE must be 1 for UOM EA'
     error_df.loc[(error_df['UOM'] == 'EA') & (error_df['QOE_Parsed'] != 1), 'Has Error'] = True
+
     return error_df
 
+def validate_uom_qoe_compatibility2(error_df):
+    """added 2025-08-29: UOM in ('CA', 'CS', 'BX', 'PK') should alert user to do manual verfication if QOE = 1"""
+    error_df.loc[(error_df['UOM'].isin(['CA', 'CS', 'BX', 'PK'])) & (error_df['QOE_Parsed'] == 1), 'Warning-check QOE'] = 'QOE=1 for UOM CA/CS/BX, please verify'
+    error_df.loc[(error_df['UOM'].isin(['CA', 'CS', 'BX', 'PK'])) & (error_df['QOE_Parsed'] == 1), 'Has Error'] = True
+
+    return error_df
 
 def validate_contract_vendor_relationship(error_df):
     """Validate that each Contract Number get associated to one ERP Vendor ID,
@@ -494,7 +502,9 @@ def finalize_validation(error_df, columns_to_save_to_session):
     
     return result_df, error_df, has_errors
 
-def validate_file(df, column_mapping, valid_vids = None, duplicate_mode='default'):
+def validate_file(df, column_mapping, valid_vids = None, 
+                  duplicate_mode='default',
+                  uom_qoe_compatibility_validated = False):
     """
     Main validation function that coordinates all validation steps
     Returns: (result_df, error_df, has_errors)
@@ -514,7 +524,9 @@ def validate_file(df, column_mapping, valid_vids = None, duplicate_mode='default
     error_df = validate_prices(error_df)
     error_df = validate_qoe(error_df)
     error_df = validate_uom(error_df)
-    error_df = validate_uom_qoe_compatibility(error_df)
+    error_df = validate_uom_qoe_compatibility1(error_df)
+    if not uom_qoe_compatibility_validated:
+        error_df = validate_uom_qoe_compatibility2(error_df)
     error_df = validate_vendor_id(error_df, valid_vids = valid_vids)
     error_df, duplicate_info, duplicate_keys = check_duplicates(error_df, duplicate_mode)
     

@@ -223,7 +223,7 @@ def find_duplicates_with_ccx(temp_table, conn):
                         CASE
                             WHEN TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) IS NOT NULL
                             THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')) AS VARCHAR(100))
-                            ELSE REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', '')
+                            ELSE REPLACE(REPLACE(LTRIM(RTRIM(MANUFACTURER_PART_NUMBER)), '-', ''), '.', '')
                         END
                 END AS REDUCED_MANUFACTURER_PART_NUMBER,
                 CASE 
@@ -232,7 +232,7 @@ def find_duplicates_with_ccx(temp_table, conn):
                         CASE
                             WHEN TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(VENDOR_PART_NUMBER)), '-', '')) IS NOT NULL
                             THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(VENDOR_PART_NUMBER)), '-', '')) AS VARCHAR(100))
-                            ELSE REPLACE(LTRIM(RTRIM(VENDOR_PART_NUMBER)), '-', '')
+                            ELSE REPLACE(REPLACE(LTRIM(RTRIM(VENDOR_PART_NUMBER)), '-', ''), '.', '')
                         END
                 END AS REDUCED_VENDOR_PART_NUMBER,
                 MANUFACTURER_NAME, 
@@ -424,7 +424,7 @@ def match_to_infor_contract_lines(temp_table, conn):
                         CASE
                             WHEN TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(ManufacturerNumber)), '-', '')) IS NOT NULL
                             THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(ManufacturerNumber)), '-', '')) AS VARCHAR(100))
-                            ELSE REPLACE(LTRIM(RTRIM(ManufacturerNumber)), '-', '')
+                            ELSE REPLACE(REPLACE(LTRIM(RTRIM(ManufacturerNumber)), '-', ''), '.', '')
                         END
                 END AS ReducedManufacturerNumber,
                 CASE
@@ -433,7 +433,7 @@ def match_to_infor_contract_lines(temp_table, conn):
                         CASE
                             WHEN TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(VendorItem)), '-', '')) IS NOT NULL
                             THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(VendorItem)), '-', '')) AS VARCHAR(100))
-                            ELSE REPLACE(LTRIM(RTRIM(VendorItem)), '-', '')
+                            ELSE REPLACE(REPLACE(LTRIM(RTRIM(VendorItem)), '-', ''), '.', '')
                         END
                 END AS ReducedVendorNumber,
                 UOM,
@@ -658,7 +658,7 @@ def match_to_item_master(temp_table, conn):
                                 WHEN TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(ManufacturerNumber)), '-', '')) IS NOT NULL
                                 THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(ManufacturerNumber)), '-', '')) AS VARCHAR(100))
                                 ELSE
-                                    REPLACE(LTRIM(RTRIM(ManufacturerNumber)), '-', '')
+                                    REPLACE(REPLACE(LTRIM(RTRIM(ManufacturerNumber)), '-', ''), '.', '')
                             END
                     END AS ReducedManufacturerNumber,
                     CASE
@@ -668,7 +668,7 @@ def match_to_item_master(temp_table, conn):
                                 WHEN TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(VendorItem)), '-', '')) IS NOT NULL
                                 THEN CAST(TRY_CONVERT(BIGINT, REPLACE(LTRIM(RTRIM(VendorItem)), '-', '')) AS VARCHAR(100))
                                 ELSE
-                                    REPLACE(LTRIM(RTRIM(VendorItem)), '-', '')
+                                    REPLACE(REPLACE(LTRIM(RTRIM(VendorItem)), '-', ''), '.', '')
                             END
                     END AS ReducedVendorNumber
                 FROM [DM_MONTYNT\\dli2].MDM_VENDORITEM [vi]

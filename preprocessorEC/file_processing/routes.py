@@ -102,7 +102,9 @@ def map_columns():
     # Get column mapping from POST data
     column_mapping = {}
     for field, column in request.form.items():
-        # print(f"Field: {field}, Column: {column}")  # Debugging line
+        # Skip non-mapping fields like duplicate mode and the UOM/QOE checkbox acknowledgment
+        if field in ['duplicate_mode', 'uom_qoe_compatibility_validated']:
+            continue
         if column:  # Only include fields that are mapped to a column
             column_mapping[field] = column
     
@@ -142,7 +144,7 @@ def validate_file_route():
          # If mapping not in session (e.g., direct navigation), try getting from form
         form_mapping = {}
         for field, column in request.form.items():
-            if column and field not in ['duplicate_mode']: # Exclude non-mapping fields
+            if column and field not in ['duplicate_mode', 'uom_qoe_compatibility_validated']: # Exclude non-mapping fields
                 form_mapping[field] = column
         if form_mapping:
             column_mapping = form_mapping
@@ -164,15 +166,24 @@ def validate_file_route():
         # Get duplicate checking mode from form or session (using generic helper for this example)
         duplicate_mode = request.form.get('duplicate_mode', get_session_data(f'duplicate_check_mode_{user_id}', 'default'))
         store_session_data(f'duplicate_check_mode_{user_id}', duplicate_mode) # Store user-specifically
-        
+
+        # get the checkbox value for UOM-QOE compatibility validation (returns '1' if checked)
+        uom_qoe_compatibility_validated = request.form.get('uom_qoe_compatibility_validated') == '1'
+
         # Get valid vendor IDs from database
         conn = get_db_connection() # Use helper
         try:
             valid_vid = get_valid_vid_in_list(conn)
-        
+
             # Validate the file
-            valid_df, error_df, has_errors = validate_file(df, column_mapping, valid_vid, duplicate_mode)
-        
+            valid_df, error_df, has_errors = validate_file(
+                df,
+                column_mapping,
+                valid_vid,
+                duplicate_mode,
+                uom_qoe_compatibility_validated=uom_qoe_compatibility_validated
+            )
+
         finally:
             if conn:
                 conn.close()

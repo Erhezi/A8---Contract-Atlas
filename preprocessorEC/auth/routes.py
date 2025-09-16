@@ -69,27 +69,27 @@ def register():
         username = request.form.get('username')
         password = request.form.get('password')
         email = request.form.get('email')
-        name = request.form.get('name', '')
+        role = request.form.get('role', 'sourcing').lower().strip()
+        name = request.form.get('name', '')  # kept for future use, not stored in DB currently
+        confirm_password = request.form.get('confirm_password')
         
         # Simple validation
-        if not username or not password or not email:
+        if not username or not password or not email or not confirm_password:
             flash('All fields are required', 'danger')
             return render_template('register.html')
-        
-        # Check if user already exists
-        if User.get_by_username(username):
-            flash('Username already exists', 'danger')
+        if password != confirm_password:
+            flash('Passwords do not match', 'danger')
+            return render_template('register.html')
+        if role not in {'admin','sourcing','mdm'}:
+            flash('Invalid role selected', 'danger')
             return render_template('register.html')
         
-        # Create user
-        password_hash = generate_password_hash(password)
-        user = User(username=username, email=email, name=name, password_hash=password_hash)
-        
-        if user.save():
+        # Attempt creation via model helper (handles uniqueness checks)
+        success, message = User.create(username=username, email=email, password=password, role=role)
+        if success:
             flash('Registration successful! Please log in.', 'success')
             return redirect(url_for('auth.login'))
-        else:
-            flash('Error creating user account. Please try again.', 'danger')
+        flash(message, 'danger')
             
     return render_template('register.html')
 

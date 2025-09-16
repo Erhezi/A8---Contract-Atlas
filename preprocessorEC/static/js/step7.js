@@ -28,7 +28,8 @@ const completionSection = document.getElementById('completion-section');
 const markInforBtn = document.getElementById('mark-infor-btn');
 const commentSection = document.getElementById('comment-section');
 const completionComment = document.getElementById('completion-comment');
-const nextStepBtn = document.getElementById('next-step-btn');
+const nextStepBtn = document.getElementById('complete-step-btn');
+const completeStepForm = document.getElementById('complete-step-form');
 const presetSelect = document.getElementById('preset-comment-select');
 const commentError = document.getElementById('comment-error');
 const currentUserIdInput = document.getElementById('current-user-id');
@@ -82,11 +83,17 @@ if (markInforBtn) {
             showAlert('warning', 'Select a task first.');
             return;
         }
-        markTaskCompleted(selectedTaskId);
+    // Confirmation prompt (irreversible notice)
+    const confirmed = window.confirm('Are you sure you want to mark this task as COMPLETED?\n\nOnce marked completed it cannot be reverted to Pending.');
+    if (!confirmed) return;
+    markTaskCompleted(selectedTaskId);
     });
 }
 if (nextStepBtn) {
-    nextStepBtn.addEventListener('click', () => proceedToNextStep());
+    nextStepBtn.addEventListener('click', () => {
+        // Form submission will handle the redirect
+        // No custom logic needed here since form action handles the POST
+    });
 }
 if (presetSelect) {
     presetSelect.addEventListener('change', handlePresetChange);
@@ -162,11 +169,6 @@ function setupEventListeners() {
         if (selectedTaskId) {
             loadSyncDetails(selectedTaskId);
         }
-    });
-
-    // Next step button
-    nextStepBtn.addEventListener('click', function() {
-        proceedToNextStep();
     });
 }
 
@@ -282,6 +284,13 @@ async function loadTaskHeaders() {
         currentTasks = data.tasks;
         renderTaskHeaders(currentTasks);
         populateTaskFilter(currentTasks);
+        // If selected task already completed previously, lock UI
+        if (selectedTaskId) {
+            const selected = currentTasks.find(t => String(t.TaskID) === String(selectedTaskId));
+            if (selected && (selected.Status === 'Completed' || selected.Status2 === 'Completed')) {
+                applyCompletedVisualState();
+            }
+        }
         
     } catch (error) {
         console.error('Error loading task headers:', error);
@@ -535,15 +544,18 @@ function handlePresetChange() {
     let text = '';
     switch (v) {
         case 'A':
-            text = 'Only vendor part number is differ between TP (upload to preprocess) record and Infor record, point to BCAT update issue not related to normal synchronization.';
+            text = 'Only vendor number is differ between TP (upload to preprocess) and Infor records, BCAT issue not related to normal synchronization.';
             break;
         case 'B':
-            text = 'GPO contract item that can only be manually synchronize between TP (upload to preprocess) record and Infor record, bypass the check bewtween TP and CCX.';
+            text = 'GPO contract items that can only be manually forced to synchronize between TP (upload to preprocess) and Infor records, bypass the check bewtween TP and CCX.';
             break;
         case 'C':
-            text = 'All TP (upload to preprocess) records are in full sync with CCX and Infor, I will ignore the errors and non-synced records that are not directly related to my TP set of records.';
+            text = 'All TP (upload to preprocess) records are in sync to CCX and Infor, I do not care the other affected contract records.';
             break;
         case 'D':
+            text = 'Only effective date is differ between TP (upload to preprocess) and CCX/Infor records, not expected to affect any downstream process.';
+            break;
+        case 'E':
             text = '';
             if (completionComment) {
                 completionComment.placeholder = '(Enter your reason to manually complete the task here ...)';
@@ -551,9 +563,9 @@ function handlePresetChange() {
         default:
             text = '';
     }
-    if (completionComment && v !== 'D') {
+    if (completionComment && v !== 'E') {
         completionComment.value = text;
-    } else if (completionComment && v === 'D' && completionComment.value.trim().length < 1) {
+    } else if (completionComment && v === 'E' && completionComment.value.trim().length < 1) {
         completionComment.value = '';
     }
     validateCommentLive();
@@ -644,9 +656,27 @@ async function markTaskCompleted(taskId) {
         await loadTaskHeaders();
         if (completionComment) completionComment.disabled = true;
         if (presetSelect) presetSelect.disabled = true;
+        applyCompletedVisualState();
     } catch (e) {
         showAlert('error', e.message);
         if (markInforBtn) markInforBtn.disabled = false;
+    }
+}
+
+function applyCompletedVisualState() {
+    if (completionSection && !completionSection.classList.contains('completed-state')) {
+        completionSection.classList.add('completed-state');
+    }
+    if (markInforBtn) {
+        markInforBtn.disabled = true;
+        markInforBtn.textContent = 'Task Completed';
+    }
+    if (nextStepBtn) {
+        nextStepBtn.style.display = 'inline-block';
+        nextStepBtn.disabled = false; // allow proceeding after completion
+    }
+    if (completeStepForm) {
+        completeStepForm.style.display = 'inline-block';
     }
 }
 

@@ -446,7 +446,14 @@
                     </select>
                 </div>
                 <div class="form-text text-muted mb-3" style="margin-top: 0.7rem !important;">
-                    <small>Before checking, everything is converted into upper case with leading/trailing white-space(s) trimmed. Use strict/explicit mode only after you have first reviewed all your potential duplicates and you are sure they should be identified by their explicit manufacturer part number and UOM. The distributor mode is intended for running pre-checker on distributor (e.g. Medline) contract(s) only.</small>
+                    <small>Before checking, everything is converted into upper case with leading/trailing white-space(s) trimmed. Use strict/explicit mode only after you have first reviewed all your potential duplicates identified under default mode and you are sure they should be identified by their explicit manufacturer part number and/or UOM. The distributor mode is intended for running on distributor (e.g. Medline, Cardinal) contract(s) only.</small>
+                </div>
+                <!-- UOM/QOE compatibility validation acknowledgment checkbox -->
+                <div class="form-check mb-3" style="margin-top: 10px;">
+                    <input class="form-check-input" type="checkbox" id="uom_qoe_compatibility_validated" name="uom_qoe_compatibility_validated" value="1">
+                    <label class="form-check-label" for="uom_qoe_compatibility_validated" style="font-size: 0.95rem; font-weight: 700; line-height: 1.2;">
+                        I have carefully validated that the QOE (conversion factor) listed here for UOM (CA, CS, BX, PK) are really 1.
+                    </label>
                 </div>
             </div>
         </form>

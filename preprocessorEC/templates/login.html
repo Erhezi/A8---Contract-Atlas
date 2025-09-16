@@ -3,18 +3,40 @@
 
 {% block title %}Login - Contract Atlas{% endblock %}
 
+{% block extra_styles %}
+<style>
+  .auth-card {max-width:420px;margin:40px auto;padding:30px 20px;background:#ffffff;border:1px solid #e2e6ea;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.06);}  
+  .auth-card h2 {margin-top:0;font-weight:600;color:#2c3e50;font-size:1.4rem;}
+  .auth-card form {margin-top:15px;}
+  .auth-card .form-label {font-size:0.85rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#34495e;margin-bottom:4px;}
+  .auth-card .form-control, .auth-card .form-select {border:1px solid #cfd7de;border-radius:4px;padding:10px 12px;font-size:0.95rem;transition:border-color .15s, box-shadow .15s; background:#fff;width:100%;box-sizing:border-box;}
+  .auth-card .form-control:focus, .auth-card .form-select:focus {outline:none;border-color:#3498db;box-shadow:0 0 0 3px rgba(52,152,219,0.25);}  
+  .btn-container {text-align:center;margin-top:25px;}
+  .btn-primary {display:inline-block;background:#3498db;border:none;color:#fff;font-weight:600;padding:10px 22px;border-radius:4px;cursor:pointer;font-size:0.95rem;letter-spacing:.3px;transition:background .18s, transform .18s;}
+  .btn-primary:hover {background:#2587c8;}
+  .btn-primary:active {background:#1f6d9f;transform:translateY(1px);} 
+  .auth-alt {margin-top:18px;font-size:0.85rem;color:#555;text-align:center;}
+  .auth-alt a {color:#3498db;text-decoration:none;font-weight:600;}
+  .auth-alt a:hover {text-decoration:underline;}
+</style>
+{% endblock %}
+
 {% block content %}
-<h2>Login</h2>
-<form method="POST">
-  <div class="mb-3">
-    <label for="username" class="form-label">Username</label>
-    <input type="text" class="form-control" name="username" required>
-  </div>
-  <div class="mb-3">
-    <label for="password" class="form-label">Password</label>
-    <input type="password" class="form-control" name="password" required>
-  </div>
-  <button type="submit" class="btn btn-primary">Login</button>
-</form>
-<p class="mt-3">Don't have an account? <a href="{{ url_for('auth.register') }}">Register here</a></p>
+<div class="auth-card">
+  <h2>Login</h2>
+  <form method="POST">
+    <div class="mb-3">
+      <label for="username" class="form-label">Username</label>
+      <input type="text" class="form-control" name="username" required>
+    </div>
+    <div class="mb-3">
+      <label for="password" class="form-label">Password</label>
+      <input type="password" class="form-control" name="password" required>
+    </div>
+    <div class="btn-container">
+      <button type="submit" class="btn-primary">Login</button>
+    </div>
+  </form>
+  <p class="auth-alt">Don't have an account? <a href="{{ url_for('auth.register') }}">Register here</a></p>
+</div>
 {% endblock %}
