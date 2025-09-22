@@ -9,7 +9,9 @@ from ..common.db import (
     get_tp_row_sync_by_taskid,
     get_exported_row_sync_by_taskid,
     mark_completed_by_task_id,
-    add_completion_comment_by_task_id
+    add_completion_comment_by_task_id,
+    get_completion_count_by_task_id,
+    get_completion_timestamps_by_task_id
 )
 from ..common.session import store_current_step, store_completed_steps, get_completed_steps
 
@@ -44,8 +46,9 @@ def get_task_headers():
         # Typically tasks that have been exported or completed
         filtered_tasks = []
         for task in tasks:
-            # Include tasks that are not in 'Pending' status or have been through export process
-            if task.get('Status') not in ['Pending', 'Hold']:
+            # Include tasks that are exported and are still 'Pending' in status2
+            # this means once the task is 'completed', it will be marked as such as no longer appear
+            if task.get('Status') == 'Exported' and task.get('Status2') == 'Pending':
                 filtered_tasks.append({
                     'TaskID': task.get('TaskID'),
                     'UserID': task.get('UserID'),
@@ -190,6 +193,10 @@ def mark_step_completed():
             if not success_complete:
                 return jsonify({'success': False, 'message': f'Unable to mark completed: {msg_complete}'}), 500
 
+            # Store the completed task ID in session for step 8
+            session['_commit_task_id'] = task_id
+            session.modified = True
+
             # Optional comment persistence
             if comment:
                 try:
@@ -206,3 +213,90 @@ def mark_step_completed():
     except Exception as e:
         current_app.logger.exception('Error marking step completed')
         return jsonify({'success': False, 'message': str(e)}), 500
+    
+
+@data_synchronization_bp.route('/completion-display/<task_id>')
+@login_required
+def completion_display(task_id):
+    """Render completion (step 8) display with timeline and counts.
+
+    Uses helper DB functions:
+        get_completion_timestamps_by_task_id(conn, task_id)
+        get_completion_count_by_task_id(conn, task_id)
+
+    Falls back gracefully if any part fails.
+    """
+    try:
+
+        print(task_id)  # Debug print for the task id from session
+
+        if not task_id:
+            return jsonify({'success': False, 'message': 'No Task ID provided for completion display'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'success': False, 'message': 'Database connection not available'}), 500
+
+        # Gather timestamps
+        ts_success, ts_error, timestamps_result = get_completion_timestamps_by_task_id(conn, task_id)
+        if not ts_success:
+            current_app.logger.warning(f"Error retrieving completion timestamps for task {task_id}: {ts_error}")
+            timestamps_result = {}
+
+        # Gather counts
+        counts_success, counts_error, counts_result = get_completion_count_by_task_id(conn, task_id)
+        if not counts_success:
+            current_app.logger.warning(f"Error retrieving completion counts for task {task_id}: {counts_error}")
+            counts_result = {}
+
+        # Use exact key names returned by DB layer (with fallbacks)
+        timestamps_result = timestamps_result or {}
+        counts_result = counts_result or {}
+
+        # Use exact key names returned by DB layer
+        create_ts = timestamps_result.get('createDT')
+        export_ts = timestamps_result.get('exportedDT')
+        completed_ts = timestamps_result.get('completedDT')
+
+        # Build timeline structure
+        def fmt(ts):
+            return ts.strftime('%Y-%m-%d %H:%M:%S') if hasattr(ts, 'strftime') else (ts if ts else None)
+
+        timeline = [
+            {'key': 'created', 'label': 'Created', 'timestamp': create_ts, 'display': fmt(create_ts)},
+            {'key': 'exported', 'label': 'Exported', 'timestamp': export_ts, 'display': fmt(export_ts)},
+            {'key': 'completed', 'label': 'Completed', 'timestamp': completed_ts, 'display': fmt(completed_ts)},
+        ]
+
+        processed_items = counts_result.get('totalTPItems')
+        affected_items = counts_result.get('totalAffectedItems')
+
+        display_data = {
+            'task_id': task_id,
+            'timeline': timeline,
+            'counts': {
+                'processed_items': processed_items,
+                'affected_items': affected_items
+            },
+            'errors': {
+                'timestamps': ts_error if not ts_success else None,
+                'counts': counts_error if not counts_success else None
+            }
+        }
+
+        # set the session _commit_task_id to None after rendering
+        session['_commit_task_id'] = None
+        session.modified = True
+
+        return jsonify({'success': True, 
+                        'message': '', 
+                        'data': display_data})
+    except Exception as e:
+        current_app.logger.exception('Error rendering completion display')
+        return jsonify({'success': False, 'message': f'Error rendering completion display: {e}'}), 500
+    finally:
+        if 'conn' in locals():
+            try:
+                conn.close()
+            except Exception:
+                pass

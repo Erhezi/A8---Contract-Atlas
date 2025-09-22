@@ -128,7 +128,7 @@
 
     function buildActions(task) {
       const canDelete = task.status_ccx !== 'Deleted';
-      const canRepend = task.status_ccx === 'Exported';
+      const canRepend = task.status_ccx === 'Exported' || task.status_ccx === 'Deleted';
       return [
         '<button class="action-btn btn-delete delete-btn" data-task-id="' + task.task_id + '" ' + (canDelete ? '' : 'disabled') + '>Drop</button>',
         '<button class="action-btn btn-repend repend-btn" data-task-id="' + task.task_id + '" ' + (canRepend ? '' : 'disabled') + '>Repend</button>'

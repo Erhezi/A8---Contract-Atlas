@@ -1288,14 +1288,14 @@ def repending_existing_exported_task(user_role, task_id, conn):
         """
         cursor.execute(check_sql, (task_id,))
         row = cursor.fetchone()
-        if not row or row[0] != 'Exported':
-            error_msg = f"Task {task_id} is not in 'Exported' status, cannot reset to 'pending'."
+        if not row or row[0] not in ('Exported', 'Deleted'):
+            error_msg = f"Task {task_id} is not in 'Exported' or 'Deleted' status, cannot reset to 'pending'."
             current_app.logger.error(error_msg)
             return False, error_msg
         
         update_sql = """
             UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
-            SET Status = 'Pending', UpdateDT = GETDATE()
+            SET Status = 'Pending', Status2 = 'Pending', UpdateDT = GETDATE()
             WHERE TaskID = ?
         """
         cursor.execute(update_sql, (task_id,))
@@ -2418,7 +2418,7 @@ def get_tp_row_sync_by_taskid(conn, task_id):
             CASE WHEN ccx_tp.QOE = QOE_Infor THEN 1 ELSE 0 END AS Match_QOE_TP_Infor,
             CASE WHEN ccx_tp.[Contract Price] = BaseCost THEN 1 ELSE 0 END AS Match_Price_TP_Infor,
             CASE WHEN ccx_tp.[Vendor Part Num] COLLATE Latin1_General_CS_AS = VendorItem COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_Infor,
-            CASE WHEN ccx_tp.[Effective Date] = EffectiveDate THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_Infor,
+            -1 AS Match_EffectiveDate_TP_Infor,
             CASE WHEN ccx_tp.[Expiration Date] = ExpirationDate THEN 1 ELSE 0 END AS Match_ExpirationDate_TP_Infor,
             -1 AS Match_Description_TP_Infor
 
@@ -2514,7 +2514,7 @@ def get_exported_row_sync_by_taskid(conn, task_id):
             CASE WHEN ccx_tp.QOE = QOE_Infor THEN 1 ELSE 0 END AS Match_QOE_TP_Infor,
             CASE WHEN ccx_tp.[Contract Price] = BaseCost THEN 1 ELSE 0 END AS Match_Price_TP_Infor,
             CASE WHEN ccx_tp.[Vendor Part Num] COLLATE Latin1_General_CS_AS = VendorItem COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_Infor,
-            CASE WHEN ccx_tp.[Effective Date] = EffectiveDate THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_Infor,
+            -1 AS Match_EffectiveDate_TP_Infor,
             CASE WHEN ccx_tp.[Expiration Date] = ExpirationDate THEN 1 ELSE 0 END AS Match_ExpirationDate_TP_Infor,
             -1 Match_Description_TP_Infor
 
@@ -2594,3 +2594,82 @@ def add_completion_comment_by_task_id(conn, task_id, comment):
         error_msg = f"Error adding completion comment for task {task_id}: {str(e)}"
         current_app.logger.error(error_msg)
         return False, error_msg
+
+
+def get_completion_timestamps_by_task_id(conn, task_id):
+    """ Retrieve timestamps for task creation, export, and completed on for a specific task ID from the database.
+        createDT and completedDT (updateDT) are from PreprocessorHeader table for the task
+        exportedDT is the maximum exportedDT from PreprocessorExported table for the task
+
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+    
+    Returns:
+        success, error_msg, (createDT, exportDT, completedDT)
+    """
+    try:
+        cursor = conn.cursor()
+        query = """
+        SELECT createDT,
+               (SELECT MAX(ExportedDT) FROM [DM_MONTYNT\\dli2].PreprocessorExported WHERE TaskID = ?) as exportedDT,
+               updateDT as completedDT      
+        FROM [DM_MONTYNT\\dli2].PreprocessorHeader
+        WHERE TaskID = ?
+        """
+        cursor.execute(query, (task_id, task_id))
+        row = cursor.fetchone()
+        if not row:
+            return False, "Task not found.", None
+        
+        timestamps = {
+            'createDT': row[0],
+            'exportedDT': row[1],
+            'completedDT': row[2]
+        }
+        return True, "", timestamps
+    
+    except Exception as e:
+        error_msg = f"Error retrieving timestamps for task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
+
+
+def get_completion_count_by_task_id(conn, task_id):
+    """ Retrieve counts for total TP items, and total item changed for a specific task ID
+    we will get total TP items from PreprocessorProcessedRaw where TaskID = task_id
+    we will get total exported changes from PreprocessorCommitLine where TaskID = task_id and Exported = 'Yes'
+
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+    
+    Returns:
+        success, error_msg, (totalTPItems, totalAffectedItems)
+    """
+    try:
+        cursor = conn.cursor()
+        query = """
+        SELECT 
+            (SELECT COUNT(1) FROM [DM_MONTYNT\\dli2].PreprocessorProcessedRaw WHERE TaskID = ? AND Dataset = 'TP') as totalProcessedItems,
+            (SELECT COUNT(1) FROM (
+                SELECT DISTINCT FileRow, [Contract Number]
+                FROM [DM_MONTYNT\\dli2].PreprocessorCommitLine WHERE TaskID = ? AND Exported = 'Yes') [x]) as totalAffectedItems
+        """
+        cursor.execute(query, (task_id, task_id))
+        row = cursor.fetchone()
+        if not row:
+            return False, "Task not found.", None
+        
+        counts = {
+            'totalTPItems': row[0],
+            'totalAffectedItems': row[1]
+        }
+        return True, "", counts
+    
+    except Exception as e:
+        error_msg = f"Error retrieving counts for task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
+
+        

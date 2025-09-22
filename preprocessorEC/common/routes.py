@@ -130,6 +130,12 @@ def dashboard():
         task_id = request.args.get('task_id', None)
     else:
         task_id = None
+    
+    # get task_id from session if available for step 8
+    if current_step_obj['id'] == 8 and session.get('_commit_task_id'):
+        task_id = session.get('_commit_task_id')
+    else:
+        task_id = None
 
 
     return render_template('dashboard.html',

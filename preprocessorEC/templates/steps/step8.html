@@ -1,16 +1,120 @@
-<!-- Completion Verified Content -->
+<style>
+    .completion-container { max-width: 880px; margin: 0 auto; background:#fff; padding:40px 44px 46px; border-radius:16px; box-shadow:0 4px 18px rgba(0,0,0,.08); position:relative; overflow:hidden; }
+    .completion-icon { width:68px; height:68px; border-radius:50%; background:#28a745; color:#fff; display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:600; box-shadow:0 0 0 6px rgba(40,167,69,.25); margin-bottom:12px; }
+    .completion-header { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .completion-header .task-id-pill { margin-top:6px; }
+    .completion-header .completion-icon { position:relative !important; margin:0 auto 12px !important; left:auto !important; top:auto !important; display:inline-flex !important; }
+    .timeline-container { position:relative; margin:34px 4px 24px; padding:62px 4px 18px; }
+    .timeline-axis { position:relative; height:6px; background:linear-gradient(90deg,#e9ecef,#dee2e6); border-radius:4px; top:-70px; overflow:hidden; }
+    .timeline-axis .progress-fill { position:absolute; top:0; left:0; height:100%; background:linear-gradient(90deg,#007bff,#28a745); border-radius:4px; width:0; transition:width .6s ease; z-index:1; }
+    .timeline-step { position:absolute; top:-26px; transform:translateX(-50%); text-align:center; font-size:.82rem; min-width:110px; z-index:2; }
+    .timeline-step .dot { width:34px; height:34px; background:#e9ecef; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 8px; font-size:.9rem; font-weight:600; color:#6c757d; box-shadow:0 2px 4px rgba(0,0,0,.12); transition:all .35s; border:3px solid #fff; }
+    .timeline-step[data-key="created"] .dot { background:#007bff; color:#fff; box-shadow:0 0 0 6px rgba(0,123,255,.25); }
+    .timeline-step[data-key="exported"] .dot { background:#17a2b8; color:#fff; box-shadow:0 0 0 6px rgba(23,162,184,.30); }
+    .timeline-step[data-key="completed"] .dot { background:#28a745; color:#fff; box-shadow:0 0 0 6px rgba(40,167,69,.25); }
+    .timeline-step.completed[data-key="created"] .dot { box-shadow:0 0 0 6px rgba(0,123,255,.35); }
+    .timeline-step.completed[data-key="exported"] .dot { box-shadow:0 0 0 6px rgba(23,162,184,.40); }
+    .timeline-step.completed[data-key="completed"] .dot { box-shadow:0 0 0 6px rgba(40,167,69,.35); }
+    .timeline-step .label { font-weight:600; color:#495057; margin-bottom:4px; }
+    .timeline-step .ts { font-family:monospace; background:#f8f9fa; padding:4px 8px; border-radius:6px; display:inline-block; min-width:145px; white-space:normal; line-height:1.15; }
+    .timeline-step .ts.missing { background:#fff3cd; color:#856404; }
+    .timeline-fixed-label.exported { position:absolute; left:50%; transform:translateX(-50%); top:20px; text-align:center; font-size:.8rem; z-index:3; }
+    .timeline-fixed-label.exported .label { font-weight:600; color:#495057; margin-bottom:4px; }
+    .timeline-fixed-label.exported .ts { font-family:monospace; background:#f8f9fa; padding:4px 8px; border-radius:6px; display:inline-block; min-width:140px; line-height:1.15; }
+    .timeline-fixed-label.exported .ts.missing { background:#fff3cd; color:#856404; }
+    .timeline-overlay { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; z-index:2; overflow:visible; }
+    #exported-connector { stroke:#17a2b8; stroke-width:2; stroke-dasharray:4 3; }
+    .timeline-step[data-key="exported"] .label,
+    .timeline-step[data-key="exported"] .ts { opacity:0; visibility:hidden; }
+    .task-id-pill { font-size:.8rem; background:#343a40; color:#fff; padding:6px 12px; border-radius:50px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,.18); }
+    .task-id-pill:hover { background:#495057; transform: scale(1.02); transition: all 0.2s ease; }
+    .summary-actions { margin-top:34px; display:flex; gap:14px; flex-wrap:wrap; }
+    /* push primary action to the far right */
+    .summary-actions .btn-primary { margin-left: auto; }
+    .summary-actions .btn { padding:10px 20px; font-weight:600; }
+    .summary-cards-row { display:flex; gap:16px; margin-top:12px; }
+    .summary-card.compact { flex:1; background-color:#fff; border-radius:8px; padding:18px 18px; box-shadow:0 2px 5px rgba(0,0,0,0.08); display:flex; flex-direction:column; align-items:flex-start; gap:6px; border-left:5px solid #3498db; }
+    .summary-card.compact.affected { border-left-color:#17a2b8; }
+    .summary-card.compact .card-meta { font-size:.78rem; color:#7f8c8d; text-transform:uppercase; letter-spacing:.04em; font-weight:600; }
+    .summary-card.compact .card-value { font-size:1.6rem; font-weight:700; color:#2c3e50; }
+    @media (max-width: 720px) { 
+        .timeline-step .ts { min-width:auto; font-size:.65rem; } 
+        .timeline-step .label{font-size:.7rem;} 
+        .timeline-step .dot{width:20px;height:20px;font-size:.7rem;} 
+        .timeline-fixed-label.exported .label{font-size:.7rem;}
+        .timeline-fixed-label.exported .ts{min-width:auto; font-size:.65rem;}
+    }
+    @media (max-width:600px) { .summary-cards-row { flex-direction:column; } }
+</style>
+
 <div class="step-content">
-    <p>The process has been completed and verified.</p>
-    <div class="completion-summary">
-        <div class="completion-icon">✓</div>
-        <h3>Process Successfully Completed</h3>
-        <p>All steps have been completed and the changes have been applied.</p>
-        <div class="summary-details">
-            <p><strong>Process ID:</strong> #12345</p>
-            <p><strong>Completed On:</strong> 2023-06-01 15:00:00</p>
-            <p><strong>Processed Items:</strong> 52</p>
+    <div class="completion-container" id="completion-container" data-task-id="{{ task_id }}">
+
+        <div class="completion-header" style="text-align:center; margin-bottom:18px;">
+            <div class="completion-icon" style="width:68px;height:68px;margin:0 auto;display:inline-flex;align-items:center;justify-content:center;">✓</div>
+            <h3 class="mb-1" style="margin:6px 0 6px;">Process Successfully Completed</h3>
+            <div class = "task-info">
+                <div class="task-id-pill mb-2"><span>Task ID:</span><strong id="task-id-display">Loading...</strong></div>
+            </div>
         </div>
-        <a href="{{ url_for('common.home') }}" class="btn btn-primary">Return to Home</a>
-        <a href="{{ url_for('common.dashboard', restart=1) }}" class="btn btn-secondary">Start New Process</a>
+
+        <div class="completion-timeline">
+            <h4>Process Timeline</h4>
+            <div class="timeline-container" id="timeline-proportional">
+                <div class="timeline-axis">
+                    <div class="progress-fill" id="timeline-progress-fill"></div>
+                </div>
+                <!-- Fixed exported label at 50% -->
+                <div id="exported-fixed-label" class="timeline-fixed-label exported" aria-hidden="false">
+                    <div class="label">Exported</div>
+                    <div class="ts missing" id="exported-fixed-ts">Loading...</div>
+                </div>
+                <svg class="timeline-overlay" id="timeline-overlay" preserveAspectRatio="none">
+                    <line id="exported-connector" x1="0" y1="0" x2="0" y2="0"></line>
+                </svg>
+                <div class="timeline-step" data-key="created" style="left:10%">
+                    <div class="dot" title="Created"></div>
+                    <div class="label">Created</div>
+                    <div class="ts missing">Loading...</div>
+                </div>
+                <div class="timeline-step" data-key="exported" style="left:50%">
+                    <div class="dot" title="Exported"></div>
+                    <div class="label">Exported</div>
+                    <div class="ts missing">Loading...</div>
+                </div>
+                <div class="timeline-step" data-key="completed" style="left:90%">
+                    <div class="dot" title="Completed"></div>
+                    <div class="label">Completed</div>
+                    <div class="ts missing">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="completion-summary" id="completion-summary">
+            <div class="summary-cards-row">
+                <div class="summary-card compact" id="card-processed">
+                    <div class="card-meta">Items Processed</div>
+                    <div class="card-value" id="processed-items-value">0</div>
+                </div>
+                <div class="summary-card compact affected" id="card-affected">
+                    <div class="card-meta">Items Affected</div>
+                    <div class="card-value" id="affected-items-value">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-actions">
+            <a href="{{ url_for('common.home') }}" class="btn btn-secondary">Return to Home</a>
+            <a href="{{ url_for('common.dashboard', restart=1) }}" class="btn btn-primary">Start New Process</a>
+        </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.Step8Display && window.Step8Display.load) {
+        window.Step8Display.load("{{ task_id }}"); // Replace with your actual task ID
+        }   
+    });
+</script>
+<script src="{{ url_for('static', filename='js/step8.js') }}"></script>

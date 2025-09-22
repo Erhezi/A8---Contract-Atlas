@@ -553,7 +553,7 @@ function handlePresetChange() {
             text = 'All TP (upload to preprocess) records are in sync to CCX and Infor, I do not care the other affected contract records.';
             break;
         case 'D':
-            text = 'Only effective date is differ between TP (upload to preprocess) and CCX/Infor records, not expected to affect any downstream process.';
+            text = 'Only effective date and/or description differs between TP (upload to preprocess) and CCX/Infor records, not expected to affect any downstream process.';
             break;
         case 'E':
             text = '';
@@ -644,7 +644,7 @@ async function markTaskCompleted(taskId) {
     }
     if (markInforBtn) markInforBtn.disabled = true;
     try {
-        const resp = await fetch('/data-synchronization/mark-completed', {
+        const resp = await fetch(getApiUrl('/data-synchronization/mark-completed'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
