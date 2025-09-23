@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(data => {
                 if (data.success) {
-                    displayErrorRows(data.errors);
+                    displayErrorRows(data.errors, data.error_edits || []);
                 } else {
                     showErrorMessage(data.message);
                 }
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Function to display error rows in the table
-    function displayErrorRows(errors) {
+    function displayErrorRows(errors, errorEdits = []) {
         const errorRows = document.getElementById('error-rows');
         
         // Clear loading message
@@ -71,6 +71,17 @@ document.addEventListener('DOMContentLoaded', function() {
             errorRows.innerHTML = '<tr><td colspan="16" class="text-center">No error records found.</td></tr>';
             return;
         }
+
+        // Build a lookup of edits by PKID (PKID_PrPRaw on edits dataset)
+        const editsByPkid = new Map();
+        errorEdits.forEach(edit => {
+            const pk = edit.PKID_PrPRaw ?? edit.PKID_PrpRaw ?? edit.PKID_Prp ?? edit.PKID ?? edit.pkid;
+            if (pk == null) return; // skip if no pkid
+            if (!editsByPkid.has(pk)) {
+                editsByPkid.set(pk, []);
+            }
+            editsByPkid.get(pk).push(edit); // Always push, don't check if array exists
+        });
 
         // check if action columns exist in the table (due to permission)
         const hasActionCols = document.querySelector('#task-errors-table th.action-col') !== null;
@@ -156,26 +167,108 @@ document.addEventListener('DOMContentLoaded', function() {
                 
             tr.innerHTML = rowHTML;
 
-            if (hasActionCols) {
-                if (row.isDrop === 1) {
-                    tr.classList.add('table-danger');
-                    tr.style.textDecoration = 'line-through';
-                    tr.querySelector('.drop-btn').innerText = 'Keep';
-                    tr.querySelector('.revert-btn').disabled = true;
-                    tr.querySelector('.edit-btn').disabled = true;
-                    tr.querySelector('.commit-btn').disabled = true;
+            // cell baseline before applying edits
+            const initCellBaselines = () => {
+                tr.querySelectorAll('.editable').forEach(cell => {
+                    if (!cell.hasAttribute('data-baseline')) {
+                        cell.setAttribute('data-baseline', cell.innerText.trim());
+                    }
+                });
+            };
+            initCellBaselines();
+
+            // apply edits by PKID if we have any
+            const pkid = row.PKID;
+            const editsForPk = editsByPkid.get(pkid) || [];
+            
+            // Helper functions to normalize field and value names
+            const getFieldName = (e) => e.EditField ?? e['Edit Field'] ?? e.edit_field ?? '';
+            const getNewValue = (e) => e.NewValue ?? e['New Value'] ?? e.new_value ?? '';
+            const getIsDrop = (e) => e.isDrop ?? e.IsDrop ?? e.is_drop ?? 0;
+
+            // First check if any edit has isDrop = 1
+            const isDropped = editsForPk.some(e => Number(getIsDrop(e)) === 1);
+
+            if (isDropped) {
+                // Apply drop styling
+                tr.classList.add('table-danger');
+                tr.querySelectorAll('td').forEach(cell => {
+                    if (!cell.classList.contains('action-col')) {
+                        cell.style.textDecoration = 'line-through';
+                    }
+                });
+                if (hasActionCols) {
+                    const dropBtn = tr.querySelector('.drop-btn');
+                    const revertBtn = tr.querySelector('.revert-btn');
+                    const editBtn = tr.querySelector('.edit-btn');
+                    const commitBtn = tr.querySelector('.commit-btn');
+                    if (dropBtn) {
+                        dropBtn.innerText = 'Keep';
+                        dropBtn.classList.remove('drop-state');
+                        dropBtn.classList.add('keep-state');
+                    }
+                    if (revertBtn) revertBtn.disabled = true;
+                    if (editBtn) editBtn.disabled = true;
+                    if (commitBtn) commitBtn.disabled = true;
+                }
+            } else {
+                // Not dropped; apply field-level edits
+                // Group edits by field and take the latest edit per field
+                const latestEditByField = {};
+                editsForPk.forEach(e => {
+                    const fieldName = String(getFieldName(e) || '').toUpperCase();
+                    if (fieldName && fieldName !== 'DROP') {
+                        latestEditByField[fieldName] = e;
+                    }
+                });
+
+
+            // Map field names to selectors
+                const fieldToSelector = {
+                    'MFGPARTNUM': '[data-field="MfgPartNum"]',
+                    'VENDORPARTNUM': '[data-field="VendorPartNum"]',
+                    'UOM': '[data-field="UOM"]',
+                    'QOE': '[data-field="QOE"]'
+                };
+
+                // Apply each field edit
+                Object.keys(latestEditByField).forEach(fieldName => {
+                    const selector = fieldToSelector[fieldName];
+                    if (!selector) return;
+                    
+                    const cell = tr.querySelector(selector);
+                    if (!cell) return;
+
+                    const baseline = cell.getAttribute('data-baseline') ?? (cell.innerText || '').trim();
+                    let newValue = String(getNewValue(latestEditByField[fieldName]) ?? '');
+                    
+                    // Format value based on field type
+                    if (fieldName === 'QOE') {
+                        newValue = String(parseInt(newValue, 10) || 0);
+                    } else {
+                        newValue = newValue.toUpperCase();
+                    }
+                    
+                    // Update cell display: crossed-out baseline + new value
+                    cell.innerHTML = `<div><del>${baseline}</del></div><div>${newValue}</div>`;
+                });
+
+                // If there are any field edits, highlight row as warning
+                if (Object.keys(latestEditByField).length > 0) {
+                    tr.classList.add('table-warning');
                 }
 
-                const dropBtn = tr.querySelector('.drop-btn');
-                if (row.isDrop === 1) {
-                    dropBtn.innerText = 'Keep';
-                    dropBtn.classList.add('keep-state');
-                } else {
-                    dropBtn.innerText = 'Drop';
-                    dropBtn.classList.add('drop-state');
+                // Initialize Drop button state if present
+                if (hasActionCols) {
+                    const dropBtn = tr.querySelector('.drop-btn');
+                    if (dropBtn) {
+                        dropBtn.innerText = 'Drop';
+                        dropBtn.classList.remove('keep-state');
+                        dropBtn.classList.add('drop-state');
+                    }
                 }
             }
-                        
+
             errorRows.appendChild(tr);
         });
 
@@ -373,6 +466,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
 
     // Function to save edits
     function saveEdits(row) {

@@ -17,6 +17,7 @@ from ..common.db import (get_db_connection,
                          delete_task_by_task_id,
                          get_task_by_task_id,
                          get_task_errors,
+                         get_task_error_edits,
                          save_error_edit,
                          revert_error_edit,
                          hold_task_by_task_id,
@@ -313,6 +314,9 @@ def get_task_errors_api(task_id):
         
         # Fetch task errors
         success, error_msg, errors = get_task_errors(conn, task_id)
+
+        # Fetch task error edits
+        success, error_msg, error_edits = get_task_error_edits(conn, task_id)
         
         if not success:
             return jsonify({
@@ -322,7 +326,8 @@ def get_task_errors_api(task_id):
         
         return jsonify({
             'success': True,
-            'errors': errors
+            'errors': errors,
+            'error_edits': error_edits
         })
     
     except Exception as e:
@@ -591,6 +596,8 @@ def revert_all_task_errors(task_id):
     finally:
         if conn:
             conn.close()
+
+
 
 
 @data_export_bp.route('/task/<task_id>/sync-status')

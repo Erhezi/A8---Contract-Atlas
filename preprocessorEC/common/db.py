@@ -1946,6 +1946,83 @@ def get_task_errors(conn, task_id):
         return False, error_msg, []
 
 
+def get_base_data_last_updateDT(conn):
+    """
+    get the last update datetime for base data for the app
+
+    args:
+        conn: the connection to the database
+
+    returns:
+        Tuple of (success, error_message, last_updateDT)  
+    """
+
+    try:
+        cursor = conn.cursor()
+        
+        # SQL query to fetch the last update datetime
+        query = """
+        SELECT MAX(LastUpdateDT) AS LastUpdateDT
+        FROM [DM_MONTYNT\\dli2].PreprocessorBaseDataUpdate
+        """
+        
+        # Execute query
+        cursor.execute(query)
+        
+        # Process result
+        row = cursor.fetchone()
+        if row and row[0]:
+            last_updateDT = row[0]
+            return True, "", last_updateDT
+        else:
+            return False, "No update datetime found.", None
+        
+    except Exception as e:
+        error_msg = f"Error retrieving base data last update datetime: {str(e)}"
+        print(error_msg)
+        return False, error_msg, None
+    
+
+def get_task_error_edits(conn, task_id):
+    """
+    Retrieve error edit records for a given task ID from PreprocessorErrorEdit table.
+    
+    Args:
+        conn: Database connection
+        task_id: ID of the task to retrieve error edits for
+    Returns:
+        Tuple of (success, error_message, results)
+    """
+
+    try:
+        cursor = conn.cursor()
+        
+        # SQL query to fetch error edit records
+        query = """
+        SELECT *
+        FROM [DM_MONTYNT\\dli2].PreprocessorErrorEdit
+        WHERE TaskID = ?
+        ORDER BY [FileRow], [DataSet] DESC, [Edit Field]
+        """
+        
+        # Execute query with parameters
+        cursor.execute(query, (task_id,))
+        
+        # Process results
+        rows = cursor.fetchall()
+        columns = [column[0] for column in cursor.description]
+        results = []
+        for row in rows:
+            results.append(dict(zip(columns, row)))
+        
+        return True, "", results
+        
+    except Exception as e:
+        error_msg = f"Error retrieving task error edits: {str(e)}"
+        print(error_msg)
+        return False, error_msg, []
+
+
 def save_error_edit(conn, edit_data):
     """
     Save edits made to error records in the PreprocessorErrorEdit table.
