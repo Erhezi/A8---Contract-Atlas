@@ -228,7 +228,7 @@
     }
 
     .table-responsive {
-        max-height: 480px;
+        max-height: 400px;
         overflow-y: auto;
     }
 
@@ -436,7 +436,7 @@
                                     {% if task.WithError == 'Yes' %}
                                         <span class="badge bg-danger">Yes</span>
                                     {% else %}
-                                        <span class="badge bg-success">No</span>
+                                        <span class="badge bg-success">{{ task.WithError }}</span>
                                     {% endif %}
                                 </td>
                                 <td>

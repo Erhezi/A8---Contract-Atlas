@@ -11,7 +11,9 @@ from ..common.db import (
     mark_completed_by_task_id,
     add_completion_comment_by_task_id,
     get_completion_count_by_task_id,
-    get_completion_timestamps_by_task_id
+    get_completion_timestamps_by_task_id,
+    get_completion_comments_by_task_id,
+    get_completion_contract_count_by_task_id
 )
 from ..common.session import store_current_step, store_completed_steps, get_completed_steps
 
@@ -249,9 +251,22 @@ def completion_display(task_id):
             current_app.logger.warning(f"Error retrieving completion counts for task {task_id}: {counts_error}")
             counts_result = {}
 
+        # Gather contract counts
+        contract_counts_success, contract_counts_error, contract_counts_result = get_completion_contract_count_by_task_id(conn, task_id)
+        if not contract_counts_success:
+            current_app.logger.warning(f"Error retrieving completion contract counts for task {task_id}: {contract_counts_error}")
+            contract_counts_result = 0
+
+        # Gather completion comments
+        comments_success, comments_error, comments_result = get_completion_comments_by_task_id(conn, task_id)
+        if not comments_success:
+            current_app.logger.warning(f"Error retrieving completion comments for task {task_id}: {comments_error}")
+            comments_result = []
+
         # Use exact key names returned by DB layer (with fallbacks)
         timestamps_result = timestamps_result or {}
         counts_result = counts_result or {}
+        comments_result = comments_result or []
 
         # Use exact key names returned by DB layer
         create_ts = timestamps_result.get('createDT')
@@ -270,17 +285,21 @@ def completion_display(task_id):
 
         processed_items = counts_result.get('totalTPItems')
         affected_items = counts_result.get('totalAffectedItems')
+        affected_contracts = contract_counts_result
 
         display_data = {
             'task_id': task_id,
             'timeline': timeline,
             'counts': {
                 'processed_items': processed_items,
-                'affected_items': affected_items
+                'affected_items': affected_items,
+                'affected_contracts': affected_contracts
             },
+            'comments': comments_result,
             'errors': {
                 'timestamps': ts_error if not ts_success else None,
-                'counts': counts_error if not counts_success else None
+                'counts': counts_error if not counts_success else None,
+                'comments': comments_error if not comments_success else None
             }
         }
 

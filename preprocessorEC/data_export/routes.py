@@ -24,7 +24,13 @@ from ..common.db import (get_db_connection,
                          unhold_task_by_task_id,
                          delete_all_error_edits,
                          check_task_owner,
-                         get_sync_percentages)
+                         get_sync_percentages,
+                         get_base_data_last_updateDT,
+                         mark_task_reprocess,
+                         apply_approved_edits,
+                         log_task_file,
+                         get_latest_task_file,
+                         get_completion_timestamps_by_task_id)
 from ..common.session import store_current_step, store_completed_steps, get_completed_steps
 from ..common.utils_export_data import (make_batch_upload_excel,
                                         make_single_contract_excel,
@@ -33,6 +39,11 @@ from ..common.utils_export_data import (make_batch_upload_excel,
                                         make_single_contract_csv,
                                         make_infor_direct_csv1,
                                         make_infor_direct_csv2)
+from ..common.utils import error_edit_check, apply_edits_to_errors
+from zoneinfo import ZoneInfo
+
+# # Application timezone: New York local time
+# NYC_TZ = ZoneInfo("America/New_York")
 
 data_export_bp = Blueprint('data_export', __name__,
                            url_prefix='/data-export',
@@ -287,13 +298,78 @@ def view_task(task_id):
         is_admin = current_user.role in ['admin', 'mdm']
         is_task_owner = task['UserID'] == current_user.id
         has_edit_permission = is_admin or is_task_owner
-        print(current_user.id, task['UserID'], is_admin, is_task_owner, has_edit_permission)
+        
+        print(current_user.id, task['UserID'], is_admin, is_task_owner, has_edit_permission) #debug
 
-        # Render task details template
+        # Fetch base data last update timestamp to support front-end scenario detection
+        base_last_update = None
+        try:
+            ok_b, msg_b, base_last_update_ts = get_base_data_last_updateDT(conn)
+            if ok_b:
+                base_last_update = base_last_update_ts
+        except Exception:
+            base_last_update = None
+
+        # Fetch completion timestamps including exported datetime
+        exported_dt = None
+        exported_days_ago = None
+        try:
+            success_ts, msg_ts, timestamps = get_completion_timestamps_by_task_id(conn, task_id)
+            if success_ts and timestamps:
+                exported_dt = timestamps.get('exportedDT')
+                # Calculate days since export if exported_dt exists
+                if exported_dt is not None:
+                    try:
+                        current_time = datetime.now()
+                        
+                        # Ensure both datetimes are timezone-naive for comparison
+                        if hasattr(exported_dt, 'tzinfo') and exported_dt.tzinfo is not None:
+                            exported_dt = exported_dt.replace(tzinfo=None)
+                        if hasattr(current_time, 'tzinfo') and current_time.tzinfo is not None:
+                            current_time = current_time.replace(tzinfo=None)
+                        
+                        time_diff = current_time - exported_dt
+                        print(f"DEBUG: time_diff={time_diff}, time_diff.days={time_diff.days}")  # Debug
+                        exported_days_ago = time_diff.days
+                        print(f"DEBUG: Final exported_days_ago={exported_days_ago}")  # Debug
+                    except Exception as calc_e:
+                        print(f"DEBUG: Error in days calculation: {calc_e}")
+                        exported_days_ago = None
+                else:
+                    print("DEBUG: exported_dt is None")
+        except Exception as e:
+            print(f"DEBUG: Exception in timestamp calculation: {e}")  # Debug
+            exported_dt = None
+            exported_days_ago = None
+
+        # If task resolved for reprocess (WithError == 'Rpr'), fetch latest TP reprocess file
+        tp_reprocess_url = None
+        try:
+            if str(task.get('WithError')) == 'Rpr':
+                ok_fp, msg_fp, fp = get_latest_task_file(conn, task_id, 'TP_REPROCESS')
+                if ok_fp and fp:
+                    # Derive URL under static/exports if path is within that folder
+                    exports_dir = os.path.join(current_app.static_folder, 'exports')
+                    try:
+                        # Normalize case and separators for Windows
+                        if os.path.commonpath([os.path.abspath(fp), os.path.abspath(exports_dir)]) == os.path.abspath(exports_dir):
+                            rel = os.path.relpath(fp, exports_dir).replace('\\', '/')
+                            tp_reprocess_url = url_for('static', filename=f'exports/{rel}')
+                    except Exception:
+                        # Fallback: if filename pattern looks like TP_Reprocess_*.xlsx, use it directly
+                        base = os.path.basename(fp)
+                        tp_reprocess_url = url_for('static', filename=f'exports/{base}')
+        except Exception:
+            tp_reprocess_url = None
+
         return render_template('task_details.html', 
                                task=task,
                                current_step = None,
-                               has_edit_permission=has_edit_permission)
+                               has_edit_permission=has_edit_permission,
+                               base_last_update=base_last_update,
+                               tp_reprocess_url=tp_reprocess_url,
+                               exported_dt=exported_dt,
+                               exported_days_ago=exported_days_ago)
     except Exception as e:
         flash(f"Error retrieving task details: {str(e)}", "danger")
         return redirect(url_for('data_export.view_history'))
@@ -314,6 +390,12 @@ def get_task_errors_api(task_id):
         
         # Fetch task errors
         success, error_msg, errors = get_task_errors(conn, task_id)
+
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': error_msg
+            }), 500
 
         # Fetch task error edits
         success, error_msg, error_edits = get_task_error_edits(conn, task_id)
@@ -596,8 +678,6 @@ def revert_all_task_errors(task_id):
     finally:
         if conn:
             conn.close()
-
-
 
 
 @data_export_bp.route('/task/<task_id>/sync-status')
@@ -993,3 +1073,157 @@ def export_data():
         if temp_dir and os.path.exists(temp_dir):
             import shutil
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@data_export_bp.route('/task/<task_id>/try-resolve', methods=['POST'])
+@login_required
+def try_resolve(task_id):
+    """Try Resolve: decide scenario based on base-data timestamp and either reprocess or apply edits."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"ok": False, "message": "Database connection failed"}), 500
+
+        # Load task
+        success, err_msg, task = get_task_by_task_id(conn, task_id)
+        if not success or not task:
+            return jsonify({"ok": False, "message": err_msg or "Task not found"}), 404
+
+        # Permissions: owner or admin/mdm
+        role = current_user.role
+        is_admin = role in ['admin', 'mdm']
+        is_owner = str(task.get('UserID')) == str(current_user.id)
+        if not (is_admin or is_owner):
+            return jsonify({"ok": False, "message": "Permission denied"}), 403
+
+        # Disable if task deleted/completed if such status available
+        status = str(task.get('Status', '')).lower()
+        if status in ['deleted', 'completed']:
+            return jsonify({"ok": False, "message": "Task is not eligible for Try Resolve"}), 400
+
+        # Timestamps (America/New_York): base_last_update > createDT and < now => Scenario 1 (non-inclusive)
+        task_created_at = task.get('CreateDT')
+        if isinstance(task_created_at, str):
+            try:
+                task_created_at = datetime.fromisoformat(task_created_at)
+            except Exception:
+                task_created_at = None
+        base_ok, base_msg, base_last_update = get_base_data_last_updateDT(conn)
+        if not base_ok:
+            return jsonify({"ok": False, "message": base_msg or "Failed to get base data timestamp"}), 500
+        
+        now_ts = datetime.now()
+
+        print("Base last update:", base_last_update, "Task created at:", task_created_at, "Now:", now_ts) #debug
+
+        # Fetch task errors
+        success, error_msg, errors = get_task_errors(conn, task_id)
+        if not success:
+            return jsonify({"ok": False, "message": error_msg or "Failed to fetch task errors"}), 500
+        # Fetch task error edits
+        success, error_msg, error_edits = get_task_error_edits(conn, task_id)
+        if not success:
+            return jsonify({"ok": False, "message": error_msg or "Failed to fetch task error edits"}), 500
+
+        # apply the error edits to errors to get the current view of errors
+        modified_errors = apply_edits_to_errors(errors or [], error_edits or [])
+        df_modified = pd.DataFrame(modified_errors)
+
+        df_modified.to_excel(os.path.join(current_app.root_path, 'temp_files', f'task_{task_id}_modified_errors.xlsx'), index=False) #debug
+
+        pkids_to_reprocess = set(df_modified['PKID'])
+
+        scenario1 = False
+        scenario1 = ((base_last_update > task_created_at) and (base_last_update < now_ts)) or (status == 'exported')
+
+        if scenario1:
+            # Scenario 1: produce new TP file and mark rows to Reprocess
+            print("Scenario 1: base data updated after task creation or task exported") #debug
+            ccx_expire = (df_modified['Intended Action'] == 'Expire') & (df_modified['DataSet'] == 'CCX')
+            keep3 = (df_modified['Group'] == 'Keep3') & (df_modified['Actual Action'].isin(['Expire then Create (Create)',
+                                                                                           'Update (New)']))
+            tp_error_non_merge = (df_modified['DataSet'] == 'TP') & (df_modified['Primary Action'] != 'Merge')
+            
+            df_modified_s1 = df_modified[ccx_expire | keep3 | tp_error_non_merge].copy()
+
+            required_cols = ['Mfg Part Num', 'Vendor Part Num', 'Buyer Part Num', 'Description',
+                             'Contract Price', 'UOM', 'QOE', 'Effective Date', 'Expiration Date',
+                             'Contract Number', 'ERP Vendor ID', 'Intended Action']
+            df_new_tp = df_modified_s1[required_cols].copy()
+            df_new_tp.loc[:, 'Source Contract Type'] = df_new_tp['Contract Number'].apply(
+                lambda x: 'GPO' if str(x).upper().startswith('PP-') else 'Local')
+            df_new_tp.loc[:, 'TaskID Ref'] = task_id
+            
+            # save to export folder
+            export_dir = os.path.join(current_app.static_folder, 'exports')
+            os.makedirs(export_dir, exist_ok=True)
+            filename = f"TP_Reprocess_{task_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            file_path = os.path.join(export_dir, filename)
+
+            print("Saving new TP to:", file_path) #debug
+
+            with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+                df_new_tp.to_excel(writer, index=False, sheet_name=task_id)
+
+            # log the generated file
+            log_ok, log_msg = log_task_file(conn, task_id, 'TP_REPROCESS', file_path)
+            if not log_ok:
+                current_app.logger.warning(f"Failed to log TP_REPROCESS file for {task_id}: {log_msg}")
+            
+            # Generate URL for the TP reprocess file
+            url_tp_reprocess = url_for('static', filename=f'exports/{filename}')
+
+            upd_ok, upd_msg = mark_task_reprocess(conn, task_id)
+            if not upd_ok:
+                return jsonify({"ok": False, "message": upd_msg or "Failed to mark rows Reprocess"}), 500
+
+            return jsonify({
+                "ok": True,
+                "scenario": 1,
+                "message": "Base data refreshed: new file for preprocessing generated and previous error rows marked as Reprocess.",
+                "download_path": url_tp_reprocess,
+            })
+        
+        else:
+            # Scenario 2: load errors + edits, run check, apply approved edits
+            err_ok, err_msg, errors = get_task_errors(conn, task_id)
+            if not err_ok:
+                return jsonify({"ok": False, "message": err_msg or "Failed to load task errors"}), 500
+            edits_ok, edits_msg, edits = get_task_error_edits(conn, task_id)
+            if not edits_ok:
+                return jsonify({"ok": False, "message": edits_msg or "Failed to load task edits"}), 500
+
+            result = error_edit_check(errors or [], edits or [])
+            approvals = [r for r in result.get('rows', []) if r.get('pass')]
+            failures = [r for r in result.get('rows', []) if not r.get('pass')]
+
+            if not approvals:
+                return jsonify({
+                    "ok": True,
+                    "scenario": 2,
+                    "message": "No edits qualify to execute. Review unresolved records.",
+                    "approved": 0,
+                    "failed": len(failures)
+                })
+
+            apply_ok, apply_msg, applied_count = apply_approved_edits(conn, task_id, approvals)
+            if not apply_ok:
+                return jsonify({"ok": False, "message": apply_msg or "Failed to apply edits"}), 500
+
+            return jsonify({
+                "ok": True,
+                "scenario": 2,
+                "message": "Approved edits applied. Rows marked Execute/PASS.",
+                "approved": applied_count,
+                "failed": len(failures)
+            })
+
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)}), 500
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass

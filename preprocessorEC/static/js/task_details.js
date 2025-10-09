@@ -1,5 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
 
+    // Load completion summary if task is completed
+    loadCompletionSummaryIfCompleted();
+
     // Disable Go Sync Inspection button based on status rules
     (function handleSyncInspectionEligibility(){
         const btn = document.getElementById('go-sync-inspection-btn');
@@ -38,6 +41,73 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof taskId !== 'undefined' && document.getElementById('error-rows')) {
         loadTaskErrors();
     }
+
+    // Try Resolve handler
+    (function setupTryResolve(){
+        const btn = document.getElementById('try-resolve-btn');
+        if(!btn) return;
+
+        // Determine button label at page load based on scenario rules
+        try {
+            const createdIso = btn.getAttribute('data-task-created') || '';
+            const baseIso = btn.getAttribute('data-base-last-update') || '';
+            const status = (btn.getAttribute('data-status') || '').toLowerCase();
+
+            let createdDT = createdIso ? new Date(createdIso) : null;
+            let baseDT = baseIso ? new Date(baseIso) : null;
+            const nowDT = new Date();
+
+            // Scenario 1 when: (base_last_update > task_created_at && base_last_update < now) OR status == 'exported'
+            let scenario1 = false;
+            if (status === 'exported') {
+                scenario1 = true;
+            } else if (baseDT && createdDT && !isNaN(baseDT) && !isNaN(createdDT)) {
+                scenario1 = (baseDT > createdDT) && (baseDT < nowDT);
+            }
+
+            btn.textContent = scenario1 ? 'Generate Reprocess File' : 'Try Resolve';
+        } catch (e) {
+            // Fallback label on any parsing error
+            btn.textContent = 'Try Resolve';
+        }
+        btn.addEventListener('click', async function(){
+            // If the button indicates Scenario 1 (reprocess), ask for confirmation first
+            const isScenario1Click = ((btn.textContent || '').trim().toLowerCase() === 'generate reprocess file');
+            if (isScenario1Click) {
+                const confirmed = confirm('Have you reviewed all data conflict errors and made necessary changes?');
+                if (!confirmed) {
+                    return;
+                }
+            }
+
+            btn.disabled = true;
+            try {
+                const res = await fetch(getApiUrl(`/data-export/task/${taskId}/try-resolve`), { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok || !data.ok) {
+                    throw new Error(data.message || 'Try Resolve failed');
+                }
+                if (data.scenario === 1 && data.download_path) {
+                    showSuccessMessage('New TP (To Preprocess) file generated. Download starting and page will refresh...');
+                    // Trigger download in a new tab
+                    try { window.open(data.download_path, '_blank'); } catch (_) {}
+                    // Refresh the page shortly after to reflect updated task state
+                    setTimeout(() => { window.location.reload(); }, 1000);
+                } else if (data.scenario === 2) {
+                    showSuccessMessage(`${data.message} (Approved: ${data.approved}, Failed: ${data.failed})`);
+                    // Refresh error table and sync status
+                    loadTaskErrors();
+                    loadSyncStatus();
+                } else {
+                    showSuccessMessage(data.message || 'Try Resolve completed');
+                }
+            } catch (err) {
+                showErrorMessage(err.message || 'Try Resolve failed');
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    })();
 
     // Function to load task errors
     function loadTaskErrors() {
@@ -911,6 +981,146 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
         }
+    }
+
+    // Function to load completion summary if task is completed
+    function loadCompletionSummaryIfCompleted() {
+        const isCompletedTask = document.getElementById('task-details-container')?.dataset.isCompleted === '1';
+        
+        if (!isCompletedTask) {
+            return;
+        }
+        
+        const container = document.getElementById('completion-summary-content');
+        if (!container) {
+            return;
+        }
+        
+        const endpoint = (typeof getApiUrl === 'function') ? 
+            getApiUrl(`/data-synchronization/completion-display/${taskId}`) : 
+            `/data-synchronization/completion-display/${taskId}`;
+            
+        fetch(endpoint)
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                if (!data.success) throw new Error(data.message || 'Failed to load summary');
+
+                const timeline = (data.data && data.data.timeline) ? data.data.timeline : [];
+                const counts = (data.data && data.data.counts) ? data.data.counts : {};
+                const comments = (data.data && data.data.comments) ? data.data.comments : [];
+                
+                // Build a map with raw ISO timestamps (prefer timestamp field) and display separately
+                const raw = {};
+                timeline.forEach(t => { raw[t.key] = t.timestamp || t.display || null; });
+
+                const createdTS = raw.created ? new Date(raw.created) : null;
+                const exportedTS = raw.exported ? new Date(raw.exported) : null;
+                const completedTS = raw.completed ? new Date(raw.completed) : null;
+
+                function fmt(dt){
+                    if(!dt || isNaN(dt)) return 'N/A';
+                    // Format as YYYY-MM-DD HH:MM:SS
+                    const pad = n => String(n).padStart(2,'0');
+                    return dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()) + ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes()) + ':' + pad(dt.getSeconds());
+                }
+
+                function humanDiff(ms){
+                    if(ms == null || isNaN(ms) || ms < 0) return 'N/A';
+                    const sec = Math.floor(ms/1000);
+                    const days = Math.floor(sec / 86400);
+                    const hours = Math.floor((sec % 86400)/3600);
+                    const minutes = Math.floor((sec % 3600)/60);
+                    let parts = [];
+                    if(days) parts.push(days + 'd');
+                    if(hours) parts.push(hours + 'h');
+                    if(minutes && parts.length < 2) parts.push(minutes + 'm'); // keep concise
+                    return parts.join(' ') || '0m';
+                }
+
+                // Durations
+                const createdToExported = (createdTS && exportedTS) ? (exportedTS - createdTS) : null;
+                const exportedToCompleted = (exportedTS && completedTS) ? (completedTS - exportedTS) : null;
+                const createdToCompleted = (createdTS && completedTS) ? (completedTS - createdTS) : null;
+
+                // Build timeline visualization
+                // created --<x>-- exported --<y>-- completed | total
+                const seg1 = humanDiff(createdToExported);
+                const seg2 = humanDiff(exportedToCompleted);
+                const total = humanDiff(createdToCompleted);
+
+                // Fallback labels if middle timestamp missing
+                let middleSegmentHTML = '';
+                if(exportedTS){
+                    middleSegmentHTML = `
+                        <div class="cs-node cs-exported">
+                            <div class="cs-label">Exported</div>
+                            <div class="cs-ts">${fmt(exportedTS)}</div>
+                        </div>
+                        <div class="cs-gap" aria-hidden="true">-- <span class="cs-gap-time">${seg2}</span> --</div>
+                    `;
+                } else {
+                    middleSegmentHTML = `
+                        <div class="cs-gap cs-missing" aria-hidden="true">(no export timestamp)</div>
+                    `;
+                }
+
+                // Format counts
+                const processedItems = counts.processed_items || 0;
+                const affectedItems = counts.affected_items || 0;
+                const affectedContracts = counts.affected_contracts || 0;
+
+                // Format comments
+                let commentsHTML = '';
+                if (comments && comments.length > 0) {
+                    const latestComment = comments[0]; // Most recent comment first
+                    const commentDate = latestComment.createDT ? new Date(latestComment.createDT) : null;
+                    const commentText = latestComment.comment || '';
+                    commentsHTML = `
+                        <div class="cs-comments">
+                            <div class="cs-comment-label">Completion Comment:</div>
+                            <div class="cs-comment-text">${commentText}</div>
+                            ${commentDate ? `<div class="cs-comment-date">${fmt(commentDate)}</div>` : ''}
+                        </div>
+                    `;
+                }
+
+                container.innerHTML = `
+                    <div class="cs-timeline" role="group" aria-label="Completion timeline">
+                        <div class="cs-node cs-created">
+                            <div class="cs-label">Created</div>
+                            <div class="cs-ts">${fmt(createdTS)}</div>
+                        </div>
+                        <div class="cs-gap" aria-hidden="true">-- <span class="cs-gap-time">${seg1}</span> --</div>
+                        ${middleSegmentHTML}
+                        <div class="cs-node cs-completed">
+                            <div class="cs-label">Completed</div>
+                            <div class="cs-ts">${fmt(completedTS)}</div>
+                        </div>
+                        <div class="cs-total" title="Total elapsed time">| <strong>${total}</strong> total</div>
+                    </div>
+                    <div class="cs-counts">
+                        <div class="cs-count-item">
+                            <span class="cs-count-label">Items Processed:</span>
+                            <span class="cs-count-value">${processedItems.toLocaleString()}</span>
+                        </div>
+                        <div class="cs-count-item">
+                            <span class="cs-count-label">Items Affected:</span>
+                            <span class="cs-count-value">${affectedItems.toLocaleString()}</span>
+                        </div>
+                        <div class="cs-count-item">
+                            <span class="cs-count-label">Contracts Affected:</span>
+                            <span class="cs-count-value">${affectedContracts.toLocaleString()}</span>
+                        </div>
+                    </div>
+                    ${commentsHTML}
+                `;
+            })
+            .catch(error => {
+                container.innerHTML = `<span class='text-danger'>Error loading completion summary: ${error.message}</span>`;
+            });
     }
 
 

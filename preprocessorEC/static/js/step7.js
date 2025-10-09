@@ -33,6 +33,8 @@ const completeStepForm = document.getElementById('complete-step-form');
 const presetSelect = document.getElementById('preset-comment-select');
 const commentError = document.getElementById('comment-error');
 const currentUserIdInput = document.getElementById('current-user-id');
+// Preserve original button label for reset purposes
+let originalMarkInforBtnText = '';
 
 // Custom dropdown elements (will be created dynamically)
 let customDropdown = null;
@@ -71,6 +73,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (expUnsyncedBtn) expUnsyncedBtn.addEventListener('click', () => switchExportedView('unsynced'));
     if (expSyncedBtn) expSyncedBtn.addEventListener('click', () => switchExportedView('synced'));
     if (expRollupBtn) expRollupBtn.addEventListener('click', () => switchExportedView('rollup'));
+
+    // Capture original mark button text once DOM is ready
+    if (markInforBtn && !originalMarkInforBtnText) {
+        originalMarkInforBtnText = markInforBtn.textContent || 'Mark Completed';
+    }
 });
 
 window.addEventListener('resize', updateTpSubheadTop);
@@ -228,6 +235,8 @@ function filterDropdownOptions() {
 }
 
 function selectTask(taskId, taskText) {
+    // Reset completion UI every time a new task is selected so prior completed state doesn't persist
+    resetCompletionSection();
     selectedTaskId = taskId;
     dropdownToggle.textContent = taskText || 'All Tasks - Select Task ID to Inspect (only exported tasks will be shown)';
     
@@ -246,6 +255,13 @@ function selectTask(taskId, taskText) {
     
     // Re-render table to show only selected task or all tasks
     renderTaskHeaders(currentTasks);
+    // If the newly selected task is already completed, reflect that immediately
+    if (selectedTaskId) {
+        const t = currentTasks.find(x => String(x.TaskID) === String(selectedTaskId));
+        if (t && (t.Status2 === 'Completed' || t.Status === 'Completed')) {
+            applyCompletedVisualState();
+        }
+    }
     
     closeDropdown();
 }
@@ -517,7 +533,16 @@ function renderSyncDetails(syncData) {
     // Update comment section visibility based on errors
     updateCommentSection();
     // Enable completion button now that data loaded
-    if (markInforBtn) markInforBtn.disabled = false;
+    if (markInforBtn) {
+        // Determine from currentTasks if task is still pending
+        const t = currentTasks.find(x => String(x.TaskID) === String(syncData.taskId));
+        const isCompleted = t && (t.Status2 === 'Completed' || t.Status === 'Completed');
+        if (isCompleted) {
+            applyCompletedVisualState();
+        } else {
+            markInforBtn.disabled = false; // allow marking completed only if pending
+        }
+    }
 }
 
 // Show/hide the comment box when errors exist
@@ -677,6 +702,41 @@ function applyCompletedVisualState() {
     }
     if (completeStepForm) {
         completeStepForm.style.display = 'inline-block';
+    }
+}
+
+// Reset completion section so a newly selected (pending) task starts from a clean state
+function resetCompletionSection() {
+    if (!completionSection) return;
+    completionSection.classList.remove('completed-state');
+    if (markInforBtn) {
+        markInforBtn.disabled = true; // stays disabled until sync details load
+        markInforBtn.textContent = originalMarkInforBtnText || 'Mark Completed';
+    }
+    if (nextStepBtn) {
+        // Do not show proceed button until a task is (re)completed
+        nextStepBtn.disabled = true;
+    }
+    if (completeStepForm) {
+        completeStepForm.style.display = 'none';
+    }
+    if (presetSelect) {
+        presetSelect.disabled = false;
+        presetSelect.value = '';
+        presetSelect.classList.remove('border-danger', 'border-success');
+    }
+    if (completionComment) {
+        completionComment.disabled = false;
+        completionComment.value = '';
+        completionComment.placeholder = '';
+        completionComment.classList.remove('border-danger', 'border-success');
+    }
+    if (commentError) {
+        commentError.textContent = '';
+        commentError.style.display = 'none';
+    }
+    if (commentSection) {
+        commentSection.style.display = 'none';
     }
 }
 

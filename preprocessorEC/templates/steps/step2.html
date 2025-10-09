@@ -1021,6 +1021,41 @@
     #progress-message {
         font-size: 0.95rem;
     }
+
+    /* All-excluded contracts warning */
+    .no-contracts-warning {
+        display: none;
+        margin: 25px 0;
+        padding: 18px 22px;
+        border: 1px solid #f5c6cb;
+        background: #fff5f5;
+        border-left: 6px solid #e74c3c;
+        border-radius: 6px;
+        color: #721c24;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .no-contracts-warning h4 {
+        margin-top: 0;
+        margin-bottom: 8px;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #c0392b;
+    }
+    .no-contracts-warning p { margin: 4px 0 14px; line-height: 1.35; }
+    .no-contracts-warning .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .no-contracts-warning button {
+        cursor: pointer;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 14px;
+        font-weight: 500;
+        font-size: 0.85rem;
+        transition: background .2s ease, box-shadow .2s ease;
+    }
+    #btn-skip-to-step4 { background:#2c3e50; color:#fff; }
+    #btn-skip-to-step4:hover { background:#1b2733; }
+    #btn-reinclude-any { background:#d4edda; color:#155724; }
+    #btn-reinclude-any:hover { background:#c3e6cb; }
 </style>
 
 <div class="step-content">
@@ -1098,6 +1133,17 @@
             <div id="included-contracts-tags" class="tags-container">
                 <!-- Tags will be populated by JavaScript -->
             </div>
+        </div>
+    </div>
+
+    <!-- Inline warning when all contracts are excluded -->
+    <div id="no-contracts-warning" class="no-contracts-warning" aria-live="polite">
+        <h4>All Contracts Excluded</h4>
+        <p>You have excluded every contract. Without any included contracts, the item-level comparison (Step 2.2) and duplication resolution (Step 3) are not applicable.</p>
+        <p>If this is intentional, you can skip directly to Step 4. Otherwise, re-include one or more contracts to continue duplicate review.</p>
+        <div class="actions">
+            <button id="btn-skip-to-step4" type="button">Skip to Step 4</button>
+            <button id="btn-reinclude-any" type="button">Re-Include All Contracts</button>
         </div>
     </div>
 

@@ -59,6 +59,17 @@ document.addEventListener('DOMContentLoaded', function() {
         isLoaded: false,
         displayMode: null  // 'table' or 'card'
     };
+
+    // Inline warning visibility manager
+    function updateNoContractsWarning() {
+        const warn = document.getElementById('no-contracts-warning');
+        if (!warn) return;
+        if (state.allContracts.length > 0 && state.includedContracts.length === 0) {
+            warn.style.display = 'block';
+        } else {
+            warn.style.display = 'none';
+        }
+    }
     
     // 2.2 Item-Level Comparison Variables
     let currentItems = [];
@@ -615,6 +626,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Update included contracts tags
                 updateIncludedContractsTags();
+                updateNoContractsWarning();
             }
         })
         .catch(error => {
@@ -751,6 +763,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Update included contracts tags
                 updateIncludedContractsTags();
+                updateNoContractsWarning();
             } else {
                 alert('Error updating contracts: ' + data.message);
             }
@@ -843,8 +856,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // we have SSE call here to get the progress of the item level comparison
     continueBtn.addEventListener('click', function() {
         if (state.includedContracts.length === 0) {
-            alert('Please include at least one contract before proceeding.');
-            return;
+            updateNoContractsWarning();
+            const warn = document.getElementById('no-contracts-warning');
+            if (warn) warn.scrollIntoView({behavior:'smooth', block:'center'});
+            return; // Don't proceed into item comparison
         }
         
         // Show the item-level comparison section
@@ -1056,6 +1071,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Confidence card click handlers
+    // Skip to Step 4 button (appears only when all contracts excluded)
+    const skipBtn = document.getElementById('btn-skip-to-step4');
+    if (skipBtn) {
+        skipBtn.addEventListener('click', () => {
+            const formData = new FormData();
+            formData.append('skip_steps', '2,3');
+            fetch(getApiUrl('/process-step/3'), { method: 'POST', body: formData })
+                .then(() => { window.location.href = getApiUrl('/dashboard'); })
+                .catch(err => alert('Failed to skip to Step 4: ' + err));
+        });
+    }
+
+    // Re-include all contracts quickly
+    const reincludeBtn = document.getElementById('btn-reinclude-any');
+    if (reincludeBtn) {
+        reincludeBtn.addEventListener('click', () => {
+            if (!state.allContracts.length) return;
+            // Reinclude all locally
+            state.includedContracts = state.allContracts.map(c => c.contract_number);
+            state.excludedContracts = [];
+            // Persist to server
+            initializeIncludedContractsWithCallback(() => {
+                displayContracts(state.allContracts);
+                updateIncludedContractsTags();
+                updateNoContractsWarning();
+            });
+        });
+    }
+
+    // Initial warning update in case state loaded with zero included
+    updateNoContractsWarning();
     document.querySelectorAll('.confidence-card').forEach(card => {
         card.addEventListener('click', function() {
             const level = this.dataset.level;

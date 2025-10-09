@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from flask import current_app
 import pandas as pd
 from ..common.utils import reduce_mfg_part_num
+from flask import current_app
 
 
 def get_db_connection():
@@ -1895,6 +1896,122 @@ def get_task_by_task_id(conn, task_id):
         return False, error_msg, None
 
 
+def mark_task_reprocess(conn, task_id):
+    """Mark related rows to 'Reprocess' in both 
+    PreprocessorProcessedRaw and PreprocessorCommitLine for a task
+    after the task's error edits are exported as new TP file, then 
+    changne the header withError from 'Yes' to 'Rpr', and update the UpdateDT.
+    """
+    
+    try:
+        cur = conn.cursor()
+        # Update ProcessedRaw file-row level action where Pending
+        cur.execute(
+            """
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorProcessedRaw
+            SET [File Row Action] = 'Reprocess'
+            WHERE TaskID = ? AND [File Row Action] = 'Pending'
+            """,
+            (task_id,)
+        )
+        # Update row-level action where Pending
+        cur.execute(
+            """
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorProcessedRaw
+            SET [Row Action] = 'Reprocess'
+            WHERE TaskID = ? AND [Row Action] = 'Pending'
+            """,
+            (task_id,)
+        )
+
+        # Update CommitLine as well
+        cur.execute(
+            """
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorCommitLine
+            SET [File Row Action] = 'Reprocess'
+            WHERE TaskID = ? AND [File Row Action] = 'Pending'
+            """,
+            (task_id,)
+        )
+        cur.execute(
+            """
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorCommitLine
+            SET [Row Action] = 'Reprocess'
+            WHERE TaskID = ? AND [Row Action] = 'Pending'
+            """,
+            (task_id,)
+        )
+
+        # Update Header withError from Yes to Rpr
+        cur.execute(
+            """
+            UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
+            SET WithError = 'Rpr',
+                UpdateDT = GETDATE()
+            WHERE TaskID = ?
+            """,
+            (task_id,)
+        )
+
+        conn.commit()
+        return True, ""
+    except Exception as e:
+        conn.rollback()
+        msg = f"Error marking task {task_id} reprocess: {str(e)}"
+        print(msg)
+        return False, msg
+
+
+def apply_approved_edits(conn, task_id, approvals):
+    """Apply approved edits: merge to PreprocessorCommitLine and mark actions/flags in both tables.
+    approvals: list of {data: row_dict, message}
+    Returns (success, msg, applied_count)
+    """
+    try:
+        cur = conn.cursor()
+        applied = 0
+        pass_msg = 'PASS - safe to retain/drop'
+        for ap in approvals:
+            r = ap.get('data', {}) if isinstance(ap, dict) else {}
+            file_row = r.get('FileRow')
+            contract_number = r.get('Contract Number')
+
+            # Update CommitLine actions to Execute and set validation flags
+            cur.execute(
+                """
+                UPDATE [DM_MONTYNT\\dli2].PreprocessorCommitLine
+                SET [File Row Action] = 'Execute',
+                    [Row Action] = 'Execute',
+                    [File Row Validation Flag] = ?,
+                    [Row Validatation Flag] = ?
+                WHERE TaskID = ? AND [FileRow] = ? AND [Contract Number] = ?
+                  AND [File Row Action] = 'Pending'
+                """,
+                (pass_msg, pass_msg, task_id, file_row, contract_number)
+            )
+
+            # Mirror in ProcessedRaw
+            cur.execute(
+                """
+                UPDATE [DM_MONTYNT\\dli2].PreprocessorProcessedRaw
+                SET [File Row Action] = 'Execute',
+                    [Row Action] = 'Execute'
+                WHERE TaskID = ? AND [FileRow] = ? AND [Contract Number] = ?
+                  AND ([File Row Action] = 'Pending' OR [Row Action] = 'Pending')
+                """,
+                (task_id, file_row, contract_number)
+            )
+            applied += cur.rowcount
+
+        conn.commit()
+        return True, "", applied
+    except Exception as e:
+        conn.rollback()
+        msg = f"Error applying approved edits for {task_id}: {str(e)}"
+        print(msg)
+        return False, msg, 0
+
+
 def get_task_errors(conn, task_id):
     """
     Retrieve error records for a given task ID.
@@ -2634,8 +2751,8 @@ def mark_completed_by_task_id(conn, task_id, user_id):
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE [DM_MONTYNT\\dli2].PreprocessorHeader
-            SET Status2 = 'Completed', UpdateDT = GETDATE(), CompletedBy = ?
-            WHERE TaskID = ? AND Status2 != 'Completed'
+            SET Status = 'Completed', Status2 = 'Completed', UpdateDT = GETDATE(), CompletedBy = ?
+            WHERE TaskID = ? AND Status2 != 'Completed' AND Status == 'Exported'
         """, (user_id, task_id))
         if cursor.rowcount == 0:
             return False, "Task not found or already completed."
@@ -2749,4 +2866,137 @@ def get_completion_count_by_task_id(conn, task_id):
         current_app.logger.error(error_msg)
         return False, error_msg, None
 
+
+def get_completion_contract_count_by_task_id(conn, task_id):
+    """Retrieve count of unique contracts affected for a specific task ID from the database.
+    
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+    Returns:
+        success, error_msg, totalAffectedContracts
+    """
+
+    try:
+        cursor = conn.cursor()
+        query = """
+        SELECT COUNT(DISTINCT [Contract Number]) as totalAffectedContracts
+        FROM [DM_MONTYNT\\dli2].PreprocessorCommitLine
+        WHERE TaskID = ? AND Exported = 'Yes'
+        """
+        cursor.execute(query, (task_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False, "Task not found.", None
         
+        total_affected_contracts = row[0] if row[0] is not None else 0
+        return True, "", total_affected_contracts
+        
+    except Exception as e:
+        error_msg = f"Error retrieving affected contracts count for task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
+
+
+def get_completion_comments_by_task_id(conn, task_id):
+    """Retrieve completion comments for a specific task ID from the database.
+    
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+    
+    Returns:
+        success, error_msg, [comments_list]
+    """
+    try:
+        cursor = conn.cursor()
+        query = """
+        SELECT [Completion Comment], CreateDT
+        FROM [DM_MONTYNT\\dli2].PreprocessorCompletionComment
+        WHERE TaskID = ?
+        ORDER BY CreateDT DESC
+        """
+        cursor.execute(query, (task_id,))
+        rows = cursor.fetchall()
+        
+        comments = []
+        for row in rows:
+            comments.append({
+                'comment': row[0],
+                'createDT': row[1]
+            })
+        
+        return True, "", comments
+        
+    except Exception as e:
+        error_msg = f"Error retrieving completion comments for task {task_id}: {str(e)}"
+        current_app.logger.error(error_msg)
+        return False, error_msg, None
+
+
+def log_task_file(conn, task_id, file_type, file_path):
+    """
+    Insert a record into PreprocessorTaskFile to track generated files.
+
+    Args:
+        conn: DB connection
+        task_id: str
+        file_type: str (e.g., 'TP_REPROCESS')
+        file_path: str (absolute or relative path)
+    Returns:
+        (success: bool, msg: str)
+    """
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO [DM_MONTYNT\\dli2].PreprocessorTaskFile (TaskID, FileType, FilePath)
+            VALUES (?, ?, ?)
+        """, (task_id, file_type, file_path))
+        conn.commit()
+        return True, ""
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        msg = f"Error logging task file: {str(e)}"
+        try:
+            current_app.logger.error(msg)
+        except Exception:
+            print(msg)
+        return False, msg
+
+
+def get_latest_task_file(conn, task_id, file_type='TP_REPROCESS'):
+    """Get the most recent file path for a given task and file type.
+
+    Args:
+        conn: Active DB connection
+        task_id: Task identifier (string/int)
+        file_type: File type to filter by, default 'TP_REPROCESS'
+
+    Returns:
+        (success: bool, msg: str, file_path: Optional[str])
+    """
+    try:
+        cursor = conn.cursor()
+        query = (
+            """
+            SELECT TOP 1 FilePath
+            FROM [DM_MONTYNT\\dli2].PreprocessorTaskFile
+            WHERE TaskID = ? AND FileType = ?
+            ORDER BY CreateDT DESC
+            """
+        )
+        cursor.execute(query, (task_id, file_type))
+        row = cursor.fetchone()
+        if not row:
+            return True, "No file found", None
+        return True, "", row[0]
+    except Exception as e:
+        msg = f"Error retrieving latest task file for {task_id}: {str(e)}"
+        try:
+            current_app.logger.error(msg)
+        except Exception:
+            pass
+        return False, msg, None

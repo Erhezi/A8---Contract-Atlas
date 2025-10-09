@@ -3,7 +3,7 @@ import pip_system_certs.wrapt_requests
 import pandas as pd
 import numpy as np
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import unicodedata
 from flask import current_app
@@ -890,7 +890,7 @@ def calculate_confidence_score(item, model=None, apply_to_step=2, duplicate_mode
 
     if duplicate_mode == 'strict' or duplicate_mode == 'explicit':
     # for strict or explicit mode, if the contract number is the same, we will consider anything that is not an exact match 
-    # as wrong mathicng, thus assign a score of 0.0
+    # as wrong mathcing, thus assign a score of 0.0
         if item[apply_to_dict[apply_to_step]['cn_a']] == item[apply_to_dict[apply_to_step]['cn_upload']]:
             if item[apply_to_dict[apply_to_step]['mpn_a']] != item[apply_to_dict[apply_to_step]['mpn_upload']]:
                 result['weighted_score'] = 0.0
@@ -3664,3 +3664,246 @@ def make_final_validation_error_report(final_error_df, final_check_df, final_war
     print(f'Final validation error report saved to {stored_filepath}')  # debug
     
     return stored_filepath
+
+
+# ===== Try Resolve helpers =====
+def apply_edits_to_errors(error_rows, error_edits):
+    """Apply edits to the error rows in-memory to produce candidate fixed rows.
+    error_rows: list[dict]
+    error_edits: list[dict]
+    Returns list[dict] with edited values applied per FileRow/PKID and a map of isDrop flag per key.
+    """
+    # Group edits by PKID_PrPRaw if present, else by (TaskID, FileRow)
+    if not error_rows:
+        return []
+    
+    edits_by_pkid = {}
+    for edit in (error_edits or []):
+        pkid = edit.get('PKID_PrPRaw')
+        if pkid is not None:
+            edits_by_pkid.setdefault(pkid, []).append(edit)
+
+    print(f"Edits grouped by PKID: {edits_by_pkid}")  # Debugging output
+
+    today = datetime.now().date()
+    tomorrow = (datetime.now().date() + timedelta(days=1))
+
+    quick_field_name_map = {'UOM': 'UOM',
+                            'QOE': 'QOE',
+                            'VendorPartNum': 'Vendor Part Num',
+                            'MfgPartNum': 'Mfg Part Num'}
+
+    result_rows = []
+    
+    for row in error_rows:
+        pkid = row.get('PKID')
+        edits_for_row = edits_by_pkid.get(pkid, [])
+        if not edits_for_row:
+            result_rows.append(row)
+            continue
+        is_dropped = any(edit.get('isDrop', 0) == 1 for edit in edits_for_row)
+
+        if is_dropped:
+            new_row = dict(row)
+            new_row['Group'] = 'Drop2'
+            new_row['Intended Action'] = 'Expire'
+            if row.get('DataSet') == 'CCX':
+                new_row['Primary Action'] = 'Expire CCX'
+            else:
+                new_row['Pirmary Action'] = 'Merged'
+            
+            new_row['Actual Action'] = 'Expire'
+            result_rows.append(new_row)
+        
+        else:
+            # Handle field edits (isDrop == 0)
+            # Group edits by field and take the latest edit per field
+            field_edits = {}
+            for edit in edits_for_row:
+                if edit.get('isDrop', 0) == 0:
+                    field = edit.get('Edit Field')
+                    if field:
+                        field_edits[field] = edit.get('New Value')
+            
+            if not field_edits:
+                # No field edits, keep original row
+                result_rows.append(dict(row))
+                continue
+            
+            # Check if UOM or Mfg Part Num are being edited
+            key_fields_touched = any(field in field_edits for field in ['UOM', 'MfgPartNum'])
+            
+            if key_fields_touched:
+                # Expire then Create pattern
+                
+                # 1. Create expire row (copy of original)
+                expire_row = dict(row)
+                expire_row['Primary Action'] = 'Update'
+                expire_row['Group'] = 'Keep3'
+                expire_row['Actual Action'] = 'Expire then Create (Expire)'
+                expire_row['Intended Action'] = 'Upsert'
+                expire_row['Expiration Date'] = today
+                result_rows.append(expire_row)
+                
+                # 2. Create new row with edits applied
+                create_row = dict(row)
+                
+                # Apply all field edits
+                for field, new_value in field_edits.items():
+                    if field in ['UOM', 'QOE', 'VendorPartNum', 'MfgPartNum']:
+                        if field == 'QOE':
+                            new_value = int(new_value)
+                        create_row[quick_field_name_map[field]] = new_value
+                
+                # Set create row properties
+                create_row['Group'] = 'Keep3'
+                create_row['Intended Action'] = 'Upsert'
+                create_row['Primary Action'] = 'Update'
+                create_row['Actual Action'] = 'Expire then Create (Create)'
+                create_row['Effective Date'] = tomorrow
+                result_rows.append(create_row)
+            
+            else:
+                # Update pattern (no key fields touched)
+                
+                # 1. Create existing row (copy of original)
+                existing_row = dict(row)
+                existing_row['Primary Action'] = 'Update'
+                existing_row['Group'] = 'Keep3'
+                existing_row['Intended Action'] = 'Upsert'
+                existing_row['Actual Action'] = 'Update (Existing)'
+                result_rows.append(existing_row)
+                
+                # 2. Create updated row with edits applied
+                updated_row = dict(row)
+                
+                # Apply all field edits
+                for field, new_value in field_edits.items():
+                    if field in ['UOM', 'QOE', 'VendorPartNum', 'MfgPartNum']:
+                        updated_row[quick_field_name_map[field]] = new_value
+                
+                # Set updated row properties
+                updated_row['Primary Action'] = 'Update'
+                updated_row['Group'] = 'Keep3'
+                updated_row['Intended Action'] = 'Upsert'
+                updated_row['Actual Action'] = 'Update (New)'
+                result_rows.append(updated_row)
+    
+    return result_rows
+
+
+def error_edit_check(error_rows, error_edits):
+    """Evaluate whether applied edits resolve errors based on rules a), b), c).
+    Returns dict with rows: [{TaskID, FileRow, PKID_PrPRaw, pass: bool, message, data}].
+    Rules by FileRow within same TaskID:
+      a) If Vendor Part Num and ERP Vendor ID are the same => expect same UOM and QOE and Mfg Part Num
+      b) If ERP Vendor ID, Mfg Part Num, QOE, UOM are the same => expect same Vendor Part Num
+      c) If Vendor Part Num, ERP Vendor ID and QOE are the same => expect same UOM and Mfg Part Num
+    Skip duplicate checks here.
+    """
+    if not error_rows:
+        return {"rows": []}
+
+    # Apply edits to get the modified rows
+    edited = apply_edits_to_errors(error_rows, error_edits)
+    if not edited:
+        return {"rows": []}
+    
+    df = pd.DataFrame(edited)
+    
+    # Ensure required columns exist
+    req = ['TaskID', 'File Row', 'Vendor Part Num', 'ERP Vendor ID', 'UOM', 'QOE', 'Mfg Part Num', 'PKID']
+    for c in req:
+        if c not in df.columns:
+            df[c] = np.nan
+    
+    # For drop operations, we don't need to validate - they're automatically valid
+    drop_rows = df[df.get('Group') == 'Drop2'].copy()
+    
+    # For non-drop operations, we need to validate the final state
+    # Only validate rows that will be the "final" version (Create or Update New)
+    validate_rows = df[df.get('Actual Action').isin(['Create', 'Update (New)', 'Expire then Create (Create)'])].copy()
+    
+    results = []
+    
+    # Handle drop operations - they're automatically valid
+    for _, row in drop_rows.iterrows():
+        results.append({
+            'TaskID': row.get('TaskID'),
+            'FileRow': row.get('File Row'),
+            'PKID_PrPRaw': row.get('PKID'),
+            'pass': True,
+            'message': 'PASS - safe to drop',
+            'data': row.to_dict()
+        })
+    
+    # Validate non-drop operations by TaskID and File Row
+    for (task_id, file_row), g in validate_rows.groupby(['TaskID', 'File Row'], dropna=False):
+        if g.empty:
+            continue
+            
+        g = g.copy()
+        
+        # Rule a) Same (Vendor Part Num, ERP Vendor ID) => same (UOM, QOE, Mfg Part Num)
+        a_ok = True
+        a_violations = []
+        for (vpn, vid), grp in g.groupby(['Vendor Part Num', 'ERP Vendor ID'], dropna=False):
+            if grp.empty or len(grp) == 1:
+                continue
+            
+            # Check if all rows in this group have the same UOM, QOE, and Mfg Part Num
+            uom_vals = grp['UOM'].unique()
+            qoe_vals = grp['QOE'].unique()
+            mpn_vals = grp['Mfg Part Num'].unique()
+            
+            if len(uom_vals) > 1 or len(qoe_vals) > 1 or len(mpn_vals) > 1:
+                a_ok = False
+                a_violations.append(f"Vendor Part Num '{vpn}' + ERP Vendor ID '{vid}' has inconsistent UOM/QOE/MPN")
+
+        # Rule b) Same (ERP Vendor ID, Mfg Part Num, QOE, UOM) => same Vendor Part Num
+        b_ok = True
+        b_violations = []
+        for (vid, mpn, qoe, uom), grp in g.groupby(['ERP Vendor ID', 'Mfg Part Num', 'QOE', 'UOM'], dropna=False):
+            if grp.empty or len(grp) == 1:
+                continue
+            
+            vpn_vals = grp['Vendor Part Num'].unique()
+            if len(vpn_vals) > 1:
+                b_ok = False
+                b_violations.append(f"ERP Vendor ID '{vid}' + MPN '{mpn}' + QOE '{qoe}' + UOM '{uom}' has inconsistent Vendor Part Num")
+
+        # Rule c) Same (Vendor Part Num, ERP Vendor ID, QOE) => same (UOM, Mfg Part Num)
+        c_ok = True
+        c_violations = []
+        for (vpn, vid, qoe), grp in g.groupby(['Vendor Part Num', 'ERP Vendor ID', 'QOE'], dropna=False):
+            if grp.empty or len(grp) == 1:
+                continue
+            
+            uom_vals = grp['UOM'].unique()
+            mpn_vals = grp['Mfg Part Num'].unique()
+            
+            if len(uom_vals) > 1 or len(mpn_vals) > 1:
+                c_ok = False
+                c_violations.append(f"Vendor Part Num '{vpn}' + ERP Vendor ID '{vid}' + QOE '{qoe}' has inconsistent UOM/MPN")
+
+        # Determine overall validation result
+        all_ok = bool(a_ok and b_ok and c_ok)
+        
+        if all_ok:
+            msg = 'PASS - safe to retain'
+        else:
+            violations = a_violations + b_violations + c_violations
+            msg = f"Still failing rules: {'; '.join(violations[:2])}"  # Limit message length
+        
+        # Add results for each row in this group
+        for _, row in g.iterrows():
+            results.append({
+                'TaskID': row.get('TaskID'),
+                'FileRow': row.get('File Row'),
+                'PKID_PrPRaw': row.get('PKID'),
+                'pass': all_ok,
+                'message': msg,
+                'data': row.to_dict()
+            })
+    
+    return {"rows": results}

@@ -115,10 +115,30 @@
         opacity: 0.9;
     }
 
-    /* Align the Updated timestamp to the right */
     .updated-timestamp {
-        justify-content: flex-end;
-        text-align: right;
+        justify-content: left;
+        text-align: left;
+    }
+
+    /* Style the Exported timestamp container (label stays normal) */
+    .exported-timestamp {
+        justify-content: left;
+        text-align: left;
+    }
+
+    /* Smaller font for the exported datetime and days */
+    .exported-value {
+        font-size: 0.85rem;
+        color: #333;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .exported-value .days {
+        color: #666;
+        margin-top: 4px;
+        font-size: 0.8rem;
     }
 
     .task-errors {
@@ -460,16 +480,160 @@
         color: #dc3545; /* Red for low sync */
         font-weight: bold;
     }
+
+    /* Completion summary styling */
+    .completion-summary {
+        background: #ffffff; 
+        border: 1px solid #e0e4e8; 
+        padding: 15px 18px; 
+        border-radius: 8px; 
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }    
+    
+    .completion-summary-body ul li {
+        padding: 2px 0;
+    }
+    
+    .completion-summary-body strong {
+        width: 110px; 
+        display: inline-block;
+    }
+
+    /* New timeline layout */
+    .cs-timeline {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 0.85rem;
+        line-height: 1.2;
+    }
+    .cs-node { 
+        background:#f8f9fa; 
+        border:1px solid #d9dee2; 
+        padding:8px 12px; 
+        border-radius:6px; 
+        min-width:120px; 
+        position:relative;
+        height: 48px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .cs-node .cs-label { font-weight:600; color:#34495e; margin-bottom:2px; font-size:0.8rem; }
+    .cs-node .cs-ts { font-family:monospace; font-size:0.72rem; color:#555; line-height:1.1; }
+    .cs-gap { 
+        font-family:monospace; 
+        color:#6c757d; 
+        display:flex; 
+        align-items:center; 
+        white-space:nowrap;
+        height: 48px;
+        padding: 0 4px;
+    }
+    .cs-gap-time { color:#007bff; font-weight:600; }
+    .cs-total { 
+        margin-left:auto; 
+        font-size:0.8rem; 
+        color:#333; 
+        display:flex; 
+        align-items:center; 
+        gap:4px; 
+        height: 48px;
+        padding: 0 8px;
+        background: #f8f9fa;
+        border: 1px solid #e3e6ea;
+        border-radius: 4px;
+    }
+    .cs-missing { color:#dc3545; font-style:italic; }
+    .cs-exported { background:#eef7ff; border-color:#c7e2f9; }
+    .cs-created { background:#f0f9f4; border-color:#cbe9d9; }
+    .cs-completed { background:#f9f5ff; border-color:#e0d4f5; }
+    
+    /* Counts section */
+    .cs-counts {
+        margin-top: 15px;
+        padding: 10px 15px;
+        background: #f8f9fa;
+        border: 1px solid #e3e6ea;
+        border-radius: 6px;
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+    .cs-count-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .cs-count-label {
+        font-weight: 600;
+        color: #495057;
+        font-size: 0.85rem;
+    }
+    .cs-count-value {
+        background: #e9ecef;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #007bff;
+    }
+    
+    /* Comments section */
+    .cs-comments {
+        margin-top: 15px;
+        padding: 12px 15px;
+        background: #fff8e6;
+        border: 1px solid #f5d79e;
+        border-radius: 6px;
+    }
+    .cs-comment-label {
+        font-weight: 600;
+        color: #856404;
+        font-size: 0.8rem;
+        margin-bottom: 6px;
+    }
+    .cs-comment-text {
+        color: #333;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        margin-bottom: 4px;
+        word-wrap: break-word;
+    }
+    .cs-comment-date {
+        font-family: monospace;
+        font-size: 0.75rem;
+        color: #6c757d;
+        text-align: right;
+    }
+    
+    @media (max-width: 640px) { 
+        .cs-timeline { align-items: flex-start; }
+        .cs-node, .cs-gap, .cs-total { height: auto; min-height: 36px; }
+        .cs-total { width:100%; margin-left:0; padding-top:8px; border-top:1px dashed #ddd; margin-top:8px; } 
+        .cs-counts { flex-direction: column; gap: 10px; }
+    }
+    
+    @media (max-width: 576px) {
+        .completion-summary-body strong {
+            display: block; 
+            width: auto;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block title %}Task Details - Contract Atlas{% endblock %}
 
 {% block content %}
-<div class="task-details">
+<div class="task-details" id="task-details-container" data-is-completed="{% if task.Status2 == 'Completed' %}1{% else %}0{% endif %}">
     <div class="task-header">
         <h2>Task Details: {{ task.TaskID }}</h2>
     </div>
+
+    {# Flag to indicate task completed (Infor side) #}
+    {% set is_completed = task.Status2 == 'Completed' %}
     
     <!-- Row 1: Status Information -->
     <div class="info-row">
@@ -509,7 +673,7 @@
                 {% if task.WithError == 'Yes' %}
                     <span class="info-value-danger">Yes</span>
                 {% else %}
-                    <span class="info-value-success">No</span>
+                    <span class="info-value-success">{{ task.WithError }}</span>
                 {% endif %}
             </div>
         </div>
@@ -531,17 +695,34 @@
         </div>
     </div>
     
-    <!-- Row 3: Timestamps -->
-    <div class="info-row">
+    {% if not is_completed %}
+    <!-- Row 3: Timestamps (shown only before completion) -->
+    <div class="info-row" id="initial-timestamps-row">
         <div class="info-item">
             <div class="info-label">Created:</div>
             <div class="info-value">{{ task.CreateDT.strftime('%Y-%m-%d %H:%M:%S') if task.CreateDT else 'N/A' }}</div>
+        </div>
+        <div class="info-item exported-timestamp">
+            <div class="info-label">Exported:</div>
+            <div class="info-value exported-value">
+                {% if exported_dt %}
+                    <span>{{ exported_dt.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                    {% if exported_days_ago is not none and exported_days_ago is defined %}
+                        <span class="days">({{ exported_days_ago }} days)</span>
+                    {% else %}
+                        <span class="days">(days)</span>
+                    {% endif %}
+                {% else %}
+                    <span style="color: #999;">Not available</span>
+                {% endif %}
+            </div>
         </div>
         <div class="info-item updated-timestamp">
             <div class="info-label">Updated:</div>
             <div class="info-value">{{ task.UpdateDT.strftime('%Y-%m-%d %H:%M:%S') if task.UpdateDT else 'N/A' }}</div>
         </div>
     </div>
+    {% endif %}
     
     <div class="task-actions">
         <a href="{{ url_for('data_export.view_history') }}" class="btn btn-secondary">Back to History</a>
@@ -550,7 +731,7 @@
 
     <!-- Section to display Sync status for all exported rows -->
     <div class="sync-status mt-4">
-        <h4>Sync Status</h4>
+        <h4>Sync Status Preview</h4>
         <div class="table-responsive">
             <table class="sync-status-table" id="sync-status-table">
                 <thead>
@@ -621,19 +802,60 @@
 
         <!-- Action buttons for errors -->
         <div class="d-flex justify-content-end mt-3" style="text-align: right; margin-top: 30px;">
-            {% if has_edit_permission %}
+            {% if has_edit_permission and task.Status != 'Deleted' and task.Status != 'Completed' %}
             <button class="btn btn-secondary me-2" id="revert-all-btn">Revert All</button>
-            <button class="btn btn-primary me-2" id="try-resolve-btn">Try Resolve</button>
+            <button class="btn btn-primary me-2" id="try-resolve-btn"
+                    data-task-created="{{ task.CreateDT.isoformat() if task.CreateDT else '' }}"
+                    data-base-last-update="{{ base_last_update.isoformat() if base_last_update else '' }}"
+                    data-status="{{ task.Status or '' }}">
+                Try Resolve
+            </button>
             <button class="btn btn-success" id="export-btn">Export</button>
             {% endif %}
         </div>
  
     </div>
-    {% else %}
+    
+    {% elif task.WithError == 'No' %}
     <div class="task-errors mt-4">
         <div class="alert alert-success">
             <h4>No Errors</h4>
             <p>This task has no errors that need addressing.</p>
+        </div>
+    </div>
+    {% elif task.WithError == 'Rpr' %}
+    <div class="task-errors mt-4">
+        <div class="alert alert-info">
+            <h4>Error Resolved - Reprocess Required</h4>
+            <p>
+                A new TP Reprocess file has been generated. Download the latest file and re-upload after corrections.
+                {% if tp_reprocess_url %}
+                <br/>
+                <a href="{{ tp_reprocess_url }}" download>
+                    Download Latest TP_Reprocess File
+                </a>
+                {% else %}
+                <br/>
+                <small>No TP Reprocess file found yet for this task.</small>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% else %}
+    <div class="task-errors mt-4">
+        <div class="alert alert-info">
+            <h4>Error Resolved and exported for Reprocessing</h4>
+            <p>This task has no errors that need addressing.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Section to display Completion Summary -->
+    {% if is_completed %}
+    <div id="completion-summary" class="completion-summary mt-4">
+        <h4 style="margin-bottom:10px;">Completion Summary</h4>
+        <div id="completion-summary-content" class="completion-summary-body">
+            <em>Loading completion data...</em>
         </div>
     </div>
     {% endif %}
