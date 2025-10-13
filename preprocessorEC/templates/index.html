@@ -11,8 +11,14 @@
 <div class="dashboard-options">
     {% if current_user.role in ['sourcing', 'admin'] %}
     <div class="dashboard-card">
-        <h3>Process Contract</h3>
-        <p>Upload and process a new contract</p>
+        <h3>TP Preparation</h3>
+        <p>Helper function to prepare your TP file</p>
+        <a href="{{ url_for('common.dashboard', new_process=1) }}" class="btn btn-primary">Start Prepare TP file</a>
+    </div>
+
+    <div class="dashboard-card">
+        <h3>Preprocess Contract</h3>
+        <p>Upload and preprocess contract</p>
         <a href="{{ url_for('common.dashboard', new_process=1) }}" class="btn btn-primary">Start New Process</a>
     </div>
     {% endif %}
@@ -34,12 +40,16 @@
     
     .dashboard-options {
         display: flex;
+        flex-wrap: wrap; /* allow cards to wrap onto the next line */
         justify-content: space-between;
         gap: 30px;
     }
     
     .dashboard-card {
-        flex: 1;
+        /* make each card take roughly half the available width so there are 2 per row */
+        flex: 1 1 calc(50% - 15px);
+        max-width: calc(50% - 15px);
+        box-sizing: border-box;
         background-color: #f8f9fa;
         border-radius: 8px;
         padding: 25px;
@@ -68,6 +78,14 @@
     .btn-secondary {
         background-color: #95a5a6;
         color: white;
+    }
+
+    /* Responsive: stack cards on narrow screens */
+    @media (max-width: 700px) {
+        .dashboard-card {
+            flex: 1 1 100%;
+            max-width: 100%;
+        }
     }
 </style>
 {% endblock %}

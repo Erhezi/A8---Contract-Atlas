@@ -2605,10 +2605,10 @@ def get_tp_row_sync_by_taskid(conn, task_id):
 
             CASE WHEN ccx_tp.QOE = QOE_CCX THEN 1 ELSE 0 END AS Match_QOE_TP_CCX,
             CASE WHEN ccx_tp.[Contract Price] = PRICE THEN 1 ELSE 0 END AS Match_Price_TP_CCX,
-            CASE WHEN ccx_tp.[Vendor Part Num] COLLATE Latin1_General_CS_AS = VENDOR_PART_NUMBER COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_CCX,
-            CASE WHEN ccx_tp.[Effective Date] = ITEM_PRICE_START_DATE THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_CCX,
+            CASE WHEN ccx_tp.[Vendor Part Num] = VENDOR_PART_NUMBER THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_CCX,
+            CASE WHEN ccx_tp.[Effective Date] <= ITEM_PRICE_START_DATE THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_CCX,
             CASE WHEN ccx_tp.[Expiration Date] = ITEM_PRICE_END_DATE THEN 1 ELSE 0 END AS Match_ExpirationDate_TP_CCX,
-            CASE WHEN ccx_tp.[Description] COLLATE Latin1_General_CS_AS = PART_DESCRIPTION COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_Description_TP_CCX,
+            CASE WHEN ccx_tp.[Description] = PART_DESCRIPTION THEN 1 ELSE 0 END AS Match_Description_TP_CCX,
 
             CASE WHEN ccx_tp.QOE = QOE_Infor THEN 1 ELSE 0 END AS Match_QOE_TP_Infor,
             CASE WHEN ccx_tp.[Contract Price] = BaseCost THEN 1 ELSE 0 END AS Match_Price_TP_Infor,
@@ -2700,10 +2700,10 @@ def get_exported_row_sync_by_taskid(conn, task_id):
             -- Comparisons TP vs CCX
             CASE WHEN ccx_tp.QOE = QOE_CCX THEN 1 ELSE 0 END AS Match_QOE_TP_CCX,
             CASE WHEN ccx_tp.[Contract Price] = PRICE THEN 1 ELSE 0 END AS Match_Price_TP_CCX,
-            CASE WHEN ccx_tp.[Vendor Part Num] COLLATE Latin1_General_CS_AS = VENDOR_PART_NUMBER COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_CCX,
-            CASE WHEN ccx_tp.[Effective Date] = ITEM_PRICE_START_DATE THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_CCX,
+            CASE WHEN ccx_tp.[Vendor Part Num] = VENDOR_PART_NUMBER THEN 1 ELSE 0 END AS Match_VendorPartNum_TP_CCX,
+            CASE WHEN ccx_tp.[Effective Date] <= ITEM_PRICE_START_DATE THEN 1 ELSE 0 END AS Match_EffectiveDate_TP_CCX,
             CASE WHEN ccx_tp.[Expiration Date] = ITEM_PRICE_END_DATE THEN 1 ELSE 0 END AS Match_ExpirationDate_TP_CCX,
-            CASE WHEN ccx_tp.[Description] COLLATE Latin1_General_CS_AS = PART_DESCRIPTION COLLATE Latin1_General_CS_AS THEN 1 ELSE 0 END AS Match_Description_TP_CCX,
+            CASE WHEN ccx_tp.[Description] = PART_DESCRIPTION THEN 1 ELSE 0 END AS Match_Description_TP_CCX,
 
             -- Comparisons TP vs Infor
             CASE WHEN ccx_tp.QOE = QOE_Infor THEN 1 ELSE 0 END AS Match_QOE_TP_Infor,

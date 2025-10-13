@@ -899,6 +899,14 @@ def calculate_confidence_score(item, model=None, apply_to_step=2, duplicate_mode
                 result['weighted_score'] = 0.0
                 weighted_score = 0.0
     
+    if duplicate_mode == 'explicit':
+        # for explicit mode, if the UOM and QOE are not the same, even the MFN is the same, we will consider it as wrong matching
+        if item[apply_to_dict[apply_to_step]['mpn_a']].upper() == item[apply_to_dict[apply_to_step]['mpn_upload']].upper():
+            if item[apply_to_dict[apply_to_step]['uom_a']] != item[apply_to_dict[apply_to_step]['uom_upload']] and \
+               int(item[apply_to_dict[apply_to_step]['qoe_a']]) != int(item[apply_to_dict[apply_to_step]['qoe_upload']]):
+                result['weighted_score'] = 0.0
+                weighted_score = 0.0
+    
     # Assign confidence level
     if weighted_score >= 0.8:
         result['confidence_level'] = 'high'
