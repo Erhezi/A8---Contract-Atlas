@@ -297,9 +297,11 @@ def parse_date_safely(date_str):
             continue
     return pd.NaT
 
+
 def validate_dates(error_df):
     """Validate date fields format and logic"""
     today_dt = datetime.now().date()
+    tomorrow_dt = today_dt + timedelta(days=1)
 
     # Convert date strings to datetime objects
     error_df['Effective_Date_Dt'] = error_df['Effective Date'].apply(parse_date_safely)
@@ -315,12 +317,12 @@ def validate_dates(error_df):
     error_df.loc[empty_date_mask, 'Has Error'] = True
 
     # Validate expiration date > effective date
-    # and expiration date >= today
+    # and expiration date >= today + 2 (because if we need to tweak the date, we need at least 2 days)
     invalid_exp_mask = ~empty_date_mask & (
-        (error_df['Expiration_Date_Dt'].dt.date < today_dt) | 
+        (error_df['Expiration_Date_Dt'].dt.date < tomorrow_dt) | 
         (error_df['Expiration_Date_Dt'] <= error_df['Effective_Date_Dt'])
     )
-    error_df.loc[invalid_exp_mask, 'Error-Invalid Date'] = 'Expiration Date must > Effective Date and must >= today'
+    error_df.loc[invalid_exp_mask, 'Error-Invalid Date'] = 'Expiration Date must > Effective Date and >= tomorrow'
     error_df.loc[invalid_exp_mask, 'Has Error'] = True
     
     return error_df
@@ -583,11 +585,12 @@ def calculate_mfn_complexity(mfn):
 
 def calculate_mfn_match_score(ccx_mfn, upload_mfn):
     """Calculate manufacturer part number match score with complexity consideration"""
+    
     # Calculate complexity of the MFNs
-    complexity_score = (calculate_mfn_complexity(ccx_mfn) + calculate_mfn_complexity(upload_mfn))/2
+    complexity_score = (calculate_mfn_complexity(ccx_mfn.upper()) + calculate_mfn_complexity(upload_mfn.upper()))/2
     
     # For exact matches, return perfect score with complexity factor
-    if ccx_mfn == upload_mfn:
+    if ccx_mfn.upper() == upload_mfn.upper():
         if complexity_score > 0.85:
             return 3.0, complexity_score
         if complexity_score > 0.70:
@@ -597,8 +600,8 @@ def calculate_mfn_match_score(ccx_mfn, upload_mfn):
         return 1.0, complexity_score
     
     # Normalize strings for comparison
-    ccx_norm = str(ccx_mfn).strip().lower()
-    upload_norm = str(upload_mfn).strip().lower()
+    ccx_norm = str(ccx_mfn).strip().upper()
+    upload_norm = str(upload_mfn).strip().upper()
     # Remove non-alphanumeric characters
     ccx_alphanum = ''.join(c for c in ccx_norm if c.isalnum())
     upload_alphanum = ''.join(c for c in upload_norm if c.isalnum())
@@ -891,8 +894,8 @@ def calculate_confidence_score(item, model=None, apply_to_step=2, duplicate_mode
     if duplicate_mode == 'strict' or duplicate_mode == 'explicit':
     # for strict or explicit mode, if the contract number is the same, we will consider anything that is not an exact match 
     # as wrong mathcing, thus assign a score of 0.0
-        if item[apply_to_dict[apply_to_step]['cn_a']] == item[apply_to_dict[apply_to_step]['cn_upload']]:
-            if item[apply_to_dict[apply_to_step]['mpn_a']] != item[apply_to_dict[apply_to_step]['mpn_upload']]:
+        if item[apply_to_dict[apply_to_step]['cn_a']].upper() == item[apply_to_dict[apply_to_step]['cn_upload']].upper():
+            if item[apply_to_dict[apply_to_step]['mpn_a']].upper() != item[apply_to_dict[apply_to_step]['mpn_upload']].upper():
                 result['weighted_score'] = 0.0
                 weighted_score = 0.0
     
@@ -1952,17 +1955,24 @@ def change_simulation_stage2(validated_df, stacked_df, update_action_mode = 'new
         data_change_show_df = net_new_df[cols_to_take].copy()
 
     # adjust the Effective and Expiration Date for certain operations
+    # adjusted 2025-10-11
+    # for update action
+        # keep the origianl date, let the CCX system handle it
+    # for ETC action
+        # the expiration date for expire set for tomorrow
+        # the effective date for create set for today
     today = pd.to_datetime('today').strftime('%Y-%m-%d')
     tomorrow = (pd.to_datetime('today') + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+    # after_tomorrow = (pd.to_datetime('today') + pd.Timedelta(days=2)).strftime('%Y-%m-%d')
 
     data_change_show_df['Effective Date (before action)'] = data_change_show_df['Effective Date'].copy()
     data_change_show_df['Expiration Date (before action)'] = data_change_show_df['Expiration Date'].copy()
 
     for i, row in data_change_show_df.iterrows():
         if row['Actual Action'] == 'Expire' or row['Actual Action'] == 'Expire then Create (Expire)':
-            data_change_show_df.at[i, 'Expiration Date'] = today
+            data_change_show_df.at[i, 'Expiration Date'] = tomorrow
         elif row['Actual Action'] == 'Expire then Create (Create)':
-            data_change_show_df.at[i, 'Effective Date'] = tomorrow
+            data_change_show_df.at[i, 'Effective Date'] = today
 
     # make sure dates are in correct string form
     data_change_show_df['Effective Date (before action)'] = data_change_show_df['Effective Date (before action)'].fillna('').astype(str)
@@ -2379,7 +2389,16 @@ def establish_valid_buyUOM_dictionary(analyzed_df):
 def modified_row_helper(row,
                         pos_to_change = [],
                         update_action_mode = 'new'):
-    
+    """
+    Helper function to create modified rows based on the positions to change.
+    Args:
+        row: The original row from the DataFrame.
+        pos_to_change: List of positions (0-indexed) indicating which fields to change.
+        update_action_mode: 'legacy' or 'new', determines the logic for update action
+    Returns:
+        original_row: The original row with necessary fields.
+        modified_row: The modified row with specified fields changed.
+    """
     original_row = {
         'File Row': row['File Row'],
         'Dataset': row['Dataset_expck'],

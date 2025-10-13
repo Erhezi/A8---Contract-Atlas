@@ -205,6 +205,7 @@ def drop_temp_table(table_name, conn):
         print(f"Database error in drop_temp_table: {str(e)}")
         return False, str(e)
 
+
 def find_duplicates_with_ccx(temp_table, conn):
     """Find potential duplicates between the temp table and CCX database"""
     try:

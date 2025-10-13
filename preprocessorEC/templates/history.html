@@ -51,8 +51,8 @@
     /* Wrike ID column - make it wider */
     .compact-table th:nth-child(3),
     .compact-table td:nth-child(3) {
-        min-width: 70px;
-        max-width: 100px;
+        min-width: 60px;
+        max-width: 90px;
     }
 
     /* Delete Hold column - make it wider */
@@ -64,7 +64,7 @@
     
     /* Truncate long filenames */
     .filename-cell {
-        max-width: 220px;
+        max-width: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -82,7 +82,7 @@
     .compact-table td:nth-child(8),
     .compact-table td:nth-child(9) {
         font-size: 0.7rem;
-        white-space: wrap;
+        white-space: nowrap !important;
     }
     
     /* Add subtle hover effect to rows */
@@ -409,8 +409,8 @@
                                 <th>Wrike ID</th>
                                 <th>Filename</th>
                                 <th>WithError</th>
-                                <th>Status (CCX)</th>
-                                <th>Status (Infor)</th>
+                                <th>Status (Export)</th>
+                                <th>Status (Sync)</th>
                                 <th>Created</th>
                                 <th>Updated</th>
                                 <th>Delete / Hold</th>
@@ -463,8 +463,16 @@
                                         <span class="badge bg-secondary">{{ task.Status }}</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ task.CreateDT.strftime('%Y-%m-%d %H:%M:%S') if task.CreateDT else '' }}</td>
-                                <td>{{ task.UpdateDT.strftime('%Y-%m-%d %H:%M:%S') if task.UpdateDT else '' }}</td>
+                                <td>
+                                    {% if task.CreateDT %}
+                                        {{ task.CreateDT.strftime('%Y-%m-%d') }}<br>{{ task.CreateDT.strftime('%H:%M:%S') }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if task.UpdateDT %}
+                                        {{ task.UpdateDT.strftime('%Y-%m-%d') }}<br>{{ task.UpdateDT.strftime('%H:%M:%S') }}
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <form method="POST" action="{{ url_for('data_export.delete_task', task_id=task.TaskID) }}" style="display:inline;">
                                         <button type="submit" class="btn btn-sm btn-danger delete-task-btn" 
