@@ -25,6 +25,8 @@
 !preprocessorEC/data_export/**/*.py
 !preprocessorEC/data_synchronization/
 !preprocessorEC/data_synchronization/**/*.py
+!preprocessorEC/prepare_tp/
+!preprocessorEC/prepare_tp/**/*.py
 !preprocessorEC/static/
 !preprocessorEC/static/css/
 !preprocessorEC/static/css/**/*.css

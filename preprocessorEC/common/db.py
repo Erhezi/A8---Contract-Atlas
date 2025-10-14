@@ -105,6 +105,37 @@ def get_valid_vid_in_list(conn):
         print(f"Database error: {str(e)}")
         return None
 
+
+def get_contract_summary(conn, contract_number):
+    """Fetch contract metadata for a specific contract number."""
+    try:
+        cursor = conn.cursor()
+        query = (
+            """
+            SELECT 
+                CONTRACT_NUMBER,
+                CASE WHEN SOURCE_CONTRACT_TYPE = 'GPO' THEN 'GPO' ELSE 'Local' END AS SOURCE_CONTRACT_TYPE,
+                MAX(ITEM_PRICE_END_DATE) AS CONTRACT_END_DATE,
+                MAX(VENDOR_ERP_NUMBER) AS VENDOR_ERP_NUMBER
+            FROM [DM_MONTYNT\\dli2].ccx_dump_validation_stg
+            WHERE CONTRACT_NUMBER = ?
+            GROUP BY CONTRACT_NUMBER,
+                     CASE WHEN SOURCE_CONTRACT_TYPE = 'GPO' THEN 'GPO' ELSE 'Local' END
+            """
+        )
+        cursor.execute(query, (contract_number,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        columns = [column[0] for column in cursor.description]
+        cleaned_row = [fix_encoding(item) for item in row]
+        result = dict(zip(columns, cleaned_row))
+        return result
+    except Exception as e:
+        print(f"Database error: {str(e)}")
+        return None
+
 def create_temp_table(table_name, df, conn):
     """Create a temporary table in the database for the uploaded file data"""
     try:

@@ -18,6 +18,52 @@ def clear_session_data(key):
         session.pop(key)
         session.modified = True
 
+# --- Prepare TP Helpers ---
+def _prepare_tp_key(user_id):
+    return f'prepare_tp_files_{user_id}'
+
+
+def get_prepare_tp_files(user_id):
+    """Retrieve all Prepare TP file records for a user."""
+    key = _prepare_tp_key(user_id)
+    return session.get(key, [])
+
+
+def store_prepare_tp_files(user_id, files):
+    """Persist Prepare TP file records for a user."""
+    key = _prepare_tp_key(user_id)
+    session[key] = files
+    session.modified = True
+
+
+def clear_prepare_tp_files(user_id):
+    """Clear Prepare TP file records for a user."""
+    key = _prepare_tp_key(user_id)
+    if key in session:
+        session.pop(key)
+        session.modified = True
+
+
+def get_prepare_tp_final_file(user_id):
+    """Get the path to the most recent prepared TP export for a user."""
+    key = f'prepare_tp_final_file_{user_id}'
+    return session.get(key)
+
+
+def store_prepare_tp_final_file(user_id, path):
+    """Store the path of the prepared TP export for a user."""
+    key = f'prepare_tp_final_file_{user_id}'
+    session[key] = path
+    session.modified = True
+
+
+def clear_prepare_tp_final_file(user_id):
+    """Remove the stored prepared TP export for a user."""
+    key = f'prepare_tp_final_file_{user_id}'
+    if key in session:
+        session.pop(key)
+        session.modified = True
+
 # --- Step Management Helpers ---
 def store_current_step(user_id, step_id):
     """Store the current step ID for a user in the session"""

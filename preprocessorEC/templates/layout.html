@@ -321,6 +321,18 @@
             text-decoration: none;
         }
         
+        .user-info .history-link {
+            margin-left: 15px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 5px 12px;
+        }
+        
+        .user-info .history-link:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            text-decoration: none;
+        }
+        
         /* Ensure alignment on smaller screens */
         @media (max-width: 768px) {
             .user-info {
@@ -364,6 +376,10 @@
             <!-- Added home link here, after login/logout -->
             <a href="{{ url_for('common.home') }}" class="nav-link home-link">
                 <i class="fas fa-home"></i> Home
+            </a>
+            <!-- Added history link here, after home -->
+            <a href="{{ url_for('data_export.view_history') }}" class="nav-link history-link">
+                <i class="fas fa-history"></i> Tasks
             </a>
         </div>
     </div>

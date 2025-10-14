@@ -108,6 +108,7 @@ def create_app(config_name=None, test_config=None):
     from .data_export.routes import data_export_bp
     from .data_synchronization.routes import data_synchronization_bp
     from .admin import admin_blueprint
+    from .prepare_tp import prepare_tp_bp
 
     #add url prefix
     url_prefix = app.config.get('URL_PREFIX', '')
@@ -122,6 +123,7 @@ def create_app(config_name=None, test_config=None):
     app.register_blueprint(data_export_bp, url_prefix=f'{url_prefix}/data-export')
     app.register_blueprint(data_synchronization_bp, url_prefix=f'{url_prefix}/data-synchronization')
     app.register_blueprint(admin_blueprint, url_prefix=f'{url_prefix}/admin')
+    app.register_blueprint(prepare_tp_bp, url_prefix=f'{url_prefix}/prepare-tp')
 
     # Initialize model management
     # Initialize app config with model status
