@@ -9,6 +9,7 @@ from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
 from ..common.db import get_db_connection, get_contract_summary
+from ..common.data_models import ActiveContract
 from ..common.session import (
     get_prepare_tp_files,
     store_prepare_tp_files,
@@ -334,6 +335,39 @@ def fetch_contract():
     }
 
     return jsonify({'success': True, 'data': data})
+
+
+@prepare_tp_bp.route('/active-contracts/search', methods=['GET'])
+@login_required
+def search_active_contracts():
+    query = (request.args.get('q') or request.args.get('query') or '').strip()
+    if len(query) < 2:
+        return jsonify({'success': True, 'results': []})
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'success': False, 'message': 'Unable to connect to database.'}), 500
+
+    try:
+        items = ActiveContract.search(conn, query=query, limit=20)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return jsonify({
+        'success': True,
+        'results': [
+            {
+                'contract_number': item.contract_number,
+                'manufacturer_name': item.manufacturer_name,
+                'contract_description': item.contract_description,
+                'last_update_date': item.last_update_date,
+            }
+            for item in items
+        ],
+    })
 
 
 def _ensure_commit_ready(record):

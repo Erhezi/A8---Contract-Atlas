@@ -17,10 +17,14 @@
 	const state = {
 		files: [],
 	};
+	const contractSuggestionTimers = new Map();
+	const contractSuggestionRequests = new Map();
 
 	const tableBody = document.querySelector('#prepare-tp-table tbody');
 	const uploadInput = document.getElementById('prepare-tp-upload-input');
 	const uploadButton = document.getElementById('prepare-tp-upload-btn');
+	const browseButton = document.getElementById('prepare-tp-browse-btn');
+	const uploadLabel = document.querySelector('label[for="prepare-tp-upload-input"]');
 	const prepareButton = document.getElementById('prepare-tp-prepare-btn');
 	const resetButton = document.getElementById('prepare-tp-reset-btn');
 
@@ -42,6 +46,176 @@
 			return template.replace('__ID__', encodeURIComponent(fileId));
 		}
 		return template;
+	};
+
+	const getTomorrowDateString = () => {
+		const tomorrow = new Date();
+		tomorrow.setDate(tomorrow.getDate() + 1);
+		return tomorrow.toISOString().split('T')[0];
+	};
+
+	const getGlobalSuggestionsContainer = () => {
+		let container = document.querySelector('body > .prepare-tp-contract-suggestions');
+		if (!container) {
+			container = document.createElement('div');
+			container.className = 'prepare-tp-contract-suggestions';
+			document.body.appendChild(container);
+		}
+		return container;
+	};
+
+	const getContractSuggestionContainer = (input) => {
+		return getGlobalSuggestionsContainer();
+	};
+
+	const escapeHtml = (value) => (
+		(value || '').toString().replace(/[&<>"']/g, (char) => ({
+			'&': '&amp;',
+			'<': '&lt;',
+			'>': '&gt;',
+			'"': '&quot;',
+			"'": '&#39;',
+		}[char] || char))
+	);
+
+	const truncateText = (text, maxLength = 50) => {
+		if (!text) {
+			return '';
+		}
+		const trimmed = text.trim();
+		if (trimmed.length <= maxLength) {
+			return trimmed;
+		}
+		return `${trimmed.slice(0, maxLength - 3).trimEnd()}...`;
+	};
+
+	const buildContractSuggestionLabel = (item) => {
+		const contract = escapeHtml(item.contract_number || '');
+		const manufacturer = escapeHtml(item.manufacturer_name || '');
+		const description = escapeHtml(truncateText(item.contract_description, 50));
+		const parts = [contract];
+		if (manufacturer) {
+			parts.push(manufacturer);
+		}
+		if (description) {
+			parts.push(description);
+		}
+		return parts.filter(Boolean).join(' | ');
+	};
+
+	const closeContractSuggestionContainer = (container) => {
+		if (!container) {
+			return;
+		}
+		const { fileId } = container.dataset;
+		if (fileId) {
+			if (contractSuggestionTimers.has(fileId)) {
+				clearTimeout(contractSuggestionTimers.get(fileId));
+				contractSuggestionTimers.delete(fileId);
+			}
+			contractSuggestionRequests.delete(fileId);
+		}
+		container.innerHTML = '';
+		container.classList.remove('open');
+	};
+
+	const closeAllContractSuggestionContainers = () => {
+		document.querySelectorAll('.prepare-tp-contract-suggestions.open').forEach((container) => {
+			closeContractSuggestionContainer(container);
+		});
+	};
+
+	const setContractSuggestions = (container, suggestions, input) => {
+		if (!container) {
+			return;
+		}
+		container.innerHTML = '';
+		suggestions.forEach((item) => {
+			if (!item?.contract_number) {
+				return;
+			}
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.className = 'prepare-tp-contract-suggestion';
+			button.dataset.value = item.contract_number;
+			button.dataset.fileId = container.dataset.fileId || '';
+			button.title = item.contract_description || '';
+			const label = buildContractSuggestionLabel(item);
+			const separatorIndex = label.indexOf('|');
+			if (separatorIndex === -1) {
+				button.innerHTML = `<strong>${label}</strong>`;
+			} else {
+				const first = label.slice(0, separatorIndex).trim();
+				const rest = label.slice(separatorIndex + 1).trim();
+				button.innerHTML = `<strong>${first}</strong> | ${rest}`;
+			}
+			container.appendChild(button);
+		});
+		if (container.childElementCount) {
+			container.classList.add('open');
+			container.scrollTop = 0;
+			if (input) {
+				const rect = input.getBoundingClientRect();
+				const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+				const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+				container.style.top = `${rect.bottom + scrollTop}px`;
+				container.style.left = `${rect.left + scrollLeft}px`;
+				container.style.width = `${rect.width}px`;
+			}
+		} else {
+			container.classList.remove('open');
+		}
+	};
+
+	const fetchContractSuggestions = async (query) => {
+		if (!query || query.length < 3) {
+			return [];
+		}
+		try {
+			const url = new URL(endpoint('activeContractsSearch'), window.location.origin);
+			url.searchParams.set('q', query);
+			const response = await fetch(url.toString(), { credentials: 'same-origin' });
+			const data = await response.json().catch(() => null);
+			if (!response.ok || !data || !data.success) {
+				throw new Error(data?.message || 'Failed to load contract suggestions.');
+			}
+			return Array.isArray(data.results) ? data.results : [];
+		} catch (error) {
+			console.error(error);
+			return [];
+		}
+	};
+
+	const requestContractSuggestions = (fileId, query, container, input) => {
+		if (!fileId || !container || !input) {
+			return;
+		}
+		if (contractSuggestionTimers.has(fileId)) {
+			clearTimeout(contractSuggestionTimers.get(fileId));
+		}
+		if (!query || query.length < 3) {
+			closeContractSuggestionContainer(container);
+			return;
+		}
+
+		container.dataset.fileId = fileId;
+
+		const timer = setTimeout(async () => {
+			contractSuggestionTimers.delete(fileId);
+			contractSuggestionRequests.set(fileId, query);
+			const suggestions = await fetchContractSuggestions(query);
+			if (contractSuggestionRequests.get(fileId) !== query) {
+				return;
+			}
+			if (container.dataset.fileId !== fileId) {
+				return;
+			}
+			if (!document.body.contains(input)) {
+				return;
+			}
+			setContractSuggestions(container, suggestions, input);
+		}, 250);
+		contractSuggestionTimers.set(fileId, timer);
 	};
 
 	const isCommitReady = (file) => {
@@ -109,6 +283,9 @@
 		if (uploadInput) {
 			uploadInput.value = '';
 		}
+		if (uploadLabel) {
+			uploadLabel.textContent = 'Choose file';
+		}
 		updateUploadButtonState();
 	};
 
@@ -171,19 +348,25 @@
 
 	const buildStatusCell = (file) => {
 		const cell = document.createElement('td');
-		cell.className = 'prepare-tp-status filename-cell';
+		cell.className = 'filename-cell';
 		cell.title = `${file.row_count || 0} rows`;
+
+		const wrapper = document.createElement('div');
+		wrapper.className = 'prepare-tp-status';
+
 		const nameSpan = document.createElement('span');
 		nameSpan.className = 'prepare-tp-filename';
 		nameSpan.textContent = file.filename;
 		nameSpan.title = file.filename;
-		cell.appendChild(nameSpan);
+		wrapper.appendChild(nameSpan);
+
 		if (file.status === 'committed') {
 			const badge = document.createElement('span');
 			badge.classList.add('prepare-tp-badge', 'committed');
 			badge.textContent = 'Committed';
-			cell.appendChild(badge);
+			wrapper.appendChild(badge);
 		}
+		cell.appendChild(wrapper);
 		return cell;
 	};
 
@@ -273,7 +456,21 @@
 		} else {
 			input.value = (file.metadata?.[fieldName] || '').toString();
 		}
-		cell.appendChild(input);
+
+		let parent = cell;
+		if (fieldName === 'contract_number' && type !== 'date') {
+			const wrapper = document.createElement('div');
+			wrapper.className = 'prepare-tp-contract-input-wrapper';
+			wrapper.dataset.fileId = file.id;
+			wrapper.appendChild(input);
+			// Global suggestions container used instead
+			cell.appendChild(wrapper);
+			parent = wrapper;
+			input.autocomplete = 'off';
+			input.classList.add('prepare-tp-contract-input');
+		} else {
+			cell.appendChild(input);
+		}
 		return cell;
 	};
 
@@ -281,6 +478,7 @@
 		const row = document.createElement('tr');
 		row.dataset.fileId = file.id;
 		const metadata = file.metadata || {};
+		const isNewContract = metadata.intended_action === 'New Contract';
 
 		row.appendChild(buildStatusCell(file));
 		row.appendChild(buildOrganizationCell(file));
@@ -296,6 +494,9 @@
 		endDateInput.dataset.fileId = file.id;
 		endDateInput.dataset.field = 'current_contract_end_date';
 		endDateInput.value = (file.current_contract_end_date || '').substring(0, 10);
+		if (isNewContract) {
+			endDateInput.min = getTomorrowDateString();
+		}
 		endDateCell.appendChild(endDateInput);
 		row.appendChild(endDateCell);
 
@@ -308,7 +509,7 @@
 		fetchButton.className = 'fetch';
 		fetchButton.dataset.action = 'fetch';
 		fetchButton.textContent = 'Fetch';
-		fetchButton.disabled = !metadata.contract_number;
+		fetchButton.disabled = isNewContract || !metadata.contract_number;
 
 		const commitButton = document.createElement('button');
 		commitButton.type = 'button';
@@ -356,6 +557,7 @@
 		}
 
 		const metadata = file.metadata || {};
+		const isNewContract = metadata.intended_action === 'New Contract';
 		const statusCell = row.querySelector('.prepare-tp-status');
 		if (statusCell) {
 			statusCell.title = `${file.row_count || 0} rows`;
@@ -411,11 +613,16 @@
 		const endDateInput = row.querySelector('input[data-field="current_contract_end_date"]');
 		if (endDateInput) {
 			endDateInput.value = (file.current_contract_end_date || '').substring(0, 10);
+			if (isNewContract) {
+				endDateInput.min = getTomorrowDateString();
+			} else {
+				endDateInput.removeAttribute('min');
+			}
 		}
 
 		const fetchButton = row.querySelector('button[data-action="fetch"]');
 		if (fetchButton) {
-			fetchButton.disabled = !metadata.contract_number;
+			fetchButton.disabled = isNewContract || !metadata.contract_number;
 		}
 
 		const commitButton = row.querySelector('button[data-action="commit"]');
@@ -698,6 +905,43 @@
 		}
 	};
 
+	const handleContractInput = (event) => {
+		const input = event.target;
+		if (!input.classList.contains('prepare-tp-contract-input')) {
+			return;
+		}
+		const fileId = input.dataset.fileId;
+		if (!fileId) {
+			return;
+		}
+		const container = getContractSuggestionContainer(input);
+		if (!container) {
+			return;
+		}
+		const query = input.value.trim();
+		requestContractSuggestions(fileId, query, container, input);
+	};
+
+	const handleContractSuggestionClick = (event) => {
+		const button = event.target.closest('.prepare-tp-contract-suggestion');
+		if (!button) {
+			return;
+		}
+		const { value, fileId } = button.dataset;
+		if (!fileId) {
+			return;
+		}
+		const input = tableBody?.querySelector(`.prepare-tp-contract-input[data-file-id="${fileId}"]`);
+		const container = button.parentElement;
+		closeContractSuggestionContainer(container);
+		if (!input) {
+			return;
+		}
+		input.value = value || '';
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+		input.focus();
+	};
+
 	const handleInlineChange = async (event) => {
 		const target = event.target;
 		const isOrgCheckbox = target.classList.contains('prepare-tp-org-checkbox');
@@ -760,6 +1004,9 @@
 	};
 
 	const handleTableClick = (event) => {
+		if (event.target.closest('.prepare-tp-contract-suggestion')) {
+			return;
+		}
 		const button = event.target.closest('button[data-action]');
 		const orgToggle = event.target.closest('.prepare-tp-org-toggle');
 		if (orgToggle) {
@@ -809,20 +1056,44 @@
 	};
 
 	const bindEvents = () => {
-		uploadInput?.addEventListener('change', updateUploadButtonState);
+		uploadInput?.addEventListener('change', () => {
+			updateUploadButtonState();
+			if (uploadLabel && uploadInput.files && uploadInput.files.length > 0) {
+				uploadLabel.textContent = uploadInput.files[0].name;
+			} else if (uploadLabel) {
+				uploadLabel.textContent = 'Choose file';
+			}
+		});
+		browseButton?.addEventListener('click', () => {
+			uploadInput?.click();
+		});
 		uploadButton?.addEventListener('click', handleUpload);
 		prepareButton?.addEventListener('click', handlePrepare);
 		resetButton?.addEventListener('click', handleReset);
 		tableBody?.addEventListener('click', handleTableClick);
+		// Moved to document level for global container
+		// tableBody?.addEventListener('click', handleContractSuggestionClick);
+		tableBody?.addEventListener('input', handleContractInput);
 		tableBody?.addEventListener('change', handleInlineChange);
+		document.addEventListener('click', handleContractSuggestionClick);
 		document.addEventListener('click', (event) => {
 			if (!event.target.closest('.prepare-tp-org-dropdown')) {
 				closeAllOrgDropdowns();
 			}
+			if (!event.target.closest('.prepare-tp-contract-input-wrapper') && !event.target.closest('.prepare-tp-contract-suggestions')) {
+				closeAllContractSuggestionContainers();
+			}
 		});
-		document.addEventListener('scroll', () => {
+		document.addEventListener('scroll', (event) => {
+			if (event.target && event.target.classList && event.target.classList.contains('prepare-tp-contract-suggestions')) {
+				return;
+			}
 			closeAllOrgDropdowns();
+			closeAllContractSuggestionContainers();
 		}, { capture: true, passive: true });
+		window.addEventListener('resize', () => {
+			closeAllContractSuggestionContainers();
+		}, { passive: true });
 	};
 
 	bindEvents();
