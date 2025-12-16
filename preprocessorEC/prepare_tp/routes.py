@@ -16,7 +16,7 @@ from ..common.session import (
     clear_prepare_tp_final_file,
     store_prepare_tp_final_file
 )
-from ..common.utils import load_organizations_map
+from ..common.utils import load_organizations_map, get_organization_full_name_map
 
 
 prepare_tp_bp = Blueprint(
@@ -484,6 +484,25 @@ def prepare_output():
         dataframes.append(pd.read_excel(path, dtype=str))
 
     combined_df = pd.concat(dataframes, ignore_index=True)
+
+    if 'Organization' in combined_df.columns:
+        org_map = get_organization_full_name_map()
+
+        def _split_orgs(val):
+            if isinstance(val, str):
+                return [x.strip() for x in val.split(',')]
+            return val
+
+        combined_df['Organization'] = combined_df['Organization'].apply(_split_orgs)
+        combined_df = combined_df.explode('Organization')
+
+        def _map_org(val):
+            if isinstance(val, str):
+                return org_map.get(val, val)
+            return val
+
+        combined_df['Organization'] = combined_df['Organization'].apply(_map_org)
+
     combined_df = _format_output_dataframe(combined_df)
     if 'Intended Action' in combined_df.columns:
         combined_df['Intended Action'] = combined_df['Intended Action'].apply(_translate_intended_action)

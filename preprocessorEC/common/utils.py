@@ -105,6 +105,41 @@ def load_organizations_map(path=None, force_reload=False):
     ]
     return _ORGANIZATIONS_CACHE
 
+
+def get_organization_full_name_map(path=None):
+    """
+    Returns a dictionary mapping Organization (abbreviation) to Organization Name (full name).
+    """
+    resolved_path = path or os.path.join(current_app.root_path, 'data', 'OrganizationsMap.xlsx')
+    
+    if not os.path.exists(resolved_path):
+        return {}
+
+    try:
+        df = pd.read_excel(resolved_path, dtype=str)
+    except Exception:
+        return {}
+
+    if 'Organization' not in df.columns or 'Organization Name' not in df.columns:
+        return {}
+
+    valid_mask = ~(df.get('Valid Mapping', pd.Series(['Yes'] * len(df))).fillna('Yes').str.strip().str.lower() == 'no')
+    
+    valid_df = df[valid_mask].copy()
+    valid_df['Organization'] = valid_df['Organization'].str.strip()
+    valid_df['Organization Name'] = valid_df['Organization Name'].str.strip()
+    
+    # Create mapping, filtering out empty keys
+    mapping = {}
+    for _, row in valid_df.iterrows():
+        org = row['Organization']
+        name = row['Organization Name']
+        if org and not pd.isna(org):
+            mapping[org] = name if name and not pd.isna(name) else org
+            
+    return mapping
+
+
 def read_file(file_path):
     """Read the uploaded file into a pandas DataFrame"""
     if file_path.endswith('.csv'):
