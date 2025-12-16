@@ -15,6 +15,7 @@ from ..common.session import (
     clear_prepare_tp_final_file,
     store_prepare_tp_final_file
 )
+from ..common.utils import load_organizations_map
 
 
 prepare_tp_bp = Blueprint(
@@ -57,6 +58,7 @@ OUTPUT_COLUMNS = [
     'QOE',
     'Effective Date',
     'Expiration Date',
+    'Organization',
     'Contract Number',
     'ERP Vendor ID',
     'Source Contract Type',
@@ -156,10 +158,12 @@ def _store_file_records(user_id, records):
 @prepare_tp_bp.route('/', methods=['GET'])
 @login_required
 def prepare_tp_home():
+    organizations = load_organizations_map()
     return render_template(
         'prepare_tp.html',
         intended_actions=INTENDED_ACTIONS,
         source_types=SOURCE_TYPES,
+        organizations=organizations,
     )
 
 
@@ -174,6 +178,7 @@ def get_state():
         'files': payload,
         'intended_actions': INTENDED_ACTIONS,
         'source_types': SOURCE_TYPES,
+        'organizations': load_organizations_map(),
     })
 
 
@@ -216,6 +221,7 @@ def upload_file():
         'status': 'uploaded',
         'row_count': len(df.index),
         'metadata': {
+            'organization': None,
             'intended_action': None,
             'contract_number': None,
             'vendor_erp_id': None,
@@ -249,25 +255,36 @@ def update_metadata(file_id):
 
     metadata = record.setdefault('metadata', {})
 
-    intended_action = payload.get('intended_action')
-    if intended_action is not None:
-        if intended_action not in INTENDED_ACTIONS and intended_action != '':
+    if 'intended_action' in payload:
+        intended_action = payload['intended_action']
+        if intended_action and intended_action not in INTENDED_ACTIONS:
             return jsonify({'success': False, 'message': 'Invalid intended action.'}), 400
         metadata['intended_action'] = intended_action or None
 
-    contract_number = payload.get('contract_number')
-    if contract_number is not None:
-        metadata['contract_number'] = contract_number.strip() or None
+    if 'contract_number' in payload:
+        contract_number = payload['contract_number']
+        metadata['contract_number'] = contract_number.strip() if contract_number else None
 
-    vendor_erp_id = payload.get('vendor_erp_id')
-    if vendor_erp_id is not None:
-        metadata['vendor_erp_id'] = vendor_erp_id.strip() or None
+    if 'vendor_erp_id' in payload:
+        vendor_erp_id = payload['vendor_erp_id']
+        metadata['vendor_erp_id'] = vendor_erp_id.strip() if vendor_erp_id else None
 
-    source_contract_type = payload.get('source_contract_type')
-    if source_contract_type is not None:
-        if source_contract_type not in SOURCE_TYPES and source_contract_type != '':
+    if 'source_contract_type' in payload:
+        source_contract_type = payload['source_contract_type']
+        if source_contract_type and source_contract_type not in SOURCE_TYPES:
             return jsonify({'success': False, 'message': 'Invalid source contract type.'}), 400
         metadata['source_contract_type'] = source_contract_type or None
+
+    if 'organization' in payload:
+        organization = payload['organization']
+        if isinstance(organization, list):
+            cleaned = [str(item).strip() for item in organization if str(item).strip()]
+            metadata['organization'] = cleaned or None
+        elif isinstance(organization, str):
+            cleaned = organization.strip()
+            metadata['organization'] = [cleaned] if cleaned else None
+        else:
+            metadata['organization'] = None
 
     if 'current_contract_end_date' in payload:
         record['current_contract_end_date'] = payload['current_contract_end_date'] or None
@@ -357,6 +374,12 @@ def commit_file(file_id):
     df = df.copy()
 
     metadata = record['metadata']
+    if metadata.get('organization'):
+        org_value = metadata['organization']
+        if isinstance(org_value, list):
+            df['Organization'] = ', '.join(org_value)
+        else:
+            df['Organization'] = org_value
     df['Contract Number'] = metadata['contract_number']
     df['ERP Vendor ID'] = metadata['vendor_erp_id']
     df['Source Contract Type'] = metadata['source_contract_type']

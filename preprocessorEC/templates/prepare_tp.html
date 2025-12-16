@@ -25,6 +25,8 @@
 
 	.prepare-tp-table-wrapper {
 		overflow-x: auto;
+		overflow-y: visible;
+		position: relative;
 		margin-bottom: 24px;
 	}
 
@@ -65,33 +67,39 @@
 
 	#prepare-tp-table th:nth-child(2),
 	#prepare-tp-table td:nth-child(2) {
-		min-width: 100px;
-		max-width: 130px;
+		min-width: 140px;
+		max-width: 180px;
 	}
 
 	#prepare-tp-table th:nth-child(3),
 	#prepare-tp-table td:nth-child(3) {
-		min-width: 200px;
+		min-width: 100px;
+		max-width: 130px;
 	}
 
 	#prepare-tp-table th:nth-child(4),
 	#prepare-tp-table td:nth-child(4) {
-		min-width: 100px;
+		min-width: 200px;
 	}
 
 	#prepare-tp-table th:nth-child(5),
 	#prepare-tp-table td:nth-child(5) {
+		min-width: 100px;
+	}
+
+	#prepare-tp-table th:nth-child(6),
+	#prepare-tp-table td:nth-child(6) {
 		min-width: 70px;
 	}
 
-	#prepare-tp-table th:nth-child(7),
-	#prepare-tp-table td:nth-child(7) {
+	#prepare-tp-table th:nth-child(8),
+	#prepare-tp-table td:nth-child(8) {
 		min-width: 140px;
 		max-width: 160px;
 	}
 
 	/* Place action buttons at the bottom center of the Actions cell */
-	#prepare-tp-table td:nth-child(7) {
+	#prepare-tp-table td:nth-child(8) {
 		display: flex;
 		align-items: flex-end; /* vertical bottom */
 		justify-content: center; /* horizontal center */
@@ -148,10 +156,79 @@
 		background-color: #fff;
 	}
 
+	.prepare-tp-inline-select {
+		appearance: none;
+		-webkit-appearance: none;
+		-moz-appearance: none;
+		background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280' stroke-width='2'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7' /%3e%3c/svg%3e");
+		background-repeat: no-repeat;
+		background-position: right 0.45rem center;
+		background-size: 0.85rem;
+		padding-right: 1.6rem;
+	}
+
 	.prepare-tp-inline-select:disabled,
 	.prepare-tp-inline-input:disabled {
 		background-color: #f3f4f6;
 		cursor: not-allowed;
+	}
+
+	.prepare-tp-org-dropdown {
+		position: relative;
+		text-align: left;
+		z-index: 20;
+	}
+
+	.prepare-tp-org-toggle {
+		width: 100%;
+		padding: 0.3rem 0.45rem;
+		border: 1px solid #d1d5db;
+		border-radius: 4px;
+		background-color: #fff;
+		font-size: 0.75rem;
+		text-align: left;
+		cursor: pointer;
+		padding-right: 1.6rem;
+		background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280' stroke-width='2'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7' /%3e%3c/svg%3e");
+		background-repeat: no-repeat;
+		background-position: right 0.45rem center;
+		background-size: 0.85rem;
+	}
+
+	.prepare-tp-org-menu {
+		display: none;
+		position: absolute;
+		top: calc(100% + 4px);
+		left: 0;
+		z-index: 30;
+		background: #fff;
+		border: 1px solid #d1d5db;
+		border-radius: 4px;
+		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+		max-height: 220px;
+		overflow-y: auto;
+		min-width: 180px;
+	}
+
+	.prepare-tp-org-dropdown.open .prepare-tp-org-menu {
+		display: block;
+	}
+
+	.prepare-tp-org-option {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.3rem 0.5rem;
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+
+	.prepare-tp-org-option:hover {
+		background-color: rgba(0, 123, 255, 0.08);
+	}
+
+	.prepare-tp-org-checkbox {
+		margin: 0;
 	}
 
 	.prepare-tp-actions {
@@ -336,6 +413,7 @@
 			<thead>
 				<tr>
 					<th>File Name</th>
+					<th>Organization</th>
 					<th>Intended Action</th>
 					<th>Contract Number</th>
 					<th>Vendor ERP ID</th>
@@ -346,7 +424,7 @@
 			</thead>
 			<tbody>
 				<tr class="prepare-tp-empty">
-					<td colspan="7">No files uploaded yet. Add your first contract file to begin.</td>
+					<td colspan="8">No files uploaded yet. Add your first contract file to begin.</td>
 				</tr>
 			</tbody>
 		</table>
@@ -384,7 +462,8 @@
 		'remove': url_for('prepare_tp.delete_file', file_id='__ID__')
 	},
 	'intendedActions': intended_actions,
-	'sourceTypes': source_types
+	'sourceTypes': source_types,
+	'organizations': organizations
 } | tojson }}
 </script>
 <script src="{{ url_for('static', filename='js/prepare_tp.js') }}" defer></script>

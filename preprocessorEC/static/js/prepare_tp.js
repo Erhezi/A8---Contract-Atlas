@@ -78,6 +78,19 @@
 		}
 	};
 
+	const closeAllOrgDropdowns = () => {
+		document.querySelectorAll('.prepare-tp-org-dropdown.open').forEach((el) => {
+			el.classList.remove('open');
+			const menu = el.querySelector('.prepare-tp-org-menu');
+			if (menu) {
+				menu.style.position = '';
+				menu.style.top = '';
+				menu.style.left = '';
+				menu.style.minWidth = '';
+			}
+		});
+	};
+
 	const updateFooterButtons = () => {
 		const anyCommitted = state.files.some((file) => file.status === 'committed');
 		prepareButton.disabled = !anyCommitted;
@@ -102,6 +115,58 @@
 	const hasDuplicateFilename = (filename) => {
 		const normalized = filename.trim().toLowerCase();
 		return state.files.some((file) => (file.filename || '').trim().toLowerCase() === normalized);
+	};
+
+	const normalizeOrganizationValues = (value) => {
+		if (Array.isArray(value)) {
+			return value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim());
+		}
+		if (typeof value === 'string') {
+			return value
+				.split(',')
+				.map((item) => item.trim())
+				.filter(Boolean);
+		}
+		return [];
+	};
+
+	const getOrganizationOptions = () => Array.isArray(config.organizations) ? config.organizations : [];
+
+	const sameOrgSelection = (a, b) => {
+		const normA = normalizeOrganizationValues(a).slice().sort();
+		const normB = normalizeOrganizationValues(b).slice().sort();
+		if (normA.length !== normB.length) return false;
+		return normA.every((val, idx) => val === normB[idx]);
+	};
+
+	const applyOrganizationSelectionRules = (container) => {
+		const checkboxes = Array.from(container.querySelectorAll('.prepare-tp-org-checkbox'));
+		const mhsBox = checkboxes.find((cb) => cb.value === 'MHS');
+		const hasMhs = Boolean(mhsBox?.checked);
+
+		checkboxes.forEach((cb) => {
+			if (cb.value === 'MHS') {
+				cb.disabled = false;
+				return;
+			}
+			cb.disabled = hasMhs;
+			if (hasMhs) {
+				cb.checked = false;
+			}
+		});
+	};
+
+	const getOrganizationSelection = (container) => (
+		Array.from(container.querySelectorAll('.prepare-tp-org-checkbox'))
+			.filter((cb) => cb.checked)
+			.map((cb) => cb.value)
+	);
+
+	const updateOrganizationDisplay = (container) => {
+		const button = container.querySelector('.prepare-tp-org-toggle');
+		if (!button) return;
+		const selected = getOrganizationSelection(container);
+		button.textContent = selected.length ? selected.join(', ') : 'Select...';
 	};
 
 	const buildStatusCell = (file) => {
@@ -144,6 +209,57 @@
 		return cell;
 	};
 
+	const buildOrganizationCell = (file) => {
+		const cell = document.createElement('td');
+		const container = document.createElement('div');
+		container.className = 'prepare-tp-org-dropdown';
+		container.dataset.fileId = file.id;
+
+		const toggle = document.createElement('button');
+		toggle.type = 'button';
+		toggle.className = 'prepare-tp-org-toggle';
+		toggle.textContent = 'Select organizations';
+		container.appendChild(toggle);
+
+		const menu = document.createElement('div');
+		menu.className = 'prepare-tp-org-menu';
+		const options = getOrganizationOptions();
+		const sortedOptions = [
+			...options.filter((opt) => opt.value === 'MHS'),
+			...options.filter((opt) => opt.value !== 'MHS'),
+		];
+
+		sortedOptions.forEach((opt) => {
+			const optionRow = document.createElement('label');
+			optionRow.className = 'prepare-tp-org-option';
+			const checkbox = document.createElement('input');
+			checkbox.type = 'checkbox';
+			checkbox.value = opt.value;
+			checkbox.dataset.field = 'organization';
+			checkbox.dataset.fileId = file.id;
+			checkbox.className = 'prepare-tp-org-checkbox';
+			const text = document.createElement('span');
+			text.textContent = opt.label || opt.value;
+			optionRow.appendChild(checkbox);
+			optionRow.appendChild(text);
+			menu.appendChild(optionRow);
+		});
+
+		container.appendChild(menu);
+		cell.appendChild(container);
+
+		const selectedOrgs = normalizeOrganizationValues(file.metadata?.organization);
+		const checkboxes = container.querySelectorAll('.prepare-tp-org-checkbox');
+		checkboxes.forEach((cb) => {
+			if (selectedOrgs.includes(cb.value)) {
+				cb.checked = true;
+			}
+		});
+		applyOrganizationSelectionRules(container);
+		updateOrganizationDisplay(container);
+		return cell;
+	};
+
 	const buildInputCell = (file, fieldName, type = 'text') => {
 		const cell = document.createElement('td');
 		const input = document.createElement('input');
@@ -167,6 +283,7 @@
 		const metadata = file.metadata || {};
 
 		row.appendChild(buildStatusCell(file));
+		row.appendChild(buildOrganizationCell(file));
 		row.appendChild(buildSelectCell(file, 'intended_action', config.intendedActions || []));
 		row.appendChild(buildInputCell(file, 'contract_number'));
 		row.appendChild(buildInputCell(file, 'vendor_erp_id'));
@@ -266,6 +383,16 @@
 			intendedSelect.value = metadata.intended_action || '';
 		}
 
+		const orgContainer = row.querySelector('.prepare-tp-org-dropdown');
+		if (orgContainer) {
+			const selectedOrgs = normalizeOrganizationValues(metadata.organization);
+			Array.from(orgContainer.querySelectorAll('.prepare-tp-org-checkbox')).forEach((cb) => {
+				cb.checked = selectedOrgs.includes(cb.value);
+			});
+			applyOrganizationSelectionRules(orgContainer);
+			updateOrganizationDisplay(orgContainer);
+		}
+
 		const contractInput = row.querySelector('input[data-field="contract_number"]');
 		if (contractInput) {
 			contractInput.value = metadata.contract_number || '';
@@ -308,7 +435,7 @@
 			const emptyRow = document.createElement('tr');
 			emptyRow.className = 'prepare-tp-empty';
 			const cell = document.createElement('td');
-			cell.colSpan = 7;
+			cell.colSpan = 8;
 			cell.textContent = 'No files uploaded yet. Add your first contract file to begin.';
 			emptyRow.appendChild(cell);
 			tableBody.appendChild(emptyRow);
@@ -326,6 +453,9 @@
 			const data = await response.json();
 			if (!data.success) {
 				throw new Error(data.message || 'Unable to load files');
+			}
+			if (Array.isArray(data.organizations)) {
+				config.organizations = data.organizations;
 			}
 			state.files = data.files || [];
 			renderTable();
@@ -570,7 +700,8 @@
 
 	const handleInlineChange = async (event) => {
 		const target = event.target;
-		if (!target.classList.contains('prepare-tp-inline-input') && !target.classList.contains('prepare-tp-inline-select')) {
+		const isOrgCheckbox = target.classList.contains('prepare-tp-org-checkbox');
+		if (!target.classList.contains('prepare-tp-inline-input') && !target.classList.contains('prepare-tp-inline-select') && !isOrgCheckbox) {
 			return;
 		}
 
@@ -587,19 +718,34 @@
 		}
 
 		let value = target.value;
-		if (target.type !== 'date' && typeof value === 'string') {
-			value = value.trim();
-		}
-
 		const payload = {};
-		payload[field] = value === '' ? null : value;
 
-		const currentValue = field === 'current_contract_end_date'
-			? (file.current_contract_end_date || null)
-			: (file.metadata?.[field] ?? null);
-		if ((payload[field] || null) === (currentValue || null)) {
-			target.value = payload[field] ?? '';
-			return;
+		if (field === 'organization') {
+			const container = target.closest('.prepare-tp-org-dropdown');
+			if (!container) {
+				return;
+			}
+			applyOrganizationSelectionRules(container);
+			const normalized = normalizeOrganizationValues(getOrganizationSelection(container));
+			const currentValue = file.metadata?.organization || [];
+			if (sameOrgSelection(normalized, currentValue)) {
+				return;
+			}
+			payload[field] = normalized.length ? normalized : null;
+			updateOrganizationDisplay(container);
+		} else {
+			if (target.type !== 'date' && typeof value === 'string') {
+				value = value.trim();
+			}
+			payload[field] = value === '' ? null : value;
+
+			const currentValue = field === 'current_contract_end_date'
+				? (file.current_contract_end_date || null)
+				: (file.metadata?.[field] ?? null);
+			if ((payload[field] || null) === (currentValue || null)) {
+				target.value = payload[field] ?? '';
+				return;
+			}
 		}
 
 		target.disabled = true;
@@ -615,6 +761,27 @@
 
 	const handleTableClick = (event) => {
 		const button = event.target.closest('button[data-action]');
+		const orgToggle = event.target.closest('.prepare-tp-org-toggle');
+		if (orgToggle) {
+			const container = orgToggle.closest('.prepare-tp-org-dropdown');
+			if (container) {
+				const alreadyOpen = container.classList.contains('open');
+				closeAllOrgDropdowns();
+				if (!alreadyOpen) {
+					container.classList.add('open');
+					const menu = container.querySelector('.prepare-tp-org-menu');
+					if (menu) {
+						const rect = orgToggle.getBoundingClientRect();
+						menu.style.position = 'fixed';
+						menu.style.top = `${rect.bottom + 4}px`;
+						menu.style.left = `${rect.left}px`;
+						menu.style.minWidth = `${rect.width}px`;
+					}
+				}
+			}
+			return;
+		}
+
 		if (!button) {
 			return;
 		}
@@ -648,6 +815,14 @@
 		resetButton?.addEventListener('click', handleReset);
 		tableBody?.addEventListener('click', handleTableClick);
 		tableBody?.addEventListener('change', handleInlineChange);
+		document.addEventListener('click', (event) => {
+			if (!event.target.closest('.prepare-tp-org-dropdown')) {
+				closeAllOrgDropdowns();
+			}
+		});
+		document.addEventListener('scroll', () => {
+			closeAllOrgDropdowns();
+		}, { capture: true, passive: true });
 	};
 
 	bindEvents();

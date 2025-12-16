@@ -15,6 +15,7 @@ import json
 
 # Global model cache
 _MODEL_CACHE = {}
+_ORGANIZATIONS_CACHE = None
 
 def make_json_serializable(obj):
     """Convert DataFrames and other non-serializable objects to JSON-serializable format"""
@@ -42,6 +43,67 @@ def make_json_serializable(obj):
 def allowed_file(filename):
     """Check if the file has an allowed extension"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'xlsx', 'csv'}
+
+
+def load_organizations_map(path=None, force_reload=False):
+    """Load allowed organizations from OrganizationsMap.xlsx, filtering out invalid mappings.
+
+    Returns a list of dicts with keys: value, label, group (MHS or Entity Specific).
+    """
+    global _ORGANIZATIONS_CACHE
+
+    if _ORGANIZATIONS_CACHE is not None and not force_reload and path is None:
+        return _ORGANIZATIONS_CACHE
+
+    resolved_path = path or os.path.join(current_app.root_path, 'data', 'OrganizationsMap.xlsx')
+
+    if not os.path.exists(resolved_path):
+        current_app.logger.warning('Organizations map file not found at %s', resolved_path)
+        _ORGANIZATIONS_CACHE = []
+        return _ORGANIZATIONS_CACHE
+
+    try:
+        df = pd.read_excel(resolved_path, dtype=str)
+    except Exception as exc:  # noqa: BLE001
+        current_app.logger.error('Failed to read organizations map: %s', exc)
+        _ORGANIZATIONS_CACHE = []
+        return _ORGANIZATIONS_CACHE
+
+    if 'Organization' not in df.columns:
+        current_app.logger.warning('Organizations map missing required "Organization" column')
+        _ORGANIZATIONS_CACHE = []
+        return _ORGANIZATIONS_CACHE
+
+    valid_mask = ~(df.get('Valid Mapping', pd.Series(['Yes'] * len(df))).fillna('Yes').str.strip().str.lower() == 'no')
+    organizations = (
+        df.loc[valid_mask, 'Organization']
+        .dropna()
+        .astype(str)
+        .str.strip()
+    )
+
+    unique_orgs = []
+    seen = set()
+    # Preserve MHS first if present, then alphabetical for the rest
+    for org in organizations:
+        if not org or org in seen:
+            continue
+        seen.add(org)
+        unique_orgs.append(org)
+
+    # Move MHS to the front
+    unique_orgs = ([org for org in unique_orgs if org == 'MHS'] +
+                   sorted([org for org in unique_orgs if org != 'MHS']))
+
+    _ORGANIZATIONS_CACHE = [
+        {
+            'value': org,
+            'label': org,
+            'group': 'MHS' if org == 'MHS' else 'Entity Specific',
+        }
+        for org in unique_orgs
+    ]
+    return _ORGANIZATIONS_CACHE
 
 def read_file(file_path):
     """Read the uploaded file into a pandas DataFrame"""
